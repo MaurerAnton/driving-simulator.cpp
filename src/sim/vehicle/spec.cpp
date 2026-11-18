@@ -6,7 +6,7 @@
  * Origin: src/sim/vehicle/spec.ts (MaurerAnton/driving-simulator @ 5b6ddc7,
  * v0.1.0).  The numbers are carried over exactly.
  */
-#include "sim/vehicle/types.h"
+#include "sim/vehicle/spec.h"
 
 namespace fs {
 
@@ -68,32 +68,27 @@ VehicleSpec makeCompact() {
 }
 }  // namespace
 
-const VehicleSpec& compactCar() {
-  static const VehicleSpec s = makeCompact();
-  return s;
-}
+const VehicleSpec& compactCar() { return COMPACT_CAR; }
+const VehicleSpec& compactCarAutoclutch() { return COMPACT_CAR_AUTOCLUTCH; }
+const VehicleSpec& compactCarAutomatic() { return COMPACT_CAR_AUTOMATIC; }
 
-const VehicleSpec& compactCarAutoclutch() {
-  static const VehicleSpec s = [] {
-    VehicleSpec v = makeCompact();
-    v.name = "Kompaktwagen, Kupplungshilfe";
-    v.autoClutch = true;
-    return v;
-  }();
-  return s;
-}
+const VehicleSpec COMPACT_CAR = makeCompact();
 
-const VehicleSpec& compactCarAutomatic() {
-  static const VehicleSpec s = [] {
-    VehicleSpec v = makeCompact();
-    v.name = "Kompaktwagen 1.5 Benzin, Automatik";
-    v.transmission = "automatic";
-    v.gearRatios = {3.9, 2.3, 1.45, 1.05, 0.82, 0.66};
-    // torque converter, pump and planetary sets cost a little more
-    v.drivelineEfficiency = 0.87;
-    return v;
-  }();
-  return s;
-}
+const VehicleSpec COMPACT_CAR_AUTOCLUTCH = [] {
+  VehicleSpec v = makeCompact();
+  v.name = "Kompaktwagen, Kupplungshilfe";
+  v.autoClutch = true;
+  return v;
+}();
+
+const VehicleSpec COMPACT_CAR_AUTOMATIC = [] {
+  VehicleSpec v = makeCompact();
+  v.name = "Kompaktwagen 1.5 Benzin, Automatik";
+  v.transmission = "automatic";
+  v.gearRatios = {3.9, 2.3, 1.45, 1.05, 0.82, 0.66};
+  // torque converter, pump and planetary sets cost a little more
+  v.drivelineEfficiency = 0.87;
+  return v;
+}();
 
 }  // namespace fs

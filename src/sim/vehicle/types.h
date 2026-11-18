@@ -125,7 +125,7 @@ struct VehicleSpec {
   double dragArea = 0.65;        // Cd·A
 };
 
-/** One of the built-in vehicles (COMPACT_CAR, …). */
+/** One of the built-in vehicles (COMPACT_CAR, …), see spec.h. */
 const VehicleSpec& compactCar();
 const VehicleSpec& compactCarAutoclutch();
 const VehicleSpec& compactCarAutomatic();
