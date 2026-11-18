@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/user/driving-simulator-cpp/build-native/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

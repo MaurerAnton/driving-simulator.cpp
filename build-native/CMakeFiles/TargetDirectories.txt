@@ -1,6 +1,0 @@
-/home/user/driving-simulator-cpp/build-native/CMakeFiles/fahrsim.dir
-/home/user/driving-simulator-cpp/build-native/CMakeFiles/i18n_test.dir
-/home/user/driving-simulator-cpp/build-native/CMakeFiles/math_test.dir
-/home/user/driving-simulator-cpp/build-native/CMakeFiles/test.dir
-/home/user/driving-simulator-cpp/build-native/CMakeFiles/edit_cache.dir
-/home/user/driving-simulator-cpp/build-native/CMakeFiles/rebuild_cache.dir
