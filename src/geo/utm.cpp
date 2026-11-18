@@ -34,7 +34,8 @@ constexpr double BETA[3] = {N1 / 2 - (2 * N2) / 3 + (37 * N3) / 96,
 constexpr double DELTA[3] = {2 * N1 - (2 * N2) / 3 - 2 * N3,
                              (7 * N2) / 3 - (8 * N3) / 5,
                              (56 * N3) / 15};
-constexpr double E_CONF = (2 * std::sqrt(N1)) / (1 + N1);
+// std::sqrt is not constexpr in C++17, so this one is computed at runtime
+double eConf() { return (2 * std::sqrt(N1)) / (1 + N1); }
 constexpr double PI_U = 3.14159265358979323846;
 
 // the Krüger series need atanh() for |x| < 1 only (the inputs are sines)
@@ -45,7 +46,7 @@ std::pair<double, double> latLonToUtm32(double latDeg, double lonDeg) {
   double phi = (latDeg * PI_U) / 180;
   double dLam = (lonDeg * PI_U) / 180 - LON0_ZONE32;
   double sinPhi = std::sin(phi);
-  double t = std::sinh(atanhD(sinPhi) - E_CONF * atanhD(E_CONF * sinPhi));
+  double t = std::sinh(atanhD(sinPhi) - eConf() * atanhD(eConf() * sinPhi));
   double xiP = std::atan2(t, std::cos(dLam));
   double etaP = atanhD(std::sin(dLam) / std::sqrt(1 + t * t));
   double xi = xiP;
