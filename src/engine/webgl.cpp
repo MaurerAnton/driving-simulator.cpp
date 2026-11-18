@@ -88,6 +88,9 @@ void WebGLRenderer::collect(Object3D& root, const Matrix4& parentWorld, std::vec
   }
 
   for (auto& c : root.children) collect(*c, world, out);
+  if (auto* sc = dynamic_cast<Scene*>(&root))
+    for (Object3D* b : sc->borrowed_)
+      if (b) collect(*b, world, out);
 }
 
 void WebGLRenderer::gatherLights(Object3D& root, FrameLights& out) {
@@ -118,6 +121,9 @@ void WebGLRenderer::gatherLights(Object3D& root, FrameLights& out) {
     out.fogFar = fog->far;
   }
   for (auto& c : root.children) gatherLights(*c, out);
+  if (auto* sc = dynamic_cast<Scene*>(&root))
+    for (Object3D* b : sc->borrowed_)
+      if (b) gatherLights(*b, out);
 }
 
 void WebGLRenderer::render(Scene& scene, Camera& camera) {

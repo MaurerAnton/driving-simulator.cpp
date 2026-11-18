@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cmath>
+
+#include "engine/math.h"
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -24,9 +26,9 @@
 
 namespace fs {
 
+// PI/TAU/DEG come from engine/math.h (one definition for the whole port);
+// PI_ is the historical alias this file started with.
 constexpr double PI_ = 3.14159265358979323846;
-constexpr double TAU = 6.283185307179586;
-constexpr double DEG = 0.017453292519943295;
 
 inline double clamp(double v, double lo, double hi) { return v < lo ? lo : v > hi ? hi : v; }
 inline double lerp(double a, double b, double t) { return a + (b - a) * t; }

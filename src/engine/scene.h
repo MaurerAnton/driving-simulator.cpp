@@ -49,6 +49,9 @@ class Object3D {
     return children.back().get();
   }
 
+  /** Add a node the caller owns (the scene must not delete it). */
+  Object3D* addRef(Object3D* child);
+
   void remove(Object3D* child) {
     for (size_t i = 0; i < children.size(); i++) {
       if (children[i].get() == child) {
@@ -131,6 +134,17 @@ class Scene : public Object3D {
  public:
   /** three.js scene.fog — set by the sky in App's constructor. */
   std::shared_ptr<Fog> fog;
+  /** nodes added with addRef(): owned elsewhere, walked like the rest. */
+  std::vector<Object3D*> borrowed_;
+
+  /** Add a node the caller owns (the scene must not delete it). */
+  Object3D* addRef(Object3D* child) {
+    if (!child) return nullptr;
+    if (child->parent) child->parent->remove(child);
+    child->parent = this;
+    borrowed_.push_back(child);
+    return child;
+  }
 };
 
 /** Nearest fog on this node or an ancestor (three.js resolves fog per object). */

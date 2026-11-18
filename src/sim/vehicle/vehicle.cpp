@@ -22,7 +22,7 @@ constexpr double RPM = 30.0 / PI_;
 /** suspension length at full droop (attachment to wheel centre) */
 constexpr double L_MAX = 0.36;
 
-double clampD(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
+// clampD comes from engine/math.h (one definition for the whole port)
 
 int signD(double v) { return v > 0 ? 1 : (v < 0 ? -1 : 0); }
 }  // namespace
