@@ -19,9 +19,10 @@ option(FAHRSIM_WASM "Build the WebAssembly target (Emscripten)" ${EMSCRIPTEN})
 
 # --- sources -----------------------------------------------------------------
 # Grown incrementally: engine/ (three.js equivalent), game/ (the simulator),
-# i18n/ (translation data). Each file carries "// Origin: src/…".
+# app/ (entry point).  Each file carries "// Origin: src/…".
 file(GLOB_RECURSE FAHRSIM_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+
 # everything except the entry point (the entry point is only for the executable)
 list(FILTER FAHRSIM_SOURCES EXCLUDE REGEX "src/app/main\\.cpp$")
 set(FAHRSIM_APP_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/app/main.cpp")

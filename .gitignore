@@ -1,6 +1,5 @@
-build/
+build*/
 node_modules/
 *.wasm
 *.js.map
 .cache/
-build*/
