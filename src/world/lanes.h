@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * Lane graph: per-direction lanes along the edges, connectors between them at
- * junctions, and the routing (A*) the navigator and the AI drivers use.
+ * junctions, the conflicts between those connectors, and the routing the
+ * navigator and the AI drivers use.
  *
  * Origin: src/world/lanes.ts (MaurerAnton/driving-simulator @ 5b6ddc7, v0.1.0).
  */
 #pragma once
 
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -18,6 +20,7 @@ namespace fs {
 class World;
 struct Edge;
 struct Node;
+struct Arm;
 
 /** Movement type of a connector (turn:lanes). */
 enum Turn : int { TURN_STRAIGHT = 0, TURN_LEFT = 1, TURN_RIGHT = 2, TURN_UTURN = 3 };
@@ -26,94 +29,99 @@ enum Turn : int { TURN_STRAIGHT = 0, TURN_LEFT = 1, TURN_RIGHT = 2, TURN_UTURN =
 struct Lane {
   int id = 0;
   Edge* edge = nullptr;
-  /** +1 = along a→b, -1 = along b→a */
+  /** +1 travels a→b, -1 travels b→a */
   int dir = 1;
-  /** 0-based index of the lane across the carriageway, counted from the right
-   *  when facing travel direction */
+  /** 0 = right-most lane of its direction */
   int idx = 0;
-  /** lateral offset of the lane centre from the edge centreline (m, left = +) */
+  /** number of lanes in this direction */
+  int count = 0;
+  /** lateral offset of the lane centre from the edge centreline (+ = left of a→b) */
   double off = 0;
-  /** width of the lane (m) */
   double width = 0;
-  Polyline3 pl;
+  /** edge stations where the lane starts and ends (in travel order) */
+  double s0 = 0, s1 = 0;
   double len = 0;
-  /** speed limit in km/h (0 = class default) */
-  int maxKmh = 0;
-  /** surface (SURF) */
-  int surf = 0;
-  /** edge flag bits this lane inherits */
-  int flags = 0;
-  /** true when traffic may not enter from the far end (one-way) */
-  bool noEntry = false;
-  /** outgoing connectors (from this lane) */
+  Node* from = nullptr;
+  Node* to = nullptr;
+  /** arm of `to` this lane arrives on / arm of `from` it leaves by */
+  Arm* armTo = nullptr;
+  Arm* armFrom = nullptr;
   std::vector<struct Connector*> out;
+  std::vector<struct Connector*> in;
+  /** speed limit in m/s (infinity = none) */
+  double limit = std::numeric_limits<double>::infinity();
+  /** distance from the lane start to the stop/yield line before `to` */
+  double stopAt = 0;
 };
 
 /** A legal move from one lane to another across a junction. */
 struct Connector {
   int id = 0;
+  Node* node = nullptr;
   Lane* from = nullptr;
   Lane* to = nullptr;
-  /** junction node this connector crosses */
-  Node* node = nullptr;
   /** TURN_* */
   int turn = TURN_STRAIGHT;
-  /** false when the move is forbidden (banned movement, wrong direction) */
-  bool allowed = true;
-  /** metres travelled through the junction */
+  Polyline3 pl;
   double len = 0;
-  /** stop/yield line distance from the node on the approach (-1 = none) */
-  double stopS = -1;
-  /** approach role (ROLE) for traffic arriving on `from` */
-  int role = ROLE_NONE;
-  /** signal group index on the node's controller, or -1 */
-  int sg = -1;
-  /** traffic light state for this connector's group (updated by SignalSystem) */
-  int light = 0;
-  /** right-of-way: how much distance is needed past the junction */
-  double clearance = 0;
+  std::vector<struct Conflict> conflicts;
+  /** connectors leaving the same lane, with the stations up to which the two
+   *  paths overlap */
+  std::vector<struct Sibling> siblings;
 };
 
-/** A conflict between two connectors at the same junction. */
+/** Where two connectors' paths meet, and who gives way. */
 struct Conflict {
-  Connector* a = nullptr;
-  Connector* b = nullptr;
+  Connector* other = nullptr;
+  /** distance along this connector / the other one to the conflict point */
+  double sSelf = 0, sOther = 0;
+  bool merge = false;
+  /** this connector has to give way to `other` */
+  bool yield = false;
+};
+
+struct Sibling {
+  Connector* other = nullptr;
+  double until = 0, untilOther = 0;
 };
 
 class LaneGraph {
  public:
   explicit LaneGraph(World& world);
 
-  /** All lanes, in creation order. */
-  const std::vector<Lane>& lanes() const { return lanes_; }
-  const std::vector<Connector>& connectors() const { return connectors_; }
+  World& world;
+  std::vector<Lane> lanes;
+  std::vector<Connector> connectors;
+  /** lanes of each edge: [forward lanes right→left, backward lanes right→left] */
+  struct EdgeLanes {
+    std::vector<Lane*> fwd;
+    std::vector<Lane*> back;
+  };
+  std::vector<EdgeLanes> edgeLanes;
 
-  /** Lane with the given id (nullptr when out of range). */
-  Lane* lane(int id) { return id >= 0 && static_cast<size_t>(id) < lanes_.size() ? &lanes_[static_cast<size_t>(id)] : nullptr; }
-  Connector* connector(int id) { return id >= 0 && static_cast<size_t>(id) < connectors_.size() ? &connectors_[static_cast<size_t>(id)] : nullptr; }
+  /** Lanes arriving at / leaving the node on an arm. */
+  std::vector<Lane*> lanesInto(const Arm& arm);
+  std::vector<Lane*> lanesOutOf(const Arm& arm);
 
-  /** Lanes of an edge (both directions, forward lanes first). */
-  std::vector<Lane*> lanesOf(const Edge& e);
-
-  /** Position/tangent along a lane at distance d. */
-  static PolySample lanePoint(const Lane& lane, double d, PolySample out);
+  /** May ordinary traffic use this edge in this direction? */
+  static bool drivable(const Edge& e, bool forTraffic);
 
   /**
-   * Shortest route from `from` to `goal`, as the connectors to follow.
-   * Returns false when there is no route (as the JS `route` does).
+   * Shortest route (by travel time) from the end of lane `start` to any lane
+   * of `goal`.  Returns the connectors to take, or an empty vector when
+   * there is none.  `forTraffic` restricts the search to ordinary public roads.
    */
-  bool route(const Lane& from, const Edge* goal, bool allowUTurn,
-             std::vector<Connector*>& out);
-
-  /** Nearest lane to (x, z) on the given edge, or nullptr. */
-  Lane* nearestLane(const Edge& e, double x, double z, double* outOffset = nullptr);
+  std::vector<Connector*> route(const Lane& start, const Edge& goal, bool forTraffic = false);
 
  private:
-  World& world_;
-  std::vector<Lane> lanes_;
-  std::vector<Connector> connectors_;
-
-  void build();
+  void buildLanes();
+  void buildConnectors();
+  void buildConflicts();
+  void addConnector(Node& node, Lane& from, Lane& to, int turn);
+  bool yields(const Connector& c1, const Connector& c2, bool merge) const;
 };
+
+/** Position on a lane at distance d from its start. */
+PolySample lanePoint(const Lane& lane, double d, PolySample out);
 
 }  // namespace fs
