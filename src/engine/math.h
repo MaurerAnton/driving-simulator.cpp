@@ -135,6 +135,8 @@ struct Vector3 {
   Vector3& applyQuaternion(const struct Quaternion& q);
   Vector3& applyEuler(const struct Euler& e);
   Vector3& applyAxisAngle(const Vector3& axis, double angle);
+  /** Transform a direction (ignores translation, three.js transformDirection). */
+  Vector3& transformDirection(const struct Matrix4& m);
 
   bool operator==(const Vector3& o) const { return x == o.x && y == o.y && z == o.z; }
   bool operator!=(const Vector3& o) const { return !(*this == o); }
@@ -246,6 +248,14 @@ struct Matrix4 {
   }
   Matrix4& makeTranslation(double x, double y, double z) {
     return set(1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1);
+  }
+  /** three.js Matrix4.makeBasis: the three columns are the given axes. */
+  Matrix4& makeBasis(const Vector3& xAxis, const Vector3& yAxis, const Vector3& zAxis) {
+    set(xAxis.x, yAxis.x, zAxis.x, 0,
+        xAxis.y, yAxis.y, zAxis.y, 0,
+        xAxis.z, yAxis.z, zAxis.z, 0,
+        0, 0, 0, 1);
+    return *this;
   }
   Matrix4& makeRotationFromEuler(const Euler& euler);
   Matrix4& makeRotationFromQuaternion(const Quaternion& q);
@@ -447,6 +457,14 @@ inline Vector3& Vector3::applyEuler(const Euler& e) {
   q.setFromEuler(e);
   return applyQuaternion(q);
 }
+inline Vector3& Vector3::transformDirection(const Matrix4& m) {
+  double xe = x, ye = y, ze = z;
+  x = m.e[0] * xe + m.e[4] * ye + m.e[8] * ze;
+  y = m.e[1] * xe + m.e[5] * ye + m.e[9] * ze;
+  z = m.e[2] * xe + m.e[6] * ye + m.e[10] * ze;
+  return normalize();
+}
+
 inline Vector3& Vector3::applyAxisAngle(const Vector3& axis, double angle) {
   Quaternion q;
   q.setFromAxisAngle(axis, angle);

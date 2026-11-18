@@ -187,6 +187,8 @@ inline const Fog* findFogOf(const Object3D& o) {
 
 class Camera : public Object3D {
  public:
+  /** the inverse of matrixWorld (three.js keeps it for the renderer) */
+  Matrix4 matrixWorldInverse;
   double aspect = 1;
   double near = 0.1;
   double far = 2000;
