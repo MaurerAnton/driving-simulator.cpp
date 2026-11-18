@@ -186,6 +186,8 @@ struct Quaternion {
   }
   Quaternion& setFromRotationMatrix(const struct Matrix4& m);
   Quaternion& setFromEuler(const Euler& e);
+  /** Shortest rotation taking `from` to `to` (three.js setFromUnitVectors). */
+  Quaternion& setFromUnitVectors(const Vector3& from, const Vector3& to);
   Quaternion& multiply(const Quaternion& q) { return multiplyQuaternions(*this, q); }
   Quaternion& multiplyQuaternions(const Quaternion& a, const Quaternion& b) {
     double ax = a.x, ay = a.y, az = a.z, aw = a.w;
@@ -468,6 +470,29 @@ inline Quaternion& Quaternion::setFromEuler(const Euler& e) {
   }
   return *this;
 }
+inline Quaternion& Quaternion::setFromUnitVectors(const Vector3& fromV, const Vector3& toV) {
+  double r = fromV.dot(toV) + 1;
+  if (r < 1e-8) {
+    // opposite vectors: pick any perpendicular axis
+    r = 0;
+    if (std::fabs(fromV.x) > std::fabs(fromV.z)) {
+      x = -fromV.y;
+      y = fromV.x;
+      z = 0;
+    } else {
+      x = 0;
+      y = -fromV.z;
+      z = fromV.y;
+    }
+  } else {
+    x = fromV.y * toV.z - fromV.z * toV.y;
+    y = fromV.z * toV.x - fromV.x * toV.z;
+    z = fromV.x * toV.y - fromV.y * toV.x;
+  }
+  w = r;
+  return normalize();
+}
+
 inline Quaternion& Quaternion::setFromRotationMatrix(const Matrix4& m) {
   // three.js Matrix4.extractRotation path: quaternion from a pure rotation matrix
   double te = m.e[0] + m.e[5] + m.e[10];

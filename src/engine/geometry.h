@@ -33,11 +33,22 @@ class BufferAttribute {
   BufferAttribute() = default;
   BufferAttribute(std::vector<double> a, int item) : array(std::move(a)), itemSize(item) {}
 
-  size_t count() const { return itemSize > 0 ? array.size() / static_cast<size_t>(itemSize) : 0; }
+  size_t count() const {
+    return itemSize > 0 ? array.size() / static_cast<size_t>(itemSize) : 0;
+  }
 
-  double getX(size_t i) const { return array[i * static_cast<size_t>(itemSize)]; }
-  double getY(size_t i) const { return array[i * static_cast<size_t>(itemSize) + 1]; }
-  double getZ(size_t i) const { return array[i * static_cast<size_t>(itemSize) + 2]; }
+  double getX(size_t i) const {
+    size_t o = i * static_cast<size_t>(itemSize);
+    return o < array.size() ? array[o] : 0.0;
+  }
+  double getY(size_t i) const {
+    size_t o = i * static_cast<size_t>(itemSize) + 1;
+    return o < array.size() ? array[o] : 0.0;
+  }
+  double getZ(size_t i) const {
+    size_t o = i * static_cast<size_t>(itemSize) + 2;
+    return o < array.size() ? array[o] : 0.0;
+  }
   double getW(size_t i) const { return array[i * static_cast<size_t>(itemSize) + 3]; }
 
   void setXYZ(size_t i, double x, double y, double z) {

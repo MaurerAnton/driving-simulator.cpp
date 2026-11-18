@@ -139,6 +139,7 @@ void BufferGeometry::rotateZ(double a) {
   double c = std::cos(a), s = std::sin(a);
   for (size_t i = 0; i < position->count(); i++) {
     double x = position->array[i * 3], y = position->array[i * 3 + 1];
+    // about the Z axis: x' = x cos − y sin, y' = x sin + y cos
     position->array[i * 3] = x * c - y * s;
     position->array[i * 3 + 1] = x * s + y * c;
   }

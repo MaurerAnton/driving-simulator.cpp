@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The player's car body: the shapes that make up the shell, the glass and the
- * wheels, in the car's own frame (x right, y up, z back).
+ * The cars you see: body shell geometry built from cross-sections, plus the
+ * four wheels.
+ *
+ * Car frame: origin on the ground below the middle of the wheelbase,
+ * +X right, +Y up, -Z forward.  Left-hand drive.
  *
  * Origin: src/render/carBody.ts (MaurerAnton/driving-simulator @ 5b6ddc7,
  * v0.1.0).
@@ -9,6 +12,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "engine/geometry.h"
@@ -16,26 +20,57 @@
 
 namespace fs {
 
-/** What one wheel looks like (radius, width, rim style). */
-struct WheelStyle {
-  double radius = 0.316;
-  double width = 0.22;
-  int rim = 0;
+/** The car's proportions. */
+struct CarDims {
+  double length = 4.28;
+  double width = 1.79;
+  double height = 1.46;
+  double wheelbase = 2.63;
+  double track = 1.54;
+  double wheelRadius = 0.316;
+  double tyreWidth = 0.205;
+  double frontOverhang = 0.88;
+  /** 0 notchback, 1 hatchback, 2 estate */
+  int tail = 0;
 };
 
-/** The pieces of the car body, ready to be added to a Group. */
-struct CarBody {
-  std::unique_ptr<Group> shell;     // painted body panels
-  std::unique_ptr<Group> glass;     // windows
-  std::unique_ptr<Group> trim;      // bumpers, mirrors, grille
-  std::unique_ptr<Group> lights;    // head and tail lights
-  std::vector<std::unique_ptr<Mesh>> wheels;  // four, in order FL FR RL RR
-
-  /** Build the body for a given paint colour (sRGB hex) and wheel style. */
-  static std::unique_ptr<CarBody> build(uint32_t paint, const WheelStyle& wheels);
+/** One cross-section of the body loft (a station of the shell). */
+struct Section {
+  double z = 0;      // station along the car
+  double w = 0;      // half width at the sill
+  double yb = 0;     // sill (bottom of the body)
+  double ym = 0;     // waistline
+  double ybelt = 0;  // belt line (bottom of the glass)
+  double wr = 0;     // half width at the roof
+  double yr = 0;     // roof height
+  double yc = 0;     // crown of the roof
 };
 
-/** Colour of the standard driving-school car. */
-constexpr uint32_t SCHOOL_CAR_PAINT = 0xf2f2f2;
+/** The finished shell: one geometry per material plus the landmarks. */
+struct CarShell {
+  GeometryPtr paint;
+  GeometryPtr glass;
+  GeometryPtr trim;
+  /** inward-facing copy of the opaque shell (cabin lining), without the glazing */
+  GeometryPtr lining;
+  /** A pillars: solid bars along the windscreen edges, seen from inside and outside */
+  GeometryPtr pillars;
+  /** z of front and rear axle, bumper tips, cabin landmarks */
+  double zFront = 0, zRear = 0, zAxleF = 0, zAxleR = 0;
+  double zCowl = 0, zRoofFront = 0, zRoofRear = 0;
+  double halfWidth = 0, beltY = 0, roofY = 0;
+};
+
+/** The standard driving-school compact (4.28 m, 1.79 m wide). */
+extern const CarDims COMPACT_DIMS;
+
+/** Build the shell of a car with these proportions. */
+CarShell buildCarShell(const CarDims& d);
+
+/** One wheel: tyre plus rim, axle along Z (three.js CylinderGeometry rotated). */
+GeometryPtr buildWheel(double radius, double width, int rim = 0);
+
+/** The two parts of a wheel, kept separate so the game can tint them. */
+std::pair<GeometryPtr, GeometryPtr> buildWheelParts(const CarDims& d);
 
 }  // namespace fs
