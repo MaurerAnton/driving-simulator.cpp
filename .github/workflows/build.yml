@@ -1,0 +1,45 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  wasm:
+    name: Emscripten WASM build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.74
+
+      - name: Configure (Emscripten)
+        run: emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Report
+        run: |
+          ls -la build/fahrsim.js build/fahrsim.wasm
+          wc -c build/fahrsim.wasm
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fahrsim-wasm
+          path: |
+            build/fahrsim.js
+            build/fahrsim.wasm
+
+  parity:
+    name: LOC parity report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report parity
+        run: python3 tools/parity.py || true
