@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include "engine/geometry.h"
+#include "engine/materials.h"
 #include "engine/math.h"
 
 namespace fs {
@@ -90,12 +92,57 @@ class Object3D {
 };
 
 // ---------------------------------------------------------------------------
+// Fog (three.js Fog)
+// ---------------------------------------------------------------------------
+
+struct Fog {
+  Color color;
+  double near = 1;
+  double far = 1000;
+  Fog() = default;
+  Fog(uint32_t hex, double n, double f) : near(n), far(f) { color.setHex(hex); }
+};
+
+// ---------------------------------------------------------------------------
+// Mesh
+// ---------------------------------------------------------------------------
+
+/** A drawable node: geometry plus the material kind the backend compiles. */
+class Mesh : public Object3D {
+ public:
+  Mesh() = default;
+  Mesh(GeometryPtr g, MaterialKind k) : geometry(std::move(g)), kind(k) {}
+  GeometryPtr geometry;
+  MaterialKind kind = MaterialKind::Struct;
+  /** instanced draws (three.js InstancedMesh): one matrix per instance */
+  std::vector<Matrix4> instances;
+  std::vector<Color> instanceColors;
+  bool castShadow = false;
+  bool receiveShadow = false;
+};
+
+// ---------------------------------------------------------------------------
 // Group / Scene / Camera
 // ---------------------------------------------------------------------------
 
 class Group : public Object3D {};
 
-class Scene : public Object3D {};
+class Scene : public Object3D {
+ public:
+  /** three.js scene.fog — set by the sky in App's constructor. */
+  std::shared_ptr<Fog> fog;
+};
+
+/** Nearest fog on this node or an ancestor (three.js resolves fog per object). */
+inline const Fog* findFogOf(const Object3D& o) {
+  const Object3D* n = &o;
+  while (n) {
+    if (auto* s = dynamic_cast<const Scene*>(n))
+      if (s->fog) return s->fog.get();
+    n = n->parent;
+  }
+  return nullptr;
+}
 
 class Camera : public Object3D {
  public:
@@ -153,18 +200,6 @@ class AmbientLight : public Light {
  public:
   AmbientLight() = default;
   AmbientLight(uint32_t hex, double i) { color.setHex(hex); intensity = i; }
-};
-
-// ---------------------------------------------------------------------------
-// Fog (three.js Fog)
-// ---------------------------------------------------------------------------
-
-struct Fog {
-  Color color;
-  double near = 1;
-  double far = 1000;
-  Fog() = default;
-  Fog(uint32_t hex, double n, double f) : near(n), far(f) { color.setHex(hex); }
 };
 
 }  // namespace fs
