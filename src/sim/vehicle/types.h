@@ -41,8 +41,11 @@ struct GroundSample {
 class Ground {
  public:
   virtual ~Ground() = default;
-  /** Sample the ground at (x, z): height, normal, grip and rolling resistance. */
-  virtual GroundSample sample(double x, double z) = 0;
+  /**
+   * Sample the ground at (x, z).  `yRef` picks the right deck where roads
+   * cross at different levels; the result is written into `out`.
+   */
+  virtual void sample(double x, double z, double yRef, GroundSample& out) = 0;
   /** Surface roughness for the audio (1 asphalt … 3 gravel). */
   virtual double roughnessAt(double x, double z) {
     (void)x;
