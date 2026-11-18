@@ -401,6 +401,12 @@ inline double degToRad(double d) { return d * DEG; }
 inline double radToDeg(double r) { return r * RAD; }
 inline double lerp(double a, double b, double t) { return a + (b - a) * t; }
 inline double clamp(double v, double lo, double hi) { return clampD(v, lo, hi); }
+/** three.js MathUtils.smoothstep */
+inline double smoothstep(double x, double min, double max) {
+  if (min >= max) return x < min ? 0 : 1;
+  double t = clampD((x - min) / (max - min), 0, 1);
+  return t * t * (3 - 2 * t);
+}
 }  // namespace MathUtils
 
 // ---------------------------------------------------------------------------
