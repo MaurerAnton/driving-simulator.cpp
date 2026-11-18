@@ -38,6 +38,8 @@ class Object3D {
   std::string name;
   Object3D* parent = nullptr;
   std::vector<std::unique_ptr<Object3D>> children;
+  /** children added with addRef(): owned elsewhere, walked like the rest */
+  std::vector<Object3D*> borrowed_;
 
   Object3D() = default;
   virtual ~Object3D() = default;
@@ -49,8 +51,17 @@ class Object3D {
     return children.back().get();
   }
 
-  /** Add a node the caller owns (the scene must not delete it). */
-  Object3D* addRef(Object3D* child);
+  /**
+   * Add a node the caller owns (this node must not delete it).  Used for the
+   * sky dome and the lights, which the game keeps alive itself.
+   */
+  Object3D* addRef(Object3D* child) {
+    if (!child) return nullptr;
+    if (child->parent) child->parent->remove(child);
+    child->parent = this;
+    borrowed_.push_back(child);
+    return child;
+  }
 
   void remove(Object3D* child) {
     for (size_t i = 0; i < children.size(); i++) {
@@ -125,6 +136,33 @@ class Mesh : public Object3D {
 };
 
 // ---------------------------------------------------------------------------
+// LOD
+// ---------------------------------------------------------------------------
+
+/**
+ * Level of detail: one node per distance band, the renderer picks the level
+ * nearest the camera (three.js LOD).
+ */
+class LOD : public Object3D {
+ public:
+  struct Level {
+    Object3D* object = nullptr;
+    double distance = 0;
+  };
+  std::vector<Level> levels;
+
+  void addLevel(Object3D* object, double distance) { levels.push_back({object, distance}); }
+  /** The level to draw from `distance` metres away (nullptr when empty). */
+  Object3D* pick(double distance) const {
+    if (levels.empty()) return nullptr;
+    const Level* best = &levels[0];
+    for (const auto& l : levels)
+      if (l.distance < distance) best = &l;
+    return best->object;
+  }
+};
+
+// ---------------------------------------------------------------------------
 // Group / Scene / Camera
 // ---------------------------------------------------------------------------
 
@@ -134,17 +172,6 @@ class Scene : public Object3D {
  public:
   /** three.js scene.fog — set by the sky in App's constructor. */
   std::shared_ptr<Fog> fog;
-  /** nodes added with addRef(): owned elsewhere, walked like the rest. */
-  std::vector<Object3D*> borrowed_;
-
-  /** Add a node the caller owns (the scene must not delete it). */
-  Object3D* addRef(Object3D* child) {
-    if (!child) return nullptr;
-    if (child->parent) child->parent->remove(child);
-    child->parent = this;
-    borrowed_.push_back(child);
-    return child;
-  }
 };
 
 /** Nearest fog on this node or an ancestor (three.js resolves fog per object). */
