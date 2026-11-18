@@ -1,5 +1,7 @@
 file(REMOVE_RECURSE
   "CMakeFiles/math_test.dir/link.d"
+  "CMakeFiles/math_test.dir/src/game/i18n.cpp.o"
+  "CMakeFiles/math_test.dir/src/game/i18n.cpp.o.d"
   "CMakeFiles/math_test.dir/tests/math_test.cpp.o"
   "CMakeFiles/math_test.dir/tests/math_test.cpp.o.d"
   "math_test"

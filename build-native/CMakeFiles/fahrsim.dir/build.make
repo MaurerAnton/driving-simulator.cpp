@@ -72,32 +72,48 @@ include CMakeFiles/fahrsim.dir/flags.make
 CMakeFiles/fahrsim.dir/codegen:
 .PHONY : CMakeFiles/fahrsim.dir/codegen
 
-CMakeFiles/fahrsim.dir/src/main.cpp.o: CMakeFiles/fahrsim.dir/flags.make
-CMakeFiles/fahrsim.dir/src/main.cpp.o: /home/user/driving-simulator-cpp/src/main.cpp
-CMakeFiles/fahrsim.dir/src/main.cpp.o: CMakeFiles/fahrsim.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/user/driving-simulator-cpp/build-native/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/fahrsim.dir/src/main.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/fahrsim.dir/src/main.cpp.o -MF CMakeFiles/fahrsim.dir/src/main.cpp.o.d -o CMakeFiles/fahrsim.dir/src/main.cpp.o -c /home/user/driving-simulator-cpp/src/main.cpp
+CMakeFiles/fahrsim.dir/src/app/main.cpp.o: CMakeFiles/fahrsim.dir/flags.make
+CMakeFiles/fahrsim.dir/src/app/main.cpp.o: /home/user/driving-simulator-cpp/src/app/main.cpp
+CMakeFiles/fahrsim.dir/src/app/main.cpp.o: CMakeFiles/fahrsim.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/user/driving-simulator-cpp/build-native/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/fahrsim.dir/src/app/main.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/fahrsim.dir/src/app/main.cpp.o -MF CMakeFiles/fahrsim.dir/src/app/main.cpp.o.d -o CMakeFiles/fahrsim.dir/src/app/main.cpp.o -c /home/user/driving-simulator-cpp/src/app/main.cpp
 
-CMakeFiles/fahrsim.dir/src/main.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/fahrsim.dir/src/main.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/user/driving-simulator-cpp/src/main.cpp > CMakeFiles/fahrsim.dir/src/main.cpp.i
+CMakeFiles/fahrsim.dir/src/app/main.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/fahrsim.dir/src/app/main.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/user/driving-simulator-cpp/src/app/main.cpp > CMakeFiles/fahrsim.dir/src/app/main.cpp.i
 
-CMakeFiles/fahrsim.dir/src/main.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/fahrsim.dir/src/main.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/user/driving-simulator-cpp/src/main.cpp -o CMakeFiles/fahrsim.dir/src/main.cpp.s
+CMakeFiles/fahrsim.dir/src/app/main.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/fahrsim.dir/src/app/main.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/user/driving-simulator-cpp/src/app/main.cpp -o CMakeFiles/fahrsim.dir/src/app/main.cpp.s
+
+CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o: CMakeFiles/fahrsim.dir/flags.make
+CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o: /home/user/driving-simulator-cpp/src/game/i18n.cpp
+CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o: CMakeFiles/fahrsim.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/user/driving-simulator-cpp/build-native/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o -MF CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o.d -o CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o -c /home/user/driving-simulator-cpp/src/game/i18n.cpp
+
+CMakeFiles/fahrsim.dir/src/game/i18n.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/fahrsim.dir/src/game/i18n.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/user/driving-simulator-cpp/src/game/i18n.cpp > CMakeFiles/fahrsim.dir/src/game/i18n.cpp.i
+
+CMakeFiles/fahrsim.dir/src/game/i18n.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/fahrsim.dir/src/game/i18n.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/user/driving-simulator-cpp/src/game/i18n.cpp -o CMakeFiles/fahrsim.dir/src/game/i18n.cpp.s
 
 # Object files for target fahrsim
 fahrsim_OBJECTS = \
-"CMakeFiles/fahrsim.dir/src/main.cpp.o"
+"CMakeFiles/fahrsim.dir/src/app/main.cpp.o" \
+"CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o"
 
 # External object files for target fahrsim
 fahrsim_EXTERNAL_OBJECTS =
 
-fahrsim: CMakeFiles/fahrsim.dir/src/main.cpp.o
+fahrsim: CMakeFiles/fahrsim.dir/src/app/main.cpp.o
+fahrsim: CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o
 fahrsim: CMakeFiles/fahrsim.dir/build.make
 fahrsim: CMakeFiles/fahrsim.dir/compiler_depend.ts
 fahrsim: CMakeFiles/fahrsim.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/user/driving-simulator-cpp/build-native/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable fahrsim"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/user/driving-simulator-cpp/build-native/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable fahrsim"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/fahrsim.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

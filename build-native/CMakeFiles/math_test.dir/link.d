@@ -3,6 +3,7 @@ math_test: \
   /usr/lib/gcc/aarch64-unknown-linux-gnu/16/../../../../lib/crti.o \
   /usr/lib/gcc/aarch64-unknown-linux-gnu/16/crtbeginS.o \
   CMakeFiles/math_test.dir/tests/math_test.cpp.o \
+  CMakeFiles/math_test.dir/src/game/i18n.cpp.o \
   /usr/lib/gcc/aarch64-unknown-linux-gnu/16/../../../../lib/libstdc++.so \
   /usr/lib/gcc/aarch64-unknown-linux-gnu/16/../../../../lib/libm.so \
   /usr/lib/gcc/aarch64-unknown-linux-gnu/16/../../../../lib/libm.so \
@@ -41,6 +42,8 @@ math_test: \
 /usr/lib/gcc/aarch64-unknown-linux-gnu/16/crtbeginS.o:
 
 CMakeFiles/math_test.dir/tests/math_test.cpp.o:
+
+CMakeFiles/math_test.dir/src/game/i18n.cpp.o:
 
 /usr/lib/gcc/aarch64-unknown-linux-gnu/16/../../../../lib/libstdc++.so:
 

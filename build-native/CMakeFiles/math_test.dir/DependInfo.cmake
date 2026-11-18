@@ -8,6 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/user/driving-simulator-cpp/src/game/i18n.cpp" "CMakeFiles/math_test.dir/src/game/i18n.cpp.o" "gcc" "CMakeFiles/math_test.dir/src/game/i18n.cpp.o.d"
   "/home/user/driving-simulator-cpp/tests/math_test.cpp" "CMakeFiles/math_test.dir/tests/math_test.cpp.o" "gcc" "CMakeFiles/math_test.dir/tests/math_test.cpp.o.d"
   "" "math_test" "gcc" "CMakeFiles/math_test.dir/link.d"
   )

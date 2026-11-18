@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = 
+CXX_INCLUDES = -I/home/user/driving-simulator-cpp/src
 
 CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17 -O2 -Wall -Wextra
 

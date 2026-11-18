@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/i18n_test.dir/link.d CMakeFiles/i18n_test.dir/tests/i18n_test.cpp.o CMakeFiles/i18n_test.dir/src/game/i18n.cpp.o -o i18n_test

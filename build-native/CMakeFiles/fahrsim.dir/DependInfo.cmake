@@ -8,7 +8,8 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/user/driving-simulator-cpp/src/main.cpp" "CMakeFiles/fahrsim.dir/src/main.cpp.o" "gcc" "CMakeFiles/fahrsim.dir/src/main.cpp.o.d"
+  "/home/user/driving-simulator-cpp/src/app/main.cpp" "CMakeFiles/fahrsim.dir/src/app/main.cpp.o" "gcc" "CMakeFiles/fahrsim.dir/src/app/main.cpp.o.d"
+  "/home/user/driving-simulator-cpp/src/game/i18n.cpp" "CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o" "gcc" "CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o.d"
   "" "fahrsim" "gcc" "CMakeFiles/fahrsim.dir/link.d"
   )
 

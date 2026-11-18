@@ -50,5 +50,6 @@ set(CMAKE_MAKEFILE_PRODUCTS
 # Dependency information for all targets:
 set(CMAKE_DEPEND_INFO_FILES
   "CMakeFiles/fahrsim.dir/DependInfo.cmake"
+  "CMakeFiles/i18n_test.dir/DependInfo.cmake"
   "CMakeFiles/math_test.dir/DependInfo.cmake"
   )

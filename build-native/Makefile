@@ -141,6 +141,19 @@ fahrsim/fast:
 .PHONY : fahrsim/fast
 
 #=============================================================================
+# Target rules for targets named i18n_test
+
+# Build rule for target.
+i18n_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 i18n_test
+.PHONY : i18n_test
+
+# fast build rule for target.
+i18n_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/build
+.PHONY : i18n_test/fast
+
+#=============================================================================
 # Target rules for targets named math_test
 
 # Build rule for target.
@@ -153,29 +166,83 @@ math_test/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/build
 .PHONY : math_test/fast
 
-src/main.o: src/main.cpp.o
-.PHONY : src/main.o
+src/app/main.o: src/app/main.cpp.o
+.PHONY : src/app/main.o
 
 # target to build an object file
-src/main.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/main.cpp.o
-.PHONY : src/main.cpp.o
+src/app/main.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/app/main.cpp.o
+.PHONY : src/app/main.cpp.o
 
-src/main.i: src/main.cpp.i
-.PHONY : src/main.i
+src/app/main.i: src/app/main.cpp.i
+.PHONY : src/app/main.i
 
 # target to preprocess a source file
-src/main.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/main.cpp.i
-.PHONY : src/main.cpp.i
+src/app/main.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/app/main.cpp.i
+.PHONY : src/app/main.cpp.i
 
-src/main.s: src/main.cpp.s
-.PHONY : src/main.s
+src/app/main.s: src/app/main.cpp.s
+.PHONY : src/app/main.s
 
 # target to generate assembly for a file
-src/main.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/main.cpp.s
-.PHONY : src/main.cpp.s
+src/app/main.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/app/main.cpp.s
+.PHONY : src/app/main.cpp.s
+
+src/game/i18n.o: src/game/i18n.cpp.o
+.PHONY : src/game/i18n.o
+
+# target to build an object file
+src/game/i18n.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/game/i18n.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/src/game/i18n.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/src/game/i18n.cpp.o
+.PHONY : src/game/i18n.cpp.o
+
+src/game/i18n.i: src/game/i18n.cpp.i
+.PHONY : src/game/i18n.i
+
+# target to preprocess a source file
+src/game/i18n.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/game/i18n.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/src/game/i18n.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/src/game/i18n.cpp.i
+.PHONY : src/game/i18n.cpp.i
+
+src/game/i18n.s: src/game/i18n.cpp.s
+.PHONY : src/game/i18n.s
+
+# target to generate assembly for a file
+src/game/i18n.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/game/i18n.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/src/game/i18n.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/src/game/i18n.cpp.s
+.PHONY : src/game/i18n.cpp.s
+
+tests/i18n_test.o: tests/i18n_test.cpp.o
+.PHONY : tests/i18n_test.o
+
+# target to build an object file
+tests/i18n_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/tests/i18n_test.cpp.o
+.PHONY : tests/i18n_test.cpp.o
+
+tests/i18n_test.i: tests/i18n_test.cpp.i
+.PHONY : tests/i18n_test.i
+
+# target to preprocess a source file
+tests/i18n_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/tests/i18n_test.cpp.i
+.PHONY : tests/i18n_test.cpp.i
+
+tests/i18n_test.s: tests/i18n_test.cpp.s
+.PHONY : tests/i18n_test.s
+
+# target to generate assembly for a file
+tests/i18n_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/i18n_test.dir/build.make CMakeFiles/i18n_test.dir/tests/i18n_test.cpp.s
+.PHONY : tests/i18n_test.cpp.s
 
 tests/math_test.o: tests/math_test.cpp.o
 .PHONY : tests/math_test.o
@@ -211,10 +278,17 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... fahrsim"
+	@echo "... i18n_test"
 	@echo "... math_test"
-	@echo "... src/main.o"
-	@echo "... src/main.i"
-	@echo "... src/main.s"
+	@echo "... src/app/main.o"
+	@echo "... src/app/main.i"
+	@echo "... src/app/main.s"
+	@echo "... src/game/i18n.o"
+	@echo "... src/game/i18n.i"
+	@echo "... src/game/i18n.s"
+	@echo "... tests/i18n_test.o"
+	@echo "... tests/i18n_test.i"
+	@echo "... tests/i18n_test.s"
 	@echo "... tests/math_test.o"
 	@echo "... tests/math_test.i"
 	@echo "... tests/math_test.s"
