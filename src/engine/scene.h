@@ -5,7 +5,7 @@
  * (Object3D, Group, Scene, Camera, lights).
  *
  * Origin: three.js (core/Object3D.js, objects/Group.js, objects/Mesh.js,
- * cameras/Camera.js, lights/*, materials/*, geometries/*) as used by the
+ * cameras/Camera.js, lights, materials, geometries) as used by the
  * TypeScript game; behaviour mirrors the JavaScript originals.
  */
 #pragma once
