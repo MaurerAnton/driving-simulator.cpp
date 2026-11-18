@@ -6,5 +6,5 @@ CXX_DEFINES =
 
 CXX_INCLUDES = 
 
-CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17 -O2 -fno-exceptions -fno-rtti -Wall -Wextra
+CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17 -O2 -Wall -Wextra
 

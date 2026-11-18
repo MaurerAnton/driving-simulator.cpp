@@ -65,6 +65,16 @@ CMAKE_BINARY_DIR = /home/user/driving-simulator-cpp/build-native
 #=============================================================================
 # Targets provided globally by CMake.
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running tests..."
+	/usr/bin/ctest $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake cache editor..."
@@ -130,6 +140,19 @@ fahrsim/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/build
 .PHONY : fahrsim/fast
 
+#=============================================================================
+# Target rules for targets named math_test
+
+# Build rule for target.
+math_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 math_test
+.PHONY : math_test
+
+# fast build rule for target.
+math_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/build
+.PHONY : math_test/fast
+
 src/main.o: src/main.cpp.o
 .PHONY : src/main.o
 
@@ -154,6 +177,30 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/fahrsim.dir/build.make CMakeFiles/fahrsim.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+tests/math_test.o: tests/math_test.cpp.o
+.PHONY : tests/math_test.o
+
+# target to build an object file
+tests/math_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/tests/math_test.cpp.o
+.PHONY : tests/math_test.cpp.o
+
+tests/math_test.i: tests/math_test.cpp.i
+.PHONY : tests/math_test.i
+
+# target to preprocess a source file
+tests/math_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/tests/math_test.cpp.i
+.PHONY : tests/math_test.cpp.i
+
+tests/math_test.s: tests/math_test.cpp.s
+.PHONY : tests/math_test.s
+
+# target to generate assembly for a file
+tests/math_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/math_test.dir/build.make CMakeFiles/math_test.dir/tests/math_test.cpp.s
+.PHONY : tests/math_test.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -162,10 +209,15 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... test"
 	@echo "... fahrsim"
+	@echo "... math_test"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... tests/math_test.o"
+	@echo "... tests/math_test.i"
+	@echo "... tests/math_test.s"
 .PHONY : help
 
 

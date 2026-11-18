@@ -1,0 +1,19 @@
+Start testing: Nov 18 11:03 CET
+----------------------------------------------------------
+1/1 Testing: math_test
+1/1 Test: math_test
+Command: "/home/user/driving-simulator-cpp/build-native/math_test"
+Directory: /home/user/driving-simulator-cpp/build-native
+"math_test" start time: Nov 18 11:03 CET
+Output:
+----------------------------------------------------------
+math.h: all checks passed
+<end of output>
+Test time =   0.02 sec
+----------------------------------------------------------
+Test Passed.
+"math_test" end time: Nov 18 11:03 CET
+"math_test" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Nov 18 11:03 CET

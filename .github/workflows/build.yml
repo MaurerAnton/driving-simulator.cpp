@@ -36,6 +36,18 @@ jobs:
             build/fahrsim.js
             build/fahrsim.wasm
 
+  native:
+    name: Native build + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -B build-native -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build-native --parallel
+      - name: Test
+        run: ctest --test-dir build-native --output-on-failure
+
   parity:
     name: LOC parity report
     runs-on: ubuntu-latest

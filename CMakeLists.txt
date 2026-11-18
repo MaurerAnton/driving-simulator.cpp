@@ -25,7 +25,7 @@ file(GLOB_RECURSE FAHRSIM_SOURCES CONFIGURE_DEPENDS
 
 if(FAHRSIM_WASM)
   add_executable(fahrsim ${FAHRSIM_SOURCES})
-  target_compile_options(fahrsim PRIVATE -O2 -fno-exceptions -fno-rtti)
+  target_compile_options(fahrsim PRIVATE -O2)
   set_target_properties(fahrsim PROPERTIES OUTPUT_NAME "fahrsim" SUFFIX ".js")
   target_link_options(fahrsim PRIVATE
     "SHELL:-s WASM=1"
@@ -41,5 +41,16 @@ if(FAHRSIM_WASM)
     "SHELL:-s ASSERTIONS=1")
 else()
   add_executable(fahrsim ${FAHRSIM_SOURCES})
-  target_compile_options(fahrsim PRIVATE -O2 -fno-exceptions -fno-rtti -Wall -Wextra)
+  target_compile_options(fahrsim PRIVATE -O2 -Wall -Wextra)
+
+  # unit tests (also run in CI before the WASM job)
+  enable_testing()
+  file(GLOB FAHRSIM_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")
+  foreach(t IN LISTS FAHRSIM_TESTS)
+    get_filename_component(tname "${t}" NAME_WE)
+    add_executable(${tname} "${t}")
+    target_include_directories(${tname} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_options(${tname} PRIVATE -O1 -Wall -Wextra)
+    add_test(NAME ${tname} COMMAND ${tname})
+  endforeach()
 endif()
