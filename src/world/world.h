@@ -194,10 +194,10 @@ class World {
 
  private:
   const WorldJson* json_;
+  std::vector<SignalControllerJson> signals_;   // declared before nodes_/edges_: the
+  std::vector<CrossingJson> crossings_;        // constructor copies them from the JSON
   std::vector<Node> nodes_;
   std::vector<Edge> edges_;
-  std::vector<SignalControllerJson> signals_;
-  std::vector<CrossingJson> crossings_;
   std::vector<std::string> banned_;
   Grid2<int> segGrid_{40};   // edge id * 4096 + segment index
   Grid2<Node*> nodeGrid_{40};

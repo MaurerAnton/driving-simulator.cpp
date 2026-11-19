@@ -64,10 +64,19 @@ class Object3D {
   }
 
   void remove(Object3D* child) {
+    if (!child) return;
     for (size_t i = 0; i < children.size(); i++) {
       if (children[i].get() == child) {
         children[i]->parent = nullptr;
         children.erase(children.begin() + static_cast<long>(i));
+        return;
+      }
+    }
+    // borrowed nodes are not owned here, but they must detach just the same
+    for (size_t i = 0; i < borrowed_.size(); i++) {
+      if (borrowed_[i] == child) {
+        borrowed_[i]->parent = nullptr;
+        borrowed_.erase(borrowed_.begin() + static_cast<long>(i));
         return;
       }
     }

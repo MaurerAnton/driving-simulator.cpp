@@ -27,6 +27,7 @@ class SignalSystem {
   double age(int controller, int group) const;
 
   double time = 0;
+  /** the controllers the system drives (the game owns the JSON) */
   const std::vector<SignalControllerJson>& controllers;
 
  private:
