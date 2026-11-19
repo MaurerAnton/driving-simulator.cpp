@@ -324,8 +324,11 @@ void main() {
   };
 
   switch (kind) {
+    case MaterialKind::SignBack:
     case MaterialKind::Struct:
-      s += "  diffuseColor.rgb *= color;\n";
+      // the plate's back: the atlas silhouette in bare metal (the original
+      // overrides `diffuseColor.rgb` after <map_fragment>)
+      s += "  diffuseColor.rgb = vec3(0.30, 0.32, 0.33);\n";
       s += lambert();
       break;
     case MaterialKind::Ground:
@@ -360,8 +363,14 @@ void main() {
   return s;
 }
 
-std::string programCacheKey(MaterialKind kind) {
+std::string programCacheKey(MaterialKind kind, bool signBack) {
+  if (signBack) return "fs-sign-back";
+  return programCacheKeyFor(kind);
+}
+
+std::string programCacheKeyFor(MaterialKind kind) {
   switch (kind) {
+    case MaterialKind::SignBack: return "fs-sign-back";
     case MaterialKind::Ground: return "fs-ground";
     case MaterialKind::Paint: return "fs-paint";
     case MaterialKind::Terrain: return "fs-terrain";

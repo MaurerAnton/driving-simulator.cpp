@@ -309,7 +309,7 @@ void SignRenderer::add(LoadedTile& tile) {
   g->computeVertexNormals();
 
   auto plates = std::make_unique<Mesh>(g, MaterialKind::Struct);
-  plates->kind2 = MaterialKind::Struct;  // the back uses the bare-metal material
+  plates->kind2 = MaterialKind::SignBack;  // the back is drawn in bare metal
   plates->position.set(cx, tile.header.yBase, cz);
   plates->updateMatrix();
   plates->matrixAutoUpdate = false;

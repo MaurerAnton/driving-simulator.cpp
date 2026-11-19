@@ -44,6 +44,8 @@ enum class MaterialKind {
   Terrain,
   /** buildings: procedural windows, doors and roof tiles */
   Building,
+  /** the back of a sign plate: the atlas silhouette in bare metal */
+  SignBack,
   /** sky dome (custom shader, no lighting) */
   Sky,
 };
@@ -55,6 +57,8 @@ std::string vertexShaderFor(MaterialKind kind);
 std::string fragmentShaderFor(MaterialKind kind);
 
 /** Stable program cache key, as the JS customProgramCacheKey does. */
-std::string programCacheKey(MaterialKind kind);
+std::string programCacheKeyFor(MaterialKind kind);
+/** The sign plates' back side uses its own program (bare metal over the atlas). */
+std::string programCacheKey(MaterialKind kind, bool signBack = false);
 
 }  // namespace fs
