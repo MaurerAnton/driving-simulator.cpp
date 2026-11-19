@@ -95,6 +95,10 @@ class RuleMonitor {
   double time = 0;
 
   void reset();
+  /** The lane the driver is tracking (the original reads it as `lane`). */
+  Lane* currentLane() const { return lane_; }
+  /** Distance of the front bumper along that lane (the original's `laneS`). */
+  double currentLaneS() const { return laneS_; }
   int points() const;
   bool failed() const;
   void update(double dt, const PlayerSnapshot& p, const std::vector<TrafficEvent>& events);

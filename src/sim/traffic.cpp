@@ -97,7 +97,8 @@ void Traffic::spawnCar() {
 void Traffic::update(double dt, const PlayerState& player, std::vector<TrafficEvent>& events) {
   // keep the population near the requested density (the original counts the
   // lanes, so a denser world simply carries more cars)
-  double want = density * graph_.lanes.size() * 0.08;
+  double want = targetCount >= 0 ? static_cast<double>(targetCount)
+                                 : density * graph_.lanes.size() * 0.08;
   spawnTimer_ -= dt;
   if (cars.size() < static_cast<size_t>(want) && spawnTimer_ <= 0) {
     spawnCar();

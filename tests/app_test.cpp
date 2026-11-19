@@ -10,7 +10,7 @@ int main() {
   App app(800, 600);
 
   // the camera starts where the original puts it
-  assert(app.camera.fovDeg == 60);
+  assert(app.camera.fov == 60);
   assert(app.camera.near == 0.08 && app.camera.far == 4500);
   assert(app.pixelRatioCap == 1.5);
   assert(app.baseUrl == "map/");

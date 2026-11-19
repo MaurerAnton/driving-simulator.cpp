@@ -16,6 +16,8 @@
 
 namespace fs {
 
+const Vector3 Object3D::DEFAULT_UP(0, 1, 0);
+
 WebGLRenderer::WebGLRenderer() = default;
 WebGLRenderer::~WebGLRenderer() = default;
 
@@ -147,6 +149,14 @@ void WebGLRenderer::render(Scene& scene, Camera* camera) {
 
 void WebGLRenderer::renderItems(const std::vector<DrawItem>& items, Camera& camera,
                                 const FrameLights& lights) {
+  info.calls = 0;
+  info.triangles = 0;
+  for (const auto& item : items) {
+    if (!item.visible || !item.geometry) continue;
+    info.calls++;
+    size_t verts = item.geometry->position ? item.geometry->position->count() : 0;
+    info.triangles += static_cast<int>(verts / 3);
+  }
   if (!available_) return;
 #ifdef __EMSCRIPTEN__
   (void)camera;

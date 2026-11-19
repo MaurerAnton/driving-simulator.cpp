@@ -21,7 +21,7 @@ App::~App() = default;
 App::App(int canvasWidth, int canvasHeight) {
   baseUrl = "map/";
   renderer.init(canvasWidth, canvasHeight);
-  camera.fovDeg = 60;
+  camera.fov = 60;
   camera.aspect = 1;
   camera.near = 0.08;
   camera.far = 4500;
@@ -36,11 +36,13 @@ App::App(int canvasWidth, int canvasHeight) {
   resize(canvasWidth, canvasHeight);
 }
 
-void App::loadWorld(const std::string& worldJson) {
-  (void)worldJson;
+void App::loadWorld(const WorldJson& json, TileSource& source) {
   // The original fetches `map/world.json` here and constructs the World from
   // it; the fetch layer lives in the platform (src/platform/), so the parsed
-  // JSON is handed in by the caller instead.
+  // JSON and the tile source are handed in instead.
+  world = std::make_unique<World>(json);
+  tiles = std::make_unique<TileManager>(json, baseUrl, source);
+  scene.addRef(&tiles->group);
 }
 
 void App::resize(int canvasWidth, int canvasHeight) {

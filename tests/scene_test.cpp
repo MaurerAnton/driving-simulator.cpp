@@ -37,7 +37,7 @@ int main() {
 
   // camera projection: a point at the near plane maps to NDC z = -1
   Camera cam;
-  cam.fovDeg = 60;
+  cam.fov = 60;
   cam.aspect = 16.0 / 9.0;
   cam.near = 0.08;
   cam.far = 4500;

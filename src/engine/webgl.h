@@ -85,6 +85,16 @@ class WebGLRenderer {
   /** Draw an explicit list (used by the mirror pass). */
   void renderItems(const std::vector<DrawItem>& items, Camera& camera, const FrameLights& lights);
 
+  /** The maximum anisotropy the context offers (three.js capabilities). */
+  double maxAnisotropy() const { return 1; }
+
+  /** Draw-call statistics (three.js renderer.info.render). */
+  struct Info {
+    int calls = 0;
+    int triangles = 0;
+  };
+  Info info;
+
   /** Collect the current draw list without issuing GL calls (tests). */
   const std::vector<DrawItem>& lastItems() const { return lastItems_; }
   /** Convenience: render with an optional camera (null = lights/geometry only). */

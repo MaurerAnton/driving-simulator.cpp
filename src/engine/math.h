@@ -116,6 +116,11 @@ struct Vector3 {
     // this -= 2 * (this · normal) * normal
     return addScaledVector(normal, -2.0 * dot(normal));
   }
+  Vector3& clampLength(double min, double max) {
+    double l = length();
+    if (l > 0) multiplyScalar(std::max(min, std::min(max, l)) / l);
+    return *this;
+  }
   Vector3& addScaledVector(const Vector3& v, double s) {
     x += v.x * s; y += v.y * s; z += v.z * s; return *this;
   }

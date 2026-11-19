@@ -12,6 +12,8 @@
  */
 #pragma once
 
+#include "engine/math.h"
+
 #include <string>
 
 namespace fs {
@@ -55,6 +57,16 @@ std::string vertexShaderFor(MaterialKind kind);
 
 /** Build the fragment shader source for a material kind. */
 std::string fragmentShaderFor(MaterialKind kind);
+
+/** Per-material uniform values the renderer uploads (as three.js does). */
+struct Uniforms {
+  Color diffuse{1, 1, 1};
+  double shininess = 30;
+  Color specular{0.117, 0.117, 0.117};
+  double alphaTest = 0;
+  bool doubleSide = false;
+  bool fog = true;
+};
 
 /** Stable program cache key, as the JS customProgramCacheKey does. */
 std::string programCacheKeyFor(MaterialKind kind);

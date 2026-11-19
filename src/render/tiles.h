@@ -20,6 +20,7 @@
 
 #include "engine/materials.h"
 #include "engine/scene.h"
+#include "sim/ground.h"
 #include "world/tilefmt.h"
 #include "world/types.h"
 #include "world/world.h"
@@ -49,9 +50,13 @@ class TileSource {
 /** Notified when a tile is loaded (true) or unloaded (false). */
 using TileListener = std::function<void(LoadedTile&, bool)>;
 
-class TileManager {
+class TileManager : public TerrainSource {
  public:
   TileManager(const WorldJson& world, const std::string& baseUrl, TileSource& source);
+
+  /** TerrainSource: the physics queries heights and cover through this. */
+  double heightAt(double x, double z) const override;
+  int coverAt(double x, double z) const override;
 
   Group group;                       // added to the scene
   std::map<std::string, std::unique_ptr<LoadedTile>> tiles;
@@ -66,10 +71,6 @@ class TileManager {
   /** Ask for the tiles around (x, z) and drop the ones that fell behind. */
   void update(double x, double z);
 
-  /** Ground-cover class at a world position (COVER_MEADOW if not loaded). */
-  int coverAt(double x, double z) const;
-  /** Terrain height at a world position, or NaN if that tile is not loaded. */
-  double heightAt(double x, double z) const;
 
  private:
   WorldMetaJson meta_;

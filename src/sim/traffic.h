@@ -114,6 +114,8 @@ class Traffic {
 
   /** density 0 … 1: how many cars to keep in the world */
   double density = 0.6;
+  /** how many cars the world should carry (set from the traffic setting) */
+  int targetCount = -1;
 
  private:
   World& world_;

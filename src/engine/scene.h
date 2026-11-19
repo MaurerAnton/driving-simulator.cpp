@@ -27,6 +27,8 @@ namespace fs {
 
 class Object3D {
  public:
+  /** three.js Object3D.DEFAULT_UP */
+  static const Vector3 DEFAULT_UP;
   Vector3 position;
   Quaternion quaternion;
   Vector3 scale{1, 1, 1};
@@ -205,11 +207,30 @@ class Camera : public Object3D {
   double far = 2000;
   Matrix4 projectionMatrix;
   Matrix4 projectionMatrixInverse;
+  double fov = 50;
+  double zoom = 1;
+  /** three.js Object3D.lookAt: point the camera at a world position. */
+  void lookAt(const Vector3& target) {
+    // build the rotation that takes -Z to (target - position), then set it
+    Vector3 dir;
+    dir.subVectors(target, position).normalize();
+    // the camera looks down its local -Z, so the rotation maps (0,0,-1) to dir
+    Quaternion q;
+    q.setFromUnitVectors(Vector3(0, 0, -1), dir);
+    quaternion.copy(q);
+    matrixAutoUpdate = true;
+    updateMatrix();
+    if (parent) matrixWorld.multiplyMatrices(parent->matrixWorld, matrix);
+    else matrixWorld.copy(matrix);
+    matrixWorldNeedsUpdate = false;
+  }
+  void lookAt(double x, double y, double z) { lookAt(Vector3(x, y, z)); }
 
   void updateProjectionMatrix() {
     // perspective projection from fov/aspect/near/far (three.js PerspectiveCamera)
-    double fov = fovDeg * DEG;
-    double top = near * std::tan(0.5 * fov) / zoom;
+    double fovDeg2 = fov * DEG;   // `fov` is the field of view in degrees
+    double fovUsed = fovDeg2;
+    double top = near * std::tan(0.5 * fovUsed) / zoom;
     double height = 2.0 * top;
     double width = aspect * height;
     double left = -0.5 * width;
@@ -217,8 +238,6 @@ class Camera : public Object3D {
     projectionMatrixInverse.copy(projectionMatrix).invert();
   }
 
-  double fovDeg = 50;
-  double zoom = 1;
 };
 
 // ---------------------------------------------------------------------------

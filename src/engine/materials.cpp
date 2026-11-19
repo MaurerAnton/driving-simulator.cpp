@@ -363,6 +363,25 @@ void main() {
   return s;
 }
 
+Uniforms uniformsFor(MaterialKind kind) {
+  Uniforms u;
+  switch (kind) {
+    case MaterialKind::Ground:
+    case MaterialKind::Paint:
+    case MaterialKind::Terrain:
+    case MaterialKind::Building:
+    case MaterialKind::SignBack:
+      u.shininess = 30;
+      break;
+    case MaterialKind::Struct:
+      u.shininess = 30;
+      break;
+    default:
+      break;
+  }
+  return u;
+}
+
 std::string programCacheKey(MaterialKind kind, bool signBack) {
   if (signBack) return "fs-sign-back";
   return programCacheKeyFor(kind);

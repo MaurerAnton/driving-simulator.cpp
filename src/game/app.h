@@ -14,6 +14,7 @@
 #include "engine/scene.h"
 #include "engine/webgl.h"
 #include "render/sky.h"
+#include "render/tiles.h"
 #include "world/world.h"
 
 namespace fs {
@@ -28,11 +29,12 @@ class App {
   Camera camera;
   Sky sky;
   std::unique_ptr<World> world;
+  std::unique_ptr<TileManager> tiles;
   std::string baseUrl;
   double pixelRatioCap = 1.5;
 
-  /** Fetch `world.json` and build the road network and the tile manager. */
-  void loadWorld(const std::string& worldJson);
+  /** Build the road network and the tile manager from the parsed world. */
+  void loadWorld(const WorldJson& json, TileSource& source);
   void resize(int canvasWidth, int canvasHeight);
   void render(const Vector3& focus);
 };
