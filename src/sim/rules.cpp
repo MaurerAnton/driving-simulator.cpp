@@ -31,6 +31,7 @@ void RuleMonitor::reset() {
   cooldown_.clear();
   lane_ = nullptr;
   entry_ = nullptr;
+  hasRedLine_ = false;
   lastEdge_ = nullptr;
   time = 0;
   speedOver_ = wrongSide_ = wrongWayT_ = sidewalkT_ = offRoadT_ = tailgateT_ = 0;
@@ -140,7 +141,10 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
     double tz = pl.pts[i * 3 + 5] - pl.pts[i * 3 + 2];
     double tl = std::hypot(tx, tz);
     if (tl == 0) tl = 1;
-    headingCos = ((fx * tx + fz * tz) / tl) * (p.speed >= 0 ? 1 : -1);
+    // Which way the car faces, not which way it creeps: at a standstill the
+    // speed is ±0, and a car that rolls back a hand's breadth at the stop
+    // line has not changed to the oncoming lane.
+    headingCos = (fx * tx + fz * tz) / tl;
     dir = headingCos >= 0 ? 1 : -1;
   }
 
@@ -248,6 +252,8 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
   } else {
     offRoadT_ = 0;
   }
+
+  judgeRedLine(p);
 
   // --- leaving the junction: was the turn signalled? ---
   if (entry_ && edge && (hit.zone == 0 || near)) {
@@ -358,15 +364,22 @@ void RuleMonitor::trackLane(Lane& lane, double s, double dt, const PlayerSnapsho
 
   // crossing the stop / give-way line
   if (prevLaneS_ < lane.stopAt && front >= lane.stopAt && p.speed > 0.3) {
-    bool red = false;
     if (arm->sg >= 0 && node->sc >= 0) {
       int st = signals.get(node->sc, arm->sg);
       double age = signals.age(node->sc, arm->sg);
       if (st == SIG_RED || st == SIG_RED_AMBER) {
-        // a second of grace right after the change to red
-        report("redLight", st == SIG_RED && age < 0.6 ? Severity::Major : Severity::Fail, p, {}, 8);
-        red = true;
-      } else if (st == SIG_AMBER && age > 1.3 && p.speed < 14) {
+        // judged in judgeRedLine(); a moment of grace right after the change to red
+        redLine_.lane = &lane;
+        redLine_.x = p.x;
+        redLine_.z = p.z;
+        redLine_.tol = std::max(1.0, std::min(lane.len - lane.stopAt, 2.0));
+        redLine_.severity = st == SIG_RED && age < 0.6 ? Severity::Major : Severity::Fail;
+        redLine_.lineReported = false;
+        hasRedLine_ = true;
+      } else if (st == SIG_AMBER && age > 1 + p.speed / 7) {
+        // Amber: stop if that is possible with normal braking.  Whoever was
+        // closer than reaction distance plus a 3.5 m/s² stop when it came on
+        // may carry on – the amber phase is timed for exactly that.
         report("amberLight", Severity::Minor, p, {}, 8);
       }
     } else if (arm->role == ROLE_STOP && !stoppedNearLine_) {
@@ -384,7 +397,7 @@ void RuleMonitor::trackLane(Lane& lane, double s, double dt, const PlayerSnapsho
     entryStore_.lookedL = lookL_ > 0.2;
     entryStore_.lookedR = lookR_ > 0.2;
     entryStore_.yaw = p.yaw;
-    entryStore_.signalRed = red;
+    entryStore_.signalRed = false;
     entry_ = &entryStore_;
     // roundabout: no indicator when entering (§ 8 (1a) StVO)
     if (node->ctrl == CTRL_ROUNDABOUT && (lane.edge->flags & EF_ROUNDABOUT) == 0 &&
@@ -393,6 +406,37 @@ void RuleMonitor::trackLane(Lane& lane, double s, double dt, const PlayerSnapsho
     }
   }
   prevLaneS_ = front;
+}
+
+void RuleMonitor::judgeRedLine(const PlayerSnapshot& p) {
+  if (!hasRedLine_) return;
+  Lane* lane = redLine_.lane;
+  if (!lane || !lane->to || !lane->armTo) {
+    hasRedLine_ = false;
+    return;
+  }
+  Node* node = lane->to;
+  int st = signals.get(node->sc, lane->armTo->sg);
+  if (st != SIG_RED && st != SIG_RED_AMBER) {
+    // green (or amber again) before the car got any further: a rolling start
+    if (!redLine_.lineReported) report("stopLine", Severity::Minor, p, {}, 8);
+    hasRedLine_ = false;
+    return;
+  }
+  // backed off behind the line again
+  if (lane_ == lane && laneS_ < lane->stopAt - 0.2) {
+    hasRedLine_ = false;
+    return;
+  }
+  double beyond = std::hypot(p.x - redLine_.x, p.z - redLine_.z);
+  if (beyond > redLine_.tol) {
+    report("redLight", redLine_.severity, p, {}, 8);
+    if (entry_ && entry_->lane == lane) entry_->signalRed = true;
+    hasRedLine_ = false;
+  } else if (!redLine_.lineReported && std::fabs(p.speed) < 0.25) {
+    report("stopLine", Severity::Minor, p, {}, 8);
+    redLine_.lineReported = true;
+  }
 }
 
 void RuleMonitor::judgeTurn(Edge& exitEdge, const PlayerSnapshot& p) {
@@ -502,11 +546,15 @@ void RuleMonitor::checkCrossings(const Edge& edge, double s, int dir, const Play
     auto it = crossingState_.find(&c);
     double prev = it == crossingState_.end() ? -1e300 : it->second;
     crossingState_[&c] = d;
-    if (it == crossingState_.end() || !(prev > 0 && d <= 0)) continue;
+    if (it == crossingState_.end()) continue;
     if (c.k == XING_SIGNAL && c.sc >= 0) {
+      // the crossing is the protected area; the bumper a hand's breadth into
+      // it is not yet "over"
+      if (!(prev > -0.3 && d <= -0.3)) continue;
       int st = signals.get(c.sc, c.g >= 0 ? c.g : 0);
       if (st == SIG_RED || st == SIG_RED_AMBER) report("redLight", Severity::Fail, p, {}, 8);
     } else if (c.k == XING_ZEBRA) {
+      if (!(prev > 0 && d <= 0)) continue;
       Pedestrian* ped = traffic.pedestrianAt(c);
       if (ped && (ped->state == "cross" || ped->waited > 0.6))
         report("zebra", Severity::Fail, p, {}, 8);

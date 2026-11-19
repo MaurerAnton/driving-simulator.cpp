@@ -28,6 +28,8 @@ struct NavHint {
   int n = 0;
   /** -1 left, 0 straight/none, 1 right – for the arrow */
   int arrow = 0;
+  /** get in lane: -1 = move one lane to the left, 1 = to the right, 0 = this lane is fine */
+  int lane = 0;
   bool done = false;
 };
 
@@ -52,6 +54,7 @@ class Navigator {
   LaneGraph& graph;
   int idx_ = 0;
   double offRoute_ = 0;
+  PolyProjection proj_;
 
   bool plan(Lane& from);
 };

@@ -136,6 +136,19 @@ class RuleMonitor {
   double handbrakeT_ = 0;
   double lostT_ = 0;
   double indicatorOnT_ = 0;
+  /**
+   * The stop line was crossed on red.  That alone is "only" a stop-line
+   * offence (Zeichen 294); the red-light offence needs the protected area
+   * behind it (junction, crossing) – so we wait and see how far the car goes.
+   */
+  struct RedLine {
+    Lane* lane = nullptr;
+    double x = 0, z = 0, tol = 0;
+    Severity severity = Severity::Fail;
+    bool lineReported = false;
+  };
+  RedLine redLine_;
+  bool hasRedLine_ = false;
   Edge* lastEdge_ = nullptr;
   std::map<const CrossingJson*, double> crossingState_;
 
@@ -147,6 +160,8 @@ class RuleMonitor {
   void trackLane(Lane& lane, double s, double dt, const PlayerSnapshot& p, double fx, double fz);
   void judgeTurn(Edge& exitEdge, const PlayerSnapshot& p);
   void judgePriority(TrafficCar& car, const PlayerSnapshot& p);
+  /** Over the stop line on red: stopped just behind it, or driven on into the junction? */
+  void judgeRedLine(const PlayerSnapshot& p);
   void checkCrossings(const Edge& edge, double s, int dir, const PlayerSnapshot& p);
 };
 

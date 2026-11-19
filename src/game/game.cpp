@@ -318,6 +318,20 @@ void Game::stepDrive(double dt) {
       audio.click(ClickKind::Crash);
     }
   }
+  // on its side or roof: that is the end of this drive – count it as a crash
+  // and start again on the road
+  if (v.upright < 0.35) {
+    rolledT_ += dt;
+    if (rolledT_ > 2.2 && std::fabs(v.speed) < 5) {
+      rolledT_ = 0;
+      impact_ = std::max(impact_, 12.0);
+      resetToRoad();
+      tipText_ = t("rolledOver");
+      tipUntil_ = time_ + 6;
+    }
+  } else {
+    rolledT_ = 0;
+  }
   double impact = impact_;
   if (impact > 1.2) audio.click(impact > 4 ? ClickKind::Crash : ClickKind::Bump);
   impact_ = 0;
@@ -614,6 +628,9 @@ void Game::updateVisuals(double dt) {
       navText = fs::tr("navIn", l,
                        {{"d", std::to_string(std::lround(h.dist / 10) * 10)}, {"what", what}});
     speak(h.what, h.dist, navText);
+    // § 9 StVO: get in lane in good time – the route goes on from a particular lane
+    if (h.lane != 0)
+      navText += " – " + fs::tr(h.lane < 0 ? "laneLeft" : "laneRight", l);
   }
 
   std::string tip;

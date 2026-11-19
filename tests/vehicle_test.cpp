@@ -193,6 +193,37 @@ int main() {
     assert(v.pos[0] < -0.5);  // and moved west
   }
 
+  // --- the body shell rests on the ground when rolled over (0.3.0) ----------
+  {
+    Flat g;
+    Vehicle v(spec, g);
+    v.teleport(0, 0, 0, 0);
+    v.resetDrivetrain(true);
+    DriverInput in;
+    in.ignition = true;
+    in.gear = 1;
+    in.clutch = 0;
+    in.throttle = 1;
+    for (int i = 0; i < 600; i++) v.step(1.0 / 240, in);
+    // upright while driving normally
+    assert(v.upright > 0.9);
+    assert(!v.bodyContact);
+
+    // turn the car onto its side: the body corners then touch the ground
+    Quaternion q;
+    q.setFromAxisAngle(Vector3(0, 0, 1), PI_ / 2);   // roll 90°
+    for (int i = 0; i < 4; i++) v.quat[i] = 0;
+    v.quat[1] = q.x;
+    v.quat[2] = q.y;
+    v.quat[3] = q.z;
+    v.quat[0] = q.w;
+    for (int i = 0; i < 60; i++) v.step(1.0 / 240, in);
+    assert(v.upright < 0.2);          // lying on its side
+    assert(v.bodyContact);            // the shell is what holds it up
+    // and it does not sink through the road
+    assert(v.pos[1] > -0.6);
+  }
+
   // --- determinism: same inputs, same result --------------------------------
   {
     Flat g1, g2;

@@ -7,6 +7,7 @@
 #include "game/nav.h"
 
 #include <algorithm>
+#include <map>
 #include <cmath>
 
 namespace fs {
@@ -17,6 +18,7 @@ void Navigator::clear() {
   routeLanes.clear();
   hint.what = "navFollow";
   hint.dist = -1;
+  hint.lane = 0;
   hint.done = false;
 }
 
@@ -54,16 +56,15 @@ NavHint& Navigator::update(double dt, Lane* lane, double s, double x, double z) 
   if (!lane) return h;
   bool arrived = lane->edge == goal;
   if (!arrived && !std::isnan(x)) {
-    // close to the destination road counts as well (it may be entered mid-way)
+    // Being on the destination road counts as well, whichever lane the monitor
+    // has us on – but only beyond its junctions: the road's centre line starts
+    // in the middle of the junction, where the turn into it is still under way.
     const Edge& g = *goal;
-    if (x > g.minX - 4 && x < g.maxX + 4 && z > g.minZ - 4 && z < g.maxZ + 4) {
-      const auto& p = g.pl.pts;
-      for (size_t i = 0; i < p.size(); i += 3) {
-        if (std::hypot(p[i] - x, p[i + 2] - z) < 7) {
-          arrived = true;
-          break;
-        }
-      }
+    if (x > g.minX - 6 && x < g.maxX + 6 && z > g.minZ - 6 && z < g.maxZ + 6) {
+      proj_ = projectOnPolyline(g.pl, x, z, proj_);
+      double reach = g.width / 2 + 1.5;
+      arrived = proj_.d2 < reach * reach && proj_.s > g.cutA + 4 &&
+                proj_.s < g.len - g.cutB - 4;
     }
   }
   if (arrived) {
@@ -71,6 +72,7 @@ NavHint& Navigator::update(double dt, Lane* lane, double s, double x, double z) 
     h.what = "routeDone";
     h.dist = -1;
     h.arrow = 0;
+    h.lane = 0;
     return h;
   }
   if (route.empty()) {
@@ -96,12 +98,18 @@ NavHint& Navigator::update(double dt, Lane* lane, double s, double x, double z) 
   }
   offRoute_ = 0;
   idx_ = found;
+  // Einordnen: the route continues from a particular lane of this carriageway
+  Lane* want = route[static_cast<size_t>(found)]->from;
+  h.lane = 0;
+  if (want != lane && want->edge == lane->edge)
+    h.lane = (want->off - lane->off) * lane->dir > 0 ? -1 : 1;
   // next real manoeuvre
   double dist = std::max(0.0, lane->len - s);
   h.what = "navFollow";
   h.dist = -1;
   h.arrow = 0;
   h.n = 0;
+  h.lane = 0;
   for (int i = found; i < static_cast<int>(route.size()); i++) {
     Connector* c = route[static_cast<size_t>(i)];
     Node* node = c->node;
@@ -235,6 +243,40 @@ const std::vector<LessonDef>& lessons() {
   return list;
 }
 
+/**
+ * Is `e` part of a spur without a way out – a road that only leads to the
+ * edge of the map or into a dead end, in either direction of travel?
+ * Whoever is sent there has to turn round (or cannot get back at all).
+ */
+static bool deadEndSpur(LaneGraph& graph, const Edge& e) {
+  const LaneGraph::EdgeLanes& el = graph.edgeLanes[static_cast<size_t>(e.id)];
+  Lane* firsts[2] = {el.fwd.empty() ? nullptr : el.fwd[0],
+                     el.back.empty() ? nullptr : el.back[0]};
+  for (Lane* first : firsts) {
+    if (!first) continue;
+    Lane* lane = first;
+    double dist = 0;
+    for (int hop = 0; hop < 60 && dist < 5000; hop++) {
+      // the roads one can carry on to from this carriageway (not counting turning round)
+      const LaneGraph::EdgeLanes& lanes = graph.edgeLanes[static_cast<size_t>(lane->edge->id)];
+      const std::vector<Lane*>& sameDir = lane->dir > 0 ? lanes.fwd : lanes.back;
+      std::map<Edge*, Lane*> onward;
+      for (Lane* l : sameDir) {
+        for (Connector* c : l->out) {
+          if (c->turn != TURN_UTURN && c->to->edge != lane->edge &&
+              LaneGraph::drivable(*c->to->edge, true))
+            onward[c->to->edge] = c->to;
+        }
+      }
+      if (onward.empty()) return true;
+      if (onward.size() > 1) break;
+      lane = onward.begin()->second;
+      dist += lane->len;
+    }
+  }
+  return false;
+}
+
 Edge* findTarget(World& world, LaneGraph& graph, TargetType type, double x, double z,
                  Lane& from, Edge* home, const std::set<Edge*>& avoid) {
   if (type == TargetType::Home) return home;
@@ -243,6 +285,7 @@ Edge* findTarget(World& world, LaneGraph& graph, TargetType type, double x, doub
     if (avoid.count(e) || !LaneGraph::drivable(*e, true)) return;
     // the destination must be a stretch of road one can actually be "on"
     if (e->len - e->cutA - e->cutB < 25) return;
+    if (deadEndSpur(graph, *e)) return;
     double d = std::hypot(px - x, pz - z);
     if (d > 350 && d < 2600) cands.push_back({e, d});
   };

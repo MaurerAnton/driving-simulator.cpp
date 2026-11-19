@@ -21,6 +21,18 @@ constexpr double AIR_DENSITY = 1.2;
 constexpr double RPM = 30.0 / PI_;
 /** suspension length at full droop (attachment to wheel centre) */
 constexpr double L_MAX = 0.36;
+/**
+ * Corners of the body shell relative to the point on the ground below the
+ * middle of the wheelbase (x right, y up, z back): bumpers/sills and roof.
+ */
+const double BODY_POINTS[12][3] = {
+    {-0.8, 0.32, -2.02},  {0.8, 0.32, -2.02},   {-0.8, 0.32, 2.02},   {0.8, 0.32, 2.02},
+    {-0.84, 0.86, -0.9},  {0.84, 0.86, -0.9},   {-0.84, 0.92, 1.7},   {0.84, 0.92, 1.7},
+    {-0.58, 1.42, -0.42}, {0.58, 1.42, -0.42},  {-0.58, 1.42, 1.2},   {0.58, 1.42, 1.2},
+};
+constexpr double BODY_STIFFNESS = 160000;  // N/m per corner
+constexpr double BODY_DAMPING = 9000;      // N·s/m
+constexpr double BODY_FRICTION = 0.55;
 
 // clampD comes from engine/math.h (one definition for the whole port)
 
@@ -374,6 +386,7 @@ void Vehicle::substep(double h, const DriverInput& inp) {
       zx[i] *= 0.9;
       zy[i] *= 0.9;
       fxTyre[i] = 0;
+      wheelImp[i] = 1;
       wh.slipRatio = 0;
       wh.slipAngle = 0;
       wh.skid = 0;
@@ -441,11 +454,17 @@ void Vehicle::substep(double h, const DriverInput& inp) {
     double mu = s.muPeak * grip *
                 clampD(1 - s.loadSensitivity * (N / staticLoad - 1), 0.75, 1.12);
     double fxT = 0, fyT = 0;
+    // secant stiffness of the tyre curve (force per unit of normalised slip)
+    double F = rho > 1e-6 ? (mu * N * pacejka(rho)) / rho : mu * N * 1.9 * 1.5;
     if (rho > 1e-6) {
-      double f = (mu * N * pacejka(rho)) / rho;
-      fxT = f * sgx;
-      fyT = f * sgy;
+      fxT = F * sgx;
+      fyT = F * sgy;
     }
+    // The standstill damping is far too stiff for the light wheel to be
+    // integrated explicitly (it would flip-flop around the road speed and
+    // shake itself loose from a gently applied brake): remember how strongly
+    // the force reacts to the wheel speed, the wheel update divides by it.
+    wheelImp[i] = 1 + (((F * tau) / (s.relaxLong * kPeak)) * rad * rad * h) / s.wheelInertia;
     fxTyre[i] = fxT;
     wh.slipRatio = zxi / s.relaxLong;
     wh.slipAngle = std::atan(zyi / s.relaxLat);
@@ -472,6 +491,47 @@ void Vehicle::substep(double h, const DriverInput& inp) {
   }
   frontLat = frontLatSum / 2;
   for (int i = 0; i < 4; i++) compPrev[i] = comp[i];
+
+  // ---- body on the ground -----------------------------------------------------
+  // Only the wheels carry the car in normal driving.  Once it leans far over
+  // (rolled, or nose-down in a ditch) the corners of the body shell take over,
+  // so that it comes to rest on its side or roof instead of sinking away.
+  bodyContact = false;
+  if (upY < 0.9) {
+    const auto& mo = modelOrigin;
+    for (const auto& b : BODY_POINTS) {
+      double bx = b[0] + mo[0];
+      double by = b[1] + mo[1];
+      double bz = b[2] + mo[2];
+      double rx = r[0] * bx + r[1] * by + r[2] * bz;
+      double ry = r[3] * bx + r[4] * by + r[5] * bz;
+      double rz = r[6] * bx + r[7] * by + r[8] * bz;
+      ground.sample(px + rx, pz + rz, py + ry + 0.8, sampleState);
+      double depth = sampleState.y - (py + ry);
+      if (!(depth > 0)) continue;
+      double vpx = vx + wy * rz - wz * ry;
+      double vpy = vy + wz * rx - wx * rz;
+      double vpz = vz + wx * ry - wy * rx;
+      double vn = vpx * sampleState.nx + vpy * sampleState.ny + vpz * sampleState.nz;
+      double Nb = clampD(BODY_STIFFNESS * std::min(depth, 0.4) - BODY_DAMPING * vn, 0, 90000);
+      if (Nb <= 0) continue;
+      // sheet metal sliding on the ground
+      double tx = vpx - vn * sampleState.nx;
+      double ty = vpy - vn * sampleState.ny;
+      double tz = vpz - vn * sampleState.nz;
+      double f = (-BODY_FRICTION * Nb) / std::max(std::hypot(tx, ty, tz), 0.4);
+      double bfx = Nb * sampleState.nx + f * tx;
+      double bfy = Nb * sampleState.ny + f * ty;
+      double bfz = Nb * sampleState.nz + f * tz;
+      Fx += bfx;
+      Fy += bfy;
+      Fz += bfz;
+      Tx += ry * bfz - rz * bfy;
+      Ty += rz * bfx - rx * bfz;
+      Tz += rx * bfy - ry * bfx;
+      bodyContact = true;
+    }
+  }
 
   // ---- engine ---------------------------------------------------------------
   const double Ie = s.engineInertia;
@@ -519,7 +579,11 @@ void Vehicle::substep(double h, const DriverInput& inp) {
   }
 
   // ---- clutch as a friction constraint ---------------------------------------
-  double S = rollTorque(fxTyre[0], s.wheelRadius) + rollTorque(fxTyre[1], s.wheelRadius);
+  // inverse inertia of the two driven wheels (implicit against the tyre damping)
+  double inv0 = 1 / (s.wheelInertia * wheelImp[0]);
+  double inv1 = 1 / (s.wheelInertia * wheelImp[1]);
+  double S = rollTorque(fxTyre[0], s.wheelRadius) * inv0 +
+             rollTorque(fxTyre[1], s.wheelRadius) * inv1;
   // Gearbox and differential losses: less torque arrives when the engine
   // drives, more is taken when the wheels drive the engine.
   bool driving = lastTc * rati * driveOmega >= 0;
@@ -541,8 +605,8 @@ void Vehicle::substep(double h, const DriverInput& inp) {
     if (capacity > 0) {
       double win = rati * driveOmega;
       double est = offFriction > 0 && std::fabs(we) > 0.5 ? -signD(we) * offFriction : 0;
-      double lock = ((we - win) / h + (Te + est) / Ie + (rati * S) / (2 * Iw)) /
-                    (1 / Ie + (rati * wheelRatio) / (2 * Iw));
+      double lock = ((we - win) / h + (Te + est) / Ie + (rati * S) / 2) /
+                    (1 / Ie + (rati * wheelRatio * (inv0 + inv1)) / 4);
       Tc = clampD(lock, -capacity, capacity);
     }
   }
@@ -571,19 +635,20 @@ void Vehicle::substep(double h, const DriverInput& inp) {
   for (int i = 0; i < 4; i++) {
     auto& wh = w[static_cast<size_t>(i)];
     bool front = i < 2;
+    double Ii = Iw * wheelImp[i];
     double T = -fxTyre[i] * s.wheelRadius;
     if (front) T += (Tc * wheelRatio) / 2;
-    wh.omega += (T / Iw) * h;
+    wh.omega += (T / Ii) * h;
     double brake = inp.brake * s.brakeTorque *
                    (front ? s.brakeBiasFront / 2 : (1 - s.brakeBiasFront) / 2) * absMul[i];
     if (!front) brake += inp.handbrake * (s.handbrakeTorque / 2);
     if (front && parkLock) brake += 6000;
     if (brake > 0) {
-      double need = (std::fabs(wh.omega) * Iw) / h;
+      double need = (std::fabs(wh.omega) * Ii) / h;
       if (brake >= need) {
         wh.omega = 0;
       } else {
-        wh.omega -= (signD(wh.omega) * brake * h) / Iw;
+        wh.omega -= (signD(wh.omega) * brake * h) / Ii;
       }
     }
     if (absMul[i] < 0.9) absActive = true;
@@ -637,6 +702,7 @@ void Vehicle::derive(double dt) {
   double fx = -r[2], fy = -r[5], fz = -r[8];
   speed = vel[0] * fx + vel[1] * fy + vel[2] * fz;
   yaw = std::atan2(-fx, -fz);
+  upright = r[4];
   rpm = engineOmega * RPM;
   if (dt > 0) {
     double ax = (vel[0] - prevVel[0]) / dt;

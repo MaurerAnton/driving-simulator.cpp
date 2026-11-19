@@ -56,6 +56,8 @@ class Vehicle {
   // --- derived, refreshed every step ---
   double speed = 0;
   double yaw = 0;
+  /** vertical component of the body's up axis: 1 = on its wheels, 0 = on its side, -1 = on the roof */
+  double upright = 1;
   double rpm = 0;
   bool engineRunning = false;
   bool stalledEvent = false;
@@ -114,6 +116,10 @@ class Vehicle {
   double frontLat = 0;
   double lastTc = 0;
   double startGrace = 0;
+  /** the body shell (not just the tyres) touches the ground: rolled over or stuck nose-down */
+  bool bodyContact = false;
+  /** 1 + (tyre damping seen by the wheel) · h / inertia: the wheel is integrated implicitly against it */
+  double wheelImp[4] = {1, 1, 1, 1};
 
   void updateRot();
   /** angVel += I⁻¹ · (world torque) · h */

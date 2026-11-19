@@ -121,6 +121,7 @@ class Game {
   } lastGood_;
   std::string lastNavSpoken_;
   double impact_ = 0;
+  double rolledT_ = 0;
   SurfaceHit hit_;
   double mpos_[3] = {0, 0, 0};
   double wheelY_[4] = {0.316, 0.316, 0.316, 0.316};

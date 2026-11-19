@@ -11,9 +11,9 @@
 using namespace fs;
 
 int main() {
-  // 76 UI keys + 34 violation ids in v0.1.0
-  assert(UI_ENTRIES.size() == 76);
-  assert(VIOLATION_ENTRIES.size() == 34);
+  // 79 UI keys + 35 violation ids at v0.3.0
+  assert(UI_ENTRIES.size() == 79);
+  assert(VIOLATION_ENTRIES.size() == 35);
 
   // basic lookups (verbatim from the TypeScript table)
   assert(tr("title", Lang::De) == "Fahrsim Baunatal");

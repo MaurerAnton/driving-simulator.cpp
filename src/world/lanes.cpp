@@ -491,7 +491,18 @@ std::vector<Connector*> LaneGraph::route(const Lane& start, const Edge& goal, bo
       Lane& next = *c->to;
       if (next.edge != &goal && !drivable(*next.edge, forTraffic)) continue;
       double v = std::min(next.limit, 36.0);
-      double turnCost = c->turn == TURN_LEFT ? 6 : (c->turn == TURN_RIGHT ? 3 : (c->turn == TURN_UTURN ? 25 : 0));
+      // Turning round is for when there is no other way: it needs a turning
+      // circle or a three-point turn, and where the map ends (often a fast
+      // rural road) it is a last resort.
+      double uturn = c->from->to->ctrl == CTRL_MAP_END ? 900 : 150;
+      double turnCost = c->turn == TURN_LEFT ? 6
+                        : (c->turn == TURN_RIGHT ? 3
+                           : (c->turn == TURN_UTURN ? uturn : 0));
+      // two left turns a few metres apart = turning round through a gap in the
+      // median (the previous connector on this lane, if it came from one)
+      Connector* prevC = prev[static_cast<size_t>(lane.id)];
+      if (c->turn == TURN_LEFT && lane.len < 15 && prevC && prevC->turn == TURN_LEFT)
+        turnCost += 150;
       // "Anlieger frei" and car-park shortcuts are not through routes
       double through = next.edge != &goal &&
                                (next.edge->access == ACCESS_DESTINATION ||
