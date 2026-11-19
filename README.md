@@ -15,13 +15,22 @@ real code only — no stubs, no placeholders.
 
 ```
 src/main.cpp        entry point (origin: src/main.ts)
+src/app/            entry point (origin: src/main.ts)
+src/audio/          synthesised sound graph (origin: src/audio/audio.ts)
+src/core/           2D ground-plane geometry (origin: src/core/geom.ts)
 src/engine/         three.js-equivalent renderer: Scene, Mesh, materials,
                     geometries, math (Vector/Matrix/Quaternion), WebGL2 backend
 src/game/           the simulator (origin: src/game/*.ts)
-src/i18n/           translation data (origin: src/i18n/*.ts)
+src/geo/            UTM32/world-frame conversion (origin: src/geo/utm.ts)
+src/input/          driver input (origin: src/input/input.ts)
+src/platform/       software 2D canvas, host interfaces (HudHost, TileSource, …)
+src/render/         the scene: sky, tiles, props, signs, cars, mirrors, HUD
+src/sim/            vehicle dynamics, traffic, rules, signals, collisions
+src/ui/             menus and HUD (origin: src/ui/hud.ts)
+src/world/          road network, lanes, tile container (origin: src/world/*.ts)
 tools/parity.py     LOC parity report (TS original vs C++ port)
 tools/versions.tsv  upstream version list + per-version TS line counts
-.github/workflows/  CI: Emscripten build + parity report
+.github/workflows/  CI: Emscripten build + native build + parity report
 ```
 
 Every translated file carries an `// Origin: src/…` header naming the TypeScript
@@ -31,7 +40,7 @@ file it comes from.
 
 | version | upstream commit | TS LOC | C++ LOC | parity |
 |---------|-----------------|-------:|--------:|-------:|
-| 0.1.0   | `5b6ddc7`       | 10,819 | — | — |
+| 0.1.0   | `5b6ddc7`       | 10,819 | 14,635 | 1.35 |
 | 0.2.0   | `0e593a7`       | 10,819 | — | — |
 | 0.3.0   | `633e0ca`       | 11,026 | — | — |
 | 0.4.0   | `578e397`       | 12,847 | — | — |
@@ -52,6 +61,11 @@ Run `python3 tools/parity.py` for the live numbers (needs the read-only
 `driving-simulator` checkout for exact per-commit counts, or falls back to the
 recorded values in `tools/versions.tsv`).
 
+The 0.1.0 translation is complete: all 35 upstream files are present as C++
+counterparts. The C++ total is larger because the port also carries the
+three.js-equivalent engine (the TypeScript game gets that from the `three`
+package) and the platform layer that replaces the DOM and the canvas.
+
 ## Build
 
 ```bash
@@ -63,10 +77,11 @@ cmake --build build
 # Native (console smoke build, also used by CI)
 cmake -B build-native -DCMAKE_BUILD_TYPE=Release
 cmake --build build-native
+ctest --test-dir build-native --output-on-failure
 ```
 
-CI (`.github/workflows/build.yml`) sets up Emscripten, builds the WASM and
-uploads it as an artifact on every push.
+CI (`.github/workflows/build.yml`) sets up Emscripten, builds the WASM, runs
+the native unit tests and uploads the artifact on every push.
 
 ## Licence
 
