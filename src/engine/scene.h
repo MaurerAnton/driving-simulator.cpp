@@ -137,6 +137,8 @@ class Mesh : public Object3D {
   Mesh(GeometryPtr g, MaterialKind k) : geometry(std::move(g)), kind(k) {}
   GeometryPtr geometry;
   MaterialKind kind = MaterialKind::Struct;
+  /** a second material for the second geometry group (sign plates use one) */
+  MaterialKind kind2 = MaterialKind::Struct;
   /** instanced draws (three.js InstancedMesh): one matrix per instance */
   std::vector<Matrix4> instances;
   std::vector<Color> instanceColors;

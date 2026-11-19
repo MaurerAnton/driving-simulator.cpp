@@ -79,6 +79,7 @@ void WebGLRenderer::collect(Object3D& root, const Matrix4& parentWorld, std::vec
     DrawItem item;
     item.geometry = mesh->geometry;
     item.kind = mesh->kind;
+    item.kind2 = mesh->kind2;
     item.world = world;
     item.renderOrder = root.renderOrder;
     item.frustumCulled = root.frustumCulled;

@@ -32,6 +32,7 @@ namespace fs {
 struct DrawItem {
   GeometryPtr geometry;
   MaterialKind kind = MaterialKind::Struct;
+  MaterialKind kind2 = MaterialKind::Struct;
   Matrix4 world;
   int renderOrder = 0;
   bool visible = true;
