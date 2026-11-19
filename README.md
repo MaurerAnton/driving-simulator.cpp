@@ -6,6 +6,10 @@ logic, rendering (a three.js-equivalent engine in C++), audio, input, i18n and
 networking are translated to **pure C++** and compiled to **WebAssembly** with
 [Emscripten](https://emscripten.org). No JavaScript game code runs in the page.
 
+**Upstream has moved on:** the source repo reached **1.7.2** (194,547 lines of
+TypeScript) while this port was being written; the parity table below is
+measured against every release, and the port follows the same order.
+
 **Status: in progress.** The port is built incrementally, upstream version by
 upstream version (v0.1.0 → v1.6.0), starting from the entry point
 (`src/main.ts` at `5b6ddc7`). Each upstream commit's state is translated with
@@ -56,6 +60,9 @@ file it comes from.
 | 1.4.0   | `v1.4.0`        | 120,012 | — | — |
 | 1.5.0   | `v1.5.0`        | 137,788 | — | — |
 | 1.6.0   | `v1.6.0`        | 146,760 | — | — |
+| 1.7.0   | `925e08c`       | 193,775 | — | — |
+| 1.7.1   | `2648b83`       | 194,062 | — | — |
+| 1.7.2   | `f68dd99`       | 194,547 | — | — |
 
 Run `python3 tools/parity.py` for the live numbers (needs the read-only
 `driving-simulator` checkout for exact per-commit counts, or falls back to the
