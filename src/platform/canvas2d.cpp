@@ -217,6 +217,296 @@ void Canvas2D::fillText(const std::string& text, double x, double y, double size
   }
 }
 
+void Canvas2D::fillGradientV(uint32_t top, uint32_t bottom) {
+  uint8_t tr = (top >> 16) & 0xff, tg = (top >> 8) & 0xff, tb = top & 0xff;
+  uint8_t br = (bottom >> 16) & 0xff, bg = (bottom >> 8) & 0xff, bb = bottom & 0xff;
+  for (int y = 0; y < h_; y++) {
+    double t = h_ > 1 ? static_cast<double>(y) / (h_ - 1) : 0;
+    uint8_t r = static_cast<uint8_t>(tr + (br - tr) * t);
+    uint8_t g = static_cast<uint8_t>(tg + (bg - tg) * t);
+    uint8_t b = static_cast<uint8_t>(tb + (bb - tb) * t);
+    for (int x = 0; x < w_; x++) {
+      size_t o = (static_cast<size_t>(y) * w_ + x) * 4;
+      px_[o] = r;
+      px_[o + 1] = g;
+      px_[o + 2] = b;
+      px_[o + 3] = 0xff;
+    }
+  }
+}
+
+
+
+namespace {
+/** JPEG Annex K tables (zigzag-ordered values, and the standard Huffman codes). */
+const int kZigzag[64] = {0,  1,  8,  16, 9,  2,  3,  10, 17, 24, 32, 25, 18, 11, 4,  5,
+                         12, 19, 26, 33, 40, 48, 41, 34, 27, 20, 13, 6,  7,  14, 21, 28,
+                         35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51,
+                         58, 59, 52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63};
+const int kLumQ[64] = {16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13,
+                       16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56,
+                       68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92, 49, 64, 78, 87, 103,
+                       121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99};
+const int kChromQ[64] = {17, 18, 24, 47, 99, 99, 99, 99, 18, 21, 26, 66, 99, 99, 99, 99,
+                         24, 26, 56, 99, 99, 99, 99, 99, 47, 66, 99, 99, 99, 99, 99, 99,
+                         99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+                         99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99};
+const int kLumVal[64] = {16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13,
+                         16, 24, 40, 57, 69, 56, 14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56,
+                         68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113, 92, 49, 64, 78, 87, 103,
+                         121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99};
+const int kChromVal[64] = {17, 18, 24, 47, 99, 99, 99, 99, 18, 21, 26, 66, 99, 99, 99, 99,
+                          24, 26, 56, 99, 99, 99, 99, 99, 47, 66, 99, 99, 99, 99, 99, 99,
+                          99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+                          99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99};
+/** Huffman code-length counts (16 bytes each) for the DHT segment. */
+const uint8_t kLumDC[16] = {0, 1, 5, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0};
+const uint8_t kLumAC[16] = {0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 0x7d};
+const uint8_t kChromDC[16] = {0, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
+const uint8_t kChromAC[16] = {0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 0x77};
+/** Huffman symbol tables: the 12 DC values in code order. */
+const uint8_t kLumDCVal[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+const uint8_t kChromDCVal[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+const uint8_t kLumACVal[162] = {
+    0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61,
+    0x07, 0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xa1, 0x08, 0x23, 0x42, 0xb1, 0xc1, 0x15, 0x52,
+    0xd1, 0xf0, 0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0a, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x25,
+    0x26, 0x27, 0x28, 0x29, 0x2a, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x43, 0x44, 0x45,
+    0x46, 0x47, 0x48, 0x49, 0x4a, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x63, 0x64,
+    0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x83,
+    0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
+    0x9a, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6,
+    0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3,
+    0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8,
+    0xe9, 0xea, 0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa};
+const uint8_t kChromACVal[162] = {
+    0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61,
+    0x71, 0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xa1, 0xb1, 0xc1, 0x09, 0x23, 0x33,
+    0x52, 0xf0, 0x15, 0x62, 0x72, 0xd1, 0x0a, 0x16, 0x24, 0x34, 0xe1, 0x25, 0xf1, 0x17, 0x18,
+    0x19, 0x1a, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3a, 0x43, 0x44,
+    0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5a, 0x63,
+    0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7a,
+    0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
+    0x98, 0x99, 0x9a, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4,
+    0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca,
+    0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7,
+    0xe8, 0xe9, 0xea, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa};
+}  // namespace
+
+std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
+  // A minimal baseline JPEG encoder: 4:4:4, 8×8 blocks, standard Huffman
+  // tables.  Enough for the drawn test panorama and the instrument panel;
+  // the street pictures themselves are never re-encoded.
+  quality = std::max(1, std::min(100, quality));
+  int sf = quality < 50 ? 5000 / quality : 200 - quality * 2;
+  auto qtbl = [&](int v) { return std::min(255, (v * sf + 50) / 100); };
+
+  struct BitWriter {
+    std::vector<uint8_t>& out;
+    uint32_t buf = 0;
+    int bits = 0;
+    void put(uint32_t code, int len) {
+      buf = (buf << len) | (code & ((1u << len) - 1));
+      bits += len;
+      while (bits >= 8) {
+        bits -= 8;
+        uint8_t byte = static_cast<uint8_t>((buf >> bits) & 0xff);
+        out.push_back(byte);
+        if (byte == 0xff) out.push_back(0x00);  // byte stuffing
+      }
+    }
+    void flush() {
+      while (bits > 0) {
+        put(1, 1);
+      }
+    }
+  };
+
+  std::vector<uint8_t> out;
+  auto marker = [&](int m, const std::vector<uint8_t>& payload) {
+    out.push_back(0xff);
+    out.push_back(static_cast<uint8_t>(m));
+    if (!payload.empty()) {
+      size_t n = payload.size() + 2;
+      out.push_back(static_cast<uint8_t>(n >> 8));
+      out.push_back(static_cast<uint8_t>(n & 0xff));
+      out.insert(out.end(), payload.begin(), payload.end());
+    }
+  };
+  auto marker0 = [&](int m) {
+    out.push_back(0xff);
+    out.push_back(static_cast<uint8_t>(m));
+  };
+
+  marker0(0xd8);  // SOI
+  // APP0 JFIF
+  {
+    std::vector<uint8_t> p = {'J', 'F', 'I', 'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0};
+    marker(0xe0, p);
+  }
+  // DQT
+  {
+    std::vector<uint8_t> p;
+    p.push_back(0);
+    for (int i = 0; i < 64; i++) p.push_back(static_cast<uint8_t>(qtbl(kLumVal[i])));
+    p.push_back(1);
+    for (int i = 0; i < 64; i++) p.push_back(static_cast<uint8_t>(qtbl(kChromVal[i])));
+    marker(0xdb, p);
+  }
+  // SOF0
+  {
+    std::vector<uint8_t> p = {8};
+    p.push_back(static_cast<uint8_t>(h_ >> 8));
+    p.push_back(static_cast<uint8_t>(h_ & 0xff));
+    p.push_back(static_cast<uint8_t>(w_ >> 8));
+    p.push_back(static_cast<uint8_t>(w_ & 0xff));
+    p.push_back(3);
+    for (int c = 0; c < 3; c++) {
+      p.push_back(static_cast<uint8_t>(c + 1));  // component id
+      p.push_back(0x11);                        // sampling 1×1 (4:4:4)
+      p.push_back(static_cast<uint8_t>(c == 0 ? 0 : 1));  // quant table
+    }
+    marker(0xc0, p);
+  }
+  // DHT
+  {
+    std::vector<uint8_t> p;
+    p.push_back(0x00);
+    for (int i = 0; i < 16; i++) p.push_back(kLumDC[i]);
+    for (int i = 0; i < 12; i++) p.push_back(kLumDCVal[i]);
+    p.push_back(0x10);
+    for (int i = 0; i < 16; i++) p.push_back(kLumAC[i]);
+    for (int i = 0; i < 162; i++) p.push_back(kLumACVal[i]);
+    p.push_back(0x01);
+    for (int i = 0; i < 16; i++) p.push_back(kChromDC[i]);
+    for (int i = 0; i < 12; i++) p.push_back(kChromDCVal[i]);
+    p.push_back(0x11);
+    for (int i = 0; i < 16; i++) p.push_back(kChromAC[i]);
+    for (int i = 0; i < 162; i++) p.push_back(kChromACVal[i]);
+    marker(0xc4, p);
+  }
+  // SOS
+  {
+    std::vector<uint8_t> p = {3, 1, 0x00, 2, 0x11, 3, 0x11, 0, 63, 0};
+    marker(0xda, p);
+  }
+
+  // entropy-coded scan: 8×8 blocks, level-shifted, FDCT, quantised
+  BitWriter bw{out};
+  int prev[3] = {0, 0, 0};
+  const double kCos[8][8] = {
+      {0.35355339, 0.35355339, 0.35355339, 0.35355339, 0.35355339, 0.35355339, 0.35355339, 0.35355339},
+      {0.49039264, 0.41573481, 0.27778512, 0.09754516, -0.09754516, -0.27778512, -0.41573481, -0.49039264},
+      {0.46193977, 0.19134171, -0.19134171, -0.46193977, -0.46193977, -0.19134171, 0.19134171, 0.46193977},
+      {0.41573481, -0.09754516, -0.49039264, -0.27778512, 0.27778512, 0.49039264, 0.09754516, -0.41573481},
+      {0.35355339, -0.35355339, -0.35355339, 0.35355339, 0.35355339, -0.35355339, -0.35355339, 0.35355339},
+      {0.27778512, -0.49039264, 0.09754516, 0.41573481, -0.41573481, -0.09754516, 0.49039264, -0.27778512},
+      {0.19134171, -0.46193977, 0.46193977, -0.19134171, -0.19134171, 0.46193977, -0.46193977, 0.19134171},
+      {0.09754516, -0.41573481, 0.49039264, -0.27778512, -0.27778512, 0.49039264, -0.41573481, 0.09754516},
+  };
+  auto huff = [](int symbol, const uint8_t* counts, const uint8_t* values, int nvalues,
+                 uint32_t& code, int& len) {
+    int codev = 0;
+    int k = 0;
+    for (int i = 0; i < 16; i++) {
+      for (int j = 0; j < counts[i]; j++) {
+        if (k == symbol) {
+          code = static_cast<uint32_t>(codev);
+          len = i + 1;
+          return;
+        }
+        codev++;
+        k++;
+      }
+      codev <<= 1;
+    }
+    (void)values;
+    (void)nvalues;
+    code = 0;
+    len = 0;
+  };
+  int bwBlocks = (w_ + 7) / 8, bhBlocks = (h_ + 7) / 8;
+  for (int by = 0; by < bhBlocks; by++) {
+    for (int bx = 0; bx < bwBlocks; bx++) {
+      for (int comp = 0; comp < 3; comp++) {
+        // gather the 8×8 block (level-shifted to -128…127)
+        double blk[64];
+        for (int y = 0; y < 8; y++) {
+          for (int x = 0; x < 8; x++) {
+            int sx = std::min(bx * 8 + x, w_ - 1);
+            int sy = std::min(by * 8 + y, h_ - 1);
+            size_t o = (static_cast<size_t>(sy) * w_ + sx) * 4;
+            double v;
+            if (comp == 0) {
+              v = 0.299 * px_[o] + 0.587 * px_[o + 1] + 0.114 * px_[o + 2];
+            } else if (comp == 1) {
+              v = -0.168736 * px_[o] - 0.331264 * px_[o + 1] + 0.5 * px_[o + 2];
+            } else {
+              v = 0.5 * px_[o] - 0.418688 * px_[o + 1] - 0.081312 * px_[o + 2];
+            }
+            blk[y * 8 + x] = v - 128;
+          }
+        }
+        // FDCT (separable, the 8×8 cosine basis)
+        double coef[64];
+        for (int u = 0; u < 8; u++) {
+          for (int v = 0; v < 8; v++) {
+            double sum = 0;
+            for (int x = 0; x < 8; x++)
+              for (int y = 0; y < 8; y++)
+                sum += blk[y * 8 + x] * kCos[x][u] * kCos[y][v];
+            coef[v * 8 + u] = sum;
+          }
+        }
+        const int* qt = comp == 0 ? kLumQ : kChromQ;
+        int zz[64];
+        for (int i = 0; i < 64; i++) {
+          int v = static_cast<int>(std::lround(coef[i] / qt[i]));
+          zz[kZigzag[i]] = v;
+        }
+        // DC difference + AC run-length coding
+        int dc = zz[0] - prev[comp];
+        prev[comp] = zz[0];
+        int mag = std::abs(dc);
+        int cat = 0;
+        while ((1 << cat) <= mag) cat++;
+        uint32_t code;
+        int len;
+        huff(cat, comp == 0 ? kLumDC : kChromDC, nullptr, 0, code, len);
+        bw.put(code, len);
+        if (cat > 0) bw.put(static_cast<uint32_t>(dc < 0 ? dc + (1 << cat) - 1 : dc), cat);
+        int run = 0;
+        for (int k = 1; k < 64; k++) {
+          if (zz[k] == 0) {
+            run++;
+            continue;
+          }
+          while (run > 15) {
+            huff(0xf0, comp == 0 ? kLumAC : kChromAC, nullptr, 0, code, len);
+            bw.put(code, len);
+            run -= 16;
+          }
+          mag = std::abs(zz[k]);
+          int acat = 0;
+          while ((1 << acat) <= mag) acat++;
+          int symbol = (run << 4) | acat;
+          huff(symbol, comp == 0 ? kLumAC : kChromAC, nullptr, 0, code, len);
+          bw.put(code, len);
+          bw.put(static_cast<uint32_t>(zz[k] < 0 ? zz[k] + (1 << acat) - 1 : zz[k]), acat);
+          run = 0;
+        }
+        if (run > 0) {
+          huff(0x00, comp == 0 ? kLumAC : kChromAC, nullptr, 0, code, len);
+          bw.put(code, len);
+        }
+      }
+    }
+  }
+  bw.flush();
+  marker0(0xd9);  // EOI
+  return out;
+}
+
 void Canvas2D::drawImage(const Canvas2D& src, double x, double y) {
   int x0 = static_cast<int>(x), y0 = static_cast<int>(y);
   for (int yy = 0; yy < src.h_; yy++) {

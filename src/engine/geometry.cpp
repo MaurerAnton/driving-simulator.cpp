@@ -54,13 +54,14 @@ std::shared_ptr<BufferGeometry> BufferGeometry::toNonIndexed() const {
 void BufferGeometry::computeVertexNormals() {
   if (!position) return;
   const size_t n = position->count();
-  if (!normal) normal = std::make_shared<BufferAttribute>(std::vector<double>(n * 3, 0.0), 3);
+  if (!normal || normal->count() != n)
+    normal = std::make_shared<BufferAttribute>(std::vector<double>(n * 3, 0.0), 3);
   for (size_t i = 0; i < n * 3; i++) normal->array[i] = 0;
 
   // face normals accumulated per vertex (three.js computeVertexNormals)
   size_t triCount;
   std::vector<size_t> tri;
-  if (index) {
+  if (index && index->count() >= 3) {
     triCount = index->count() / 3;
     for (size_t t = 0; t < triCount; t++) {
       tri.push_back(static_cast<size_t>(index->array[t * 3]));
@@ -82,6 +83,7 @@ void BufferGeometry::computeVertexNormals() {
     ab.subVectors(pa, pb);
     cb.cross(ab);
     for (size_t v : {ia, ib, ic}) {
+      if (v >= n) continue;
       normal->array[v * 3] += cb.x;
       normal->array[v * 3 + 1] += cb.y;
       normal->array[v * 3 + 2] += cb.z;

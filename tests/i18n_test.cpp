@@ -11,8 +11,8 @@
 using namespace fs;
 
 int main() {
-  // 79 UI keys + 35 violation ids at v0.3.0
-  assert(UI_ENTRIES.size() == 79);
+  // 108 UI keys + 35 violation ids at v0.4.0
+  assert(UI_ENTRIES.size() == 108);
   assert(VIOLATION_ENTRIES.size() == 35);
 
   // basic lookups (verbatim from the TypeScript table)

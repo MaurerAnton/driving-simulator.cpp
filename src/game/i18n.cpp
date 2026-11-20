@@ -27,6 +27,57 @@ const std::vector<std::pair<std::string, Pair>> UI_ENTRIES = {
   {"restart", {"Neu starten", "Restart"}},
   {"menu", {"Hauptmenü", "Main menu"}},
   {"paused", {"Pause", "Paused"}},
+  {"reality", {"Realansicht", "Reality view"}},
+  {"realityButton", {"Realansicht \u2013 echte Fotos (F)", "Reality view \u2013 real photos (F)"}},
+  {"realitySub", {"So sieht es hier in Wirklichkeit aus", "What this place really looks like"}},
+  {"realityClose", {"Schlie\u00dfen", "Close"}},
+  {"realitySources", {"Freie Bilddienste", "Free imagery services"}},
+  {"realityFree", {"frei lizenziert, ohne Anmeldung", "freely licensed, no account"}},
+  {"realityToken", {"frei lizenziert, kostenloser Zugangsschl\u00fcssel n\u00f6tig",
+                    "freely licensed, needs a free access token"}},
+  {"realityTokenHelp", {"Schl\u00fcssel erstellen", "Create a token"}},
+  {"realityTokenStored", {"wird nur in diesem Browser gespeichert", "stored in this browser only"}},
+  {"realityNeedToken", {"Zugangsschl\u00fcssel fehlt", "access token missing"}},
+  {"realityPrivacy",
+   {"Die Fotos kommen direkt vom gew\u00e4hlten Dienst. Er erf\u00e4hrt dabei deine IP-Adresse und die "
+    "Stelle auf der Karte, sonst nichts. Ohne H\u00e4ckchen wird nichts abgerufen.",
+    "The pictures come straight from the service you tick. It learns your IP address and the place "
+    "on the map, nothing else. Nothing is requested without a tick."}},
+  {"realityOwn", {"Eigene Bilder", "Your own pictures"}},
+  {"realityOwnText",
+   {"Panoramen und Fotos von deinem Ger\u00e4t, zum Beispiel mit einem Street-View-Downloader "
+    "gespeicherte 360\u00b0-Bilder (JPEG, PNG, WebP). Sie werden nirgends hochgeladen. Die Position "
+    "stammt aus den Metadaten (EXIF/XMP), einer beiliegenden Liste (JSON, GeoJSON, CSV) oder dem "
+    "Dateinamen. Du kannst sie auch einfach auf dieses Fenster ziehen.",
+    "Panoramas and photos from your device, such as 360\u00b0 pictures saved with a street-view "
+    "download tool (JPEG, PNG, WebP). They are not uploaded anywhere. The position comes from the "
+    "metadata (EXIF/XMP), a list lying next to them (JSON, GeoJSON, CSV) or the file name. You can "
+    "also simply drop them on this window."}},
+  {"realityPickFiles", {"Bilder w\u00e4hlen \u2026", "Choose pictures \u2026"}},
+  {"realityPickFolder", {"Ordner w\u00e4hlen \u2026", "Choose a folder \u2026"}},
+  {"realityImported", {"Geladen: {n} \u00b7 davon mit Position: {p}",
+                       "Loaded: {n} \u00b7 with a position: {p}"}},
+  {"realityNearby", {"Bilder in der N\u00e4he", "Pictures nearby"}},
+  {"realityUnplaced", {"Ohne Position ({n})", "Without a position ({n})"}},
+  {"realityPinHere", {"An dieser Stelle ablegen", "Pin to this place"}},
+  {"realityOwnPicture", {"Eigenes Bild", "Own picture"}},
+  {"realityNone",
+   {"W\u00e4hle rechts einen Bilddienst aus oder lade eigene Bilder \u2013 dann erscheinen hier "
+    "echte Fotos dieser Stelle.",
+    "Tick an imagery service on the right or load your own pictures \u2013 real photos of this "
+    "place then appear here."}},
+  {"realityNoneFound",
+   {"Im Umkreis von {r} m gibt es keine Bilder. Unten l\u00e4sst sich die Stelle bei den Diensten "
+    "im Browser \u00f6ffnen.",
+    "There are no pictures within {r} m. The links below open the place at the services in your "
+    "browser."}},
+  {"realityLoading", {"l\u00e4dt \u2026", "loading \u2026"}},
+  {"realityCount", {"Bilder: {n}", "pictures: {n}"}},
+  {"realityError", {"Fehler: {e}", "Error: {e}"}},
+  {"realityContributors", {"\u00a9 {s}-Mitwirkende", "\u00a9 {s} contributors"}},
+  {"realityOriginal", {"Original ansehen", "View original"}},
+  {"realityDragHint", {"Ziehen: umsehen \u00b7 Mausrad: zoomen", "Drag to look around \u00b7 wheel to zoom"}},
+  {"realityOpenWeb", {"Diese Stelle im Browser \u00f6ffnen", "Open this place in the browser"}},
   {"startPoint", {"Startpunkt", "Start point"}},
   {"transmission", {"Getriebe", "Transmission"}},
   {"trAssist", {"Schaltgetriebe mit Kupplungshilfe", "Manual with clutch assist"}},

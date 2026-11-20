@@ -43,7 +43,7 @@ struct Controls {
   std::string device = "keyboard";
 };
 
-enum class Action { View, Pause, Reset, Map, Help };
+enum class Action { View, Pause, Reset, Map, Help, Reality };
 
 /** What one gamepad frame reports (the JS `readPad` result). */
 struct PadState {

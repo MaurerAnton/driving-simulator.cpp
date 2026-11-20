@@ -48,6 +48,17 @@ struct Settings {
   double drawDistance = 1300;
   WheelMapping wheel;
   bool invertLookY = false;
+  /**
+   * Reality view: which street-level imagery services may be asked for
+   * pictures of the place the car is at.  All off until the player says so –
+   * a request tells the service the player's IP address and the place.
+   */
+  struct Reality {
+    bool panoramax = false;
+    bool kartaview = false;
+    bool mapillary = false;
+    std::string mapillaryToken;
+  } reality;
 };
 
 /** The defaults the TypeScript DEFAULT_SETTINGS starts from. */

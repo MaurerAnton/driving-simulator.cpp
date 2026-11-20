@@ -43,6 +43,10 @@ class Canvas2D {
   void fillText(const std::string& text, double x, double y, double size, uint32_t rgba);
   /** Copy another canvas onto this one (the cluster composes face + state). */
   void drawImage(const Canvas2D& src, double x, double y);
+  /** A vertical gradient from `top` to `bottom` over the whole canvas. */
+  void fillGradientV(uint32_t top, uint32_t bottom);
+  /** Encode as a baseline JPEG (quality 1–100). */
+  std::vector<uint8_t> toJpeg(int quality) const;
 
  private:
   int w_, h_;
