@@ -17,6 +17,7 @@
 
 #include "audio/audio.h"
 #include "engine/math.h"
+#include "game/address.h"
 #include "game/app.h"
 #include "game/i18n.h"
 #include "game/nav.h"
@@ -27,6 +28,7 @@
 #include "render/props.h"
 #include "render/signs.h"
 #include "render/tiles.h"
+#include "render/panorama.h"
 #include "sim/collision.h"
 #include "sim/ground.h"
 #include "sim/rules.h"
@@ -34,12 +36,15 @@
 #include "sim/traffic.h"
 #include "sim/vehicle/vehicle.h"
 #include "ui/hud.h"
+#include "ui/reality.h"
 #include "world/lanes.h"
 #include "world/world.h"
 
 namespace fs {
 
-enum class GameState { Loading, Menu, Intro, Placing, Drive, Pause, Result };
+struct RealityHostImpl;   // defined in game.cpp
+
+enum class GameState { Loading, Menu, Intro, Placing, Drive, Pause, Reality, Result };
 enum class CameraMode { Cockpit, Chase, Free, Dev };
 
 /** Everything the platform hands the game at boot. */
@@ -56,6 +61,7 @@ class Game {
  public:
   Game(HudHost& host, Platform& platform, AudioBackend& audioBackend, SignSource& signSource,
        TileSource& tileSource, int canvasWidth, int canvasHeight);
+  ~Game();   // out of line: realityHost_ is an incomplete type in this header
 
   Settings settings;
   App app;
@@ -89,12 +95,14 @@ class Game {
   void applySettingsCall() { applySettings(); }
   void onActionCall(Action a) { onAction(a); }
   void finishCall() { finish(); }
-  void beginCall(const std::string& mode, int spawnIdx, bool skipIntro) {
-    begin(mode, spawnIdx, skipIntro);
+  void beginCall(const std::string& mode, int spawnIdx, bool skipIntro,
+                 const AddressHit* address = nullptr) {
+    begin(mode, spawnIdx, skipIntro, address);
   }
   WorldJson& worldJsonRef() { return worldJson_; }
 
  private:
+  friend struct RealityHostImpl;   // the reality panel's bridge (game.cpp)
   HudHost& host_;
   Platform& platform_;
   SignSource& signSource_;
@@ -120,6 +128,19 @@ class Game {
     double x = 0, y = 0, z = 0, yaw = 0, t = 0;
   } lastGood_;
   std::string lastNavSpoken_;
+  std::unique_ptr<RealityHostImpl> realityHost_;  // defined in game.cpp
+  std::unique_ptr<RealityPanel> reality_;
+  /** the address list, fetched once somebody first searches for an address */
+  std::unique_ptr<AddressIndex> addressIndex_;
+  bool addressAsked_ = false;
+  /** lanes of the connected network (for finding a spot by address) */
+  std::unique_ptr<std::set<int>> mainLanes_;
+  /** fingers or keys: what the driver last used (the HUD follows it) */
+  std::string inputMode_ = "keys";
+  /** ?notice=red|yellow|both: show sample notices for the automated check */
+  std::string autoNotice_;
+  std::string autoReality_;
+  int realityFrames_ = 0;
   double impact_ = 0;
   double rolledT_ = 0;
   SurfaceHit hit_;
@@ -143,7 +164,16 @@ class Game {
   void onTile(LoadedTile& tile, bool loaded);
   void applySettings();
   void toMenu();
-  void begin(const std::string& mode, int spawnIdx, bool skipIntro = false);
+  void begin(const std::string& mode, int spawnIdx, bool skipIntro = false,
+             const AddressHit* address = nullptr);
+  /** The address list (house numbers of the map), read once somebody searches. */
+  AddressIndex* loadAddresses();
+  /** The spot on the road in front of an address, as a starting point. */
+  bool spawnAt(const AddressHit& hit, SpawnJson& out);
+  /** Free drive: jump to an address (from the pause menu). */
+  void teleportTo(const AddressHit& hit);
+  void openReality();
+  void closeReality();
   void tryPlace();
   void resume();
   void pause();

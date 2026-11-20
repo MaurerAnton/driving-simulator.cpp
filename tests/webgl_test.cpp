@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Renderer traversal: the scene walk must produce the right draw items. */
 #include "../src/engine/webgl.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

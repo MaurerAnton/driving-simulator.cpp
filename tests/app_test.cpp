@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** App: camera, resize, sky wiring and the render traversal. */
 #include "../src/game/app.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

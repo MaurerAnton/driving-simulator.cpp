@@ -4,6 +4,8 @@
  * and cover queries, and streams tiles in and out around the viewer.
  */
 #include "../src/render/tiles.h"
+#include "../src/world/cover.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 #include <map>

@@ -35,6 +35,8 @@ namespace fs {
 
 class Vehicle {
  public:
+  /** the body shell touching the ground (rolled over / stuck): the tests read it */
+  bool inBodyContact() const { return bodyContact; }
   Vehicle(const VehicleSpec& spec, Ground& ground);
 
   const VehicleSpec spec;

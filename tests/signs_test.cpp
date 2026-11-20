@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Signs: plate sizes, atlas slots, procedural fallbacks, tile geometry. */
 #include "../src/render/signs.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

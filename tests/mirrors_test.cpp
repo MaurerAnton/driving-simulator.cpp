@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Mirrors: glass geometry, housing, off-axis camera, mirror normal. */
 #include "../src/render/mirrors.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

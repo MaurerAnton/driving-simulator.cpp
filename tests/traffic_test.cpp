@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Ambient traffic: cars move along lanes, obey limits, keep their distance. */
 #include "../src/sim/signals.h"
+#include <cmath>
 #include "../src/sim/traffic.h"
 #include <cassert>
 #include <cstdio>

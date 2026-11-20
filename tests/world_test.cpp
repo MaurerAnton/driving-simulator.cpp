@@ -5,6 +5,7 @@
  * TypeScript world.ts produces.
  */
 #include "../src/world/world.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Props: tree/lamp geometry, per-tile instances, distance thinning. */
 #include "../src/render/props.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

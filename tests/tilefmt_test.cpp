@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Tile container: pack/unpack round trip plus a real 0.1.0 tile header. */
 #include "../src/world/tilefmt.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>

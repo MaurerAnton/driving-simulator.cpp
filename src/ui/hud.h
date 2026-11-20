@@ -15,15 +15,19 @@
 #include <utility>
 #include <vector>
 
+#include "game/address.h"
 #include "game/i18n.h"
 #include "game/nav.h"
 #include "game/settings.h"
 #include "input/input.h"
 #include "platform/canvas2d.h"
 #include "sim/rules.h"
+#include "ui/notices.h"
 #include "world/world.h"
 
 namespace fs {
+
+struct AddressPicker;   // defined in ui/addresspicker.h (kept out: it needs HudNode)
 
 /** What the HUD shows this frame. */
 struct HudState {
@@ -43,11 +47,19 @@ struct HudState {
   std::string navText;
   std::string navSub;
   int navArrow = 0;
+  /** a turn is announced (so a notice must not hide it) */
+  bool navActive = false;
   std::string tip;
+  /** what tapping the tip does on a touch screen: a key code ("" = nothing) */
+  std::string tipAction;
   bool showDash = false;
   int indicator = 0;
   bool hazard = false;
   bool blinkOn = false;
+  bool handbrake = false;
+  bool seatbelt = false;
+  bool engineOn = false;
+  bool lights = false;
   int points = 0;
   int faults = 0;
   double x = 0, z = 0, yaw = 0;
@@ -56,6 +68,9 @@ struct HudState {
 struct StartRequest {
   std::string mode;
   int spawn = 0;
+  /** start at this address instead of one of the car parks (0.5.0) */
+  AddressHit address;
+  bool hasAddress = false;
 };
 
 struct ResultSummary {
@@ -107,11 +122,21 @@ class HudHost {
 class Hud {
  public:
   Hud(HudHost& host, Settings& settings, World& world);
+  ~Hud();   // out of line: AddressPicker is an incomplete type in this header
 
   std::function<void(const StartRequest&)> onStart;
   std::function<void()> onResume;
   std::function<void()> onQuit;
   std::function<void()> onSettingsChanged;
+  std::function<void()> onReality;
+  /** the street-name block was tapped: pause menu (there is no Esc key on a phone) */
+  std::function<void()> onPause;
+  /** free drive: jump to an address (from the pause menu) */
+  std::function<void(const AddressHit&)> onTeleport;
+  /** fetches the address list when somebody first types an address */
+  std::function<AddressIndex*()> loadAddresses;
+  /** free drive: the pause menu offers to jump to an address */
+  bool canTeleport = false;
   std::vector<Lane*> routeLanes;
 
   LangSetting langSetting() const { return settings_.lang; }
@@ -129,19 +154,28 @@ class Hud {
   void showAbout(const std::function<void()>& back);
   void showIntro(const std::string& title, const std::string& text, const std::function<void()>& go);
   void showPause();
+  /** Free drive: put the car in front of an address (0.5.0). */
+  void showTeleport();
   void showResult(const ResultSummary& r);
   void hideOverlay();
 
   void setHudVisible(bool v);
-  void toast(const Violation& v);
+  /** A fault or hint of the rule monitor: shown in the block of the street name. */
+  void toast(const Violation& v, double seconds = -1);
   void message(const std::string& title, const std::string& sub = "");
+  void clearNotices() { notices_.clear(); }
   void update(const HudState& s, double now);
 
   /** The mini map, drawn into a canvas the platform paints. */
   void drawMap(const HudState& s);
 
-  /** On-screen controls (the platform wires the pointer events to Input). */
-  void enableTouch(Input& input);
+  /**
+   * Steering bar, pedals and buttons for driving with the fingers.  They are
+   * always built and shown only in touch mode (see setInputMode).
+   */
+  void attachInput(Input& input);
+  /** Fingers or keys?  Shows the on-screen controls or the key reminder. */
+  void setInputMode(const std::string& mode);
 
  private:
   HudHost& host_;
@@ -153,9 +187,30 @@ class Hud {
   double lastMap_ = 0;
   std::string lastPrio_;
   Canvas2D mapCanvas_{220, 220};
+  /**
+   * Notices (faults, hints) take the place of the street name; if several are
+   * current, the gravest one shows.
+   */
+  NoticeBoard notices_;
+  const Notice* noticeShown_ = nullptr;
+  std::string mode_ = "keys";
+  Input* input_ = nullptr;
+  /** the "⋯" sheet of the on-screen controls is open */
+  bool moreVisible_ = false;
+  std::string tipAction_;
+  HudState lastState_;
+  bool hasLastState_ = false;
+  std::string keysFor_;
+  /** free drive: the start menu's address picker (kept alive while open) */
+  std::unique_ptr<AddressPicker> menuPicker_;
+  /** the address the picker chose (carried into the StartRequest) */
+  AddressHit pickedAddress_;
+  bool hasPickedAddress_ = false;
 
   void setOverlay(std::unique_ptr<HudNode> node);
   std::unique_ptr<HudNode> buildHud();
+  /** The short reminder of the keys, depending on the gearbox chosen. */
+  std::string keyReminder() const;
 };
 
 }  // namespace fs

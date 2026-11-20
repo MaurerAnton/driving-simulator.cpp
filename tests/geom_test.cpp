@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Geometry checks against the TypeScript reference behaviour. */
 #include "../src/core/geom.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

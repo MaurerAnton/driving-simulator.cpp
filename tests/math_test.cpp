@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Math unit check: three.js-style Vector3/Quaternion/Matrix4 behaviour. */
 #include "../src/engine/math.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

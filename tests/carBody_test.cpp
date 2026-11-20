@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Car shell: proportions, glass/trim split, pillars and wheels. */
 #include "../src/render/carBody.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 #include <tuple>

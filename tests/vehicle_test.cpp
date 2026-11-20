@@ -4,6 +4,7 @@
  * the handbrake, engine start/stall, and a full-throttle acceleration run.
  */
 #include "../src/sim/ground.h"
+#include <cmath>
 #include "../src/sim/vehicle/vehicle.h"
 #include <cassert>
 #include <cstdio>
@@ -207,7 +208,7 @@ int main() {
     for (int i = 0; i < 600; i++) v.step(1.0 / 240, in);
     // upright while driving normally
     assert(v.upright > 0.9);
-    assert(!v.bodyContact);
+    assert(!v.inBodyContact());
 
     // turn the car onto its side: the body corners then touch the ground
     Quaternion q;
@@ -219,7 +220,7 @@ int main() {
     v.quat[0] = q.w;
     for (int i = 0; i < 60; i++) v.step(1.0 / 240, in);
     assert(v.upright < 0.2);          // lying on its side
-    assert(v.bodyContact);            // the shell is what holds it up
+    assert(v.inBodyContact());            // the shell is what holds it up
     // and it does not sink through the road
     assert(v.pos[1] > -0.6);
   }

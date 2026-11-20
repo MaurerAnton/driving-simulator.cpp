@@ -4,6 +4,7 @@
  * hand-built world with no tiles (the terrain source reports nothing).
  */
 #include "../src/game/game.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 
@@ -120,7 +121,7 @@ int main() {
 
   // boot built the world and went to the menu
   assert(g.state == GameState::Menu);
-  assert(g.world != nullptr);
+  assert(g.app.world != nullptr);
   assert(g.lanes && g.signals && g.traffic && g.rules && g.nav);
   assert(g.hud && g.input && g.ground);
   assert(g.signs && g.signalHeads);

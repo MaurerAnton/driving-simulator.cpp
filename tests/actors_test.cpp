@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Actors: pooled traffic cars, walking pedestrians, signal heads. */
 #include "../src/render/actors.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

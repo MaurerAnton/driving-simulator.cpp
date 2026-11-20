@@ -178,16 +178,32 @@ int main() {
   assert(host.visible.count("roundel") && !host.visible["roundel"]);
   st.hudRules = true;
 
-  // a toast and a message reach the host
+  // a fault or hint goes into the street-name block (0.5.0): the nav box is
+  // always visible and shows the notice instead of the street
   Violation v;
   v.id = "speed";
   v.severity = Severity::Minor;
   v.data = {{"limit", "50"}, {"speed", "62"}};
   hud.toast(v);
+  HudState sn;
+  sn.navText = "Bahnhofstraße";
+  hud.update(sn, 10.0);
+  assert(host.cls.count("nav") && host.cls["nav"].find("alert") != std::string::npos);
+  assert(host.cls["nav"].find("yellow") != std::string::npos);   // a minor fault is yellow
+  assert(host.text.count("navText") && host.text["navText"].find("80") != std::string::npos ||
+         host.text["navText"].find("62") != std::string::npos);
+  // a message is a hint: it does not push a fault aside
   hud.message("Hello", "sub");
-  assert(host.toasts >= 2);
+  hud.update(sn, 10.1);
+  assert(host.cls["nav"].find("alert") != std::string::npos);
+  // after the notices ran out the street name shows again
+  hud.clearNotices();
+  hud.update(sn, 10.2);
+  assert(host.cls.count("nav") && host.cls["nav"] == "nav");
+  assert(host.text["navText"] == "Bahnhofstraße");
+  assert(host.toasts == 0);   // no toasts: the notices live in the nav box
 
-  // the pause menu offers resume, restart and menu
+  // the pause menu offers resume, reality, settings, controls and menu
   hud.showPause();
   int pauseButtons = 0;
   std::function<void(HudNode*)> countBtns = [&](HudNode* n) {
@@ -196,7 +212,11 @@ int main() {
     for (auto& c : n->children) countBtns(c.get());
   };
   countBtns(host.root);
-  assert(pauseButtons >= 3);
+  assert(pauseButtons >= 5);
+  // free drive: the pause menu offers to jump to an address
+  all.clear();
+  walk(host.root);
+  assert(all.find("Weiterfahren") != std::string::npos);
   hud.hideOverlay();
   assert(!hud.menuOpen());
 
@@ -210,10 +230,32 @@ int main() {
   walk(host.root);
   assert(all.find("3") != std::string::npos);
 
-  // touch controls are added to the HUD tree
+  // touch controls are added to the HUD tree (0.5.0: always built, shown by
+  // setInputMode)
   Input in(*(Platform*)nullptr, st);   // the platform is not used by this call
-  hud.enableTouch(in);
+  hud.attachInput(in);
   assert(host.find("touch") != nullptr);
+  hud.setInputMode("touch");
+  assert(host.cls.count("hud") && host.cls["hud"].find("touchmode") != std::string::npos);
+  assert(host.visible.count("touch") && host.visible["touch"]);
+  hud.setInputMode("keys");
+  assert(host.cls["hud"].find("touchmode") == std::string::npos);
+  // the buttons stand in for keys (they send untrusted ones: mode = touch)
+  hud.setInputMode("touch");
+  std::function<bool(HudNode*)> clickId = [&](HudNode* n) -> bool {
+    if (!n) return false;
+    if (n->id == "tbGearUp" && n->click) {
+      n->click();
+      return true;
+    }
+    for (auto& c : n->children)
+      if (clickId(c.get())) return true;
+    return false;
+  };
+  int gearBefore = in.c.gear;
+  assert(clickId(host.root));
+  assert(in.c.gear == gearBefore + 1);   // ▲ shifts up
+  assert(in.mode == "touch");
 
   std::printf("hud: all checks passed (%d widgets, %d painted)\n",
               TestHost::count(host.root), host.painted);

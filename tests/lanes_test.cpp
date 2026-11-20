@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Lane graph: lanes per edge, connectors at junctions, conflicts, routing. */
 #include "../src/world/lanes.h"
+#include <cmath>
 #include "../src/world/world.h"
 #include <cassert>
 #include <cstdio>

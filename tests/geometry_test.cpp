@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Geometry checks: primitives produce sane vertex data; merge works. */
 #include "../src/engine/geometry.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

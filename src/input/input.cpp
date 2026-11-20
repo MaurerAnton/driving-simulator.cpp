@@ -20,22 +20,52 @@ double approach(double cur, double target, double maxStep) {
 }
 
 Input::Input(Platform& platform, const Settings& settings)
-    : platform_(platform), settings_(settings) {}
+    : platform_(platform), settings_(settings) {
+  // what the driver is using right now: a touch screen starts in touch mode
+  mode = platform_.coarsePointer() ? "touch" : "keys";
+}
 
 void Input::fire(Action a) {
   for (const auto& f : actions_) f(a);
 }
 
+namespace {
+/** keys the platform reports as held right now */
+std::vector<std::string> platformKeys(const Platform& p) {
+  std::vector<std::string> out;
+  for (const char* k : {"KeyA", "KeyB", "KeyC", "KeyD", "KeyE", "KeyH", "KeyI", "KeyJ", "KeyK",
+                        "KeyL", "KeyM", "KeyN", "KeyO", "KeyP", "KeyQ", "KeyR", "KeyT", "KeyV",
+                        "KeyW", "KeyX", "KeyY", "KeyZ", "Space", "Enter", "Escape", "F1",
+                        "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft",
+                        "ShiftRight", "Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5",
+                        "Digit6"})
+    if (p.key(k)) out.push_back(k);
+  return out;
+}
+}  // namespace
+
 bool Input::keyDown(const std::string& code) const {
+  // The browser gets every KeyboardEvent in the DOM (the original's listeners
+  // on window); the platform's hook reports the keys of the frame the way
+  // Emscripten's emscripten_get_key_state does, so a host that has no event
+  // callbacks still feeds the state machine the same stream of key presses.
+  // Only the code matters; down/up comes from the platform's answer.
+  if (platform_.key(code)) return true;
   for (const auto& k : keys_)
     if (k == code) return true;
   return false;
 }
 
-void Input::onKey(const std::string& code, bool down, bool repeat) {
+void Input::onKey(const std::string& code, bool down, bool repeat, bool trusted) {
   if (down) {
     if (repeat) return;
     keys_.push_back(code);
+    // a real key (the on-screen buttons send untrusted ones): the driver is on
+    // the keyboard now
+    if (trusted && code != "Escape") {
+      mode = "keys";
+      touchActive_ = false;
+    }
     if (code == "Escape") fire(Action::Pause);
     if (code == "F1") fire(Action::Help);
     if (!enabled) return;
@@ -141,6 +171,52 @@ void Input::applyPadButtons(const std::vector<bool>& buttons, bool wheel) {
   prevButtons_ = buttons;
 }
 
+void Input::pollPointer() {
+  bool down = false, up = false, mouse = false;
+  double mx = 0, my = 0, dx = 0, dy = 0;
+  int id = -1;
+  platform_.pointer(down, up, mouse, mx, my, dx, dy, id);
+  if (down) {
+    if (mouse) {
+      dragging_ = true;
+      return;
+    }
+    // a finger on the view: swipe to glance left or right (shoulder check),
+    // let go to look ahead again
+    mode = "touch";
+    if (lookId_ >= 0) return;
+    lookId_ = id;
+    lookX_ = 0;
+    lookY_ = 0;
+    dragging_ = true;
+    glance_ = true;
+    return;
+  }
+  if (up) {
+    if (mouse) {
+      dragging_ = false;
+    } else if (id == lookId_) {
+      lookId_ = -1;
+      dragging_ = false;
+    }
+    return;
+  }
+  if (!dragging_) return;
+  const double inv = settings_.invertLookY ? -1 : 1;
+  if (mouse) {
+    mouseLookYaw_ = clamp(mouseLookYaw_ - mx * 0.005, -2.6, 2.6);
+    mouseLookPitch_ = clamp(mouseLookPitch_ - my * 0.004 * inv, -0.8, 0.6);
+  } else if (id == lookId_) {
+    // a thumb travels less than a mouse: a third of the screen is a full
+    // shoulder check
+    const double k = 5.4 / std::max(320.0, platform_.innerWidth());
+    mouseLookYaw_ = clamp(mouseLookYaw_ + dx * k, -2.6, 2.6);
+    mouseLookPitch_ = clamp(mouseLookPitch_ + dy * k * 0.5 * inv, -0.8, 0.6);
+    lookX_ += dx;
+    lookY_ += dy;
+  }
+}
+
 Controls Input::update(double dt, double speed, double selfAlign) {
   Controls& c = this->c;
   if (!enabled) {
@@ -169,12 +245,13 @@ Controls Input::update(double dt, double speed, double selfAlign) {
     c.throttle = pad.throttle;
     c.brake = pad.brake;
     c.clutch = pad.clutch;
-  } else if (platform_.touchActive()) {
+  } else if (touchActive_ || platform_.touchActive()) {
     c.device = "touch";
     double limit = 1.0 / (1.0 + (absSpeed / 20.0) * (absSpeed / 20.0));
-    c.steer = approach(c.steer, platform_.touchSteer() * (0.25 + 0.75 * limit), dt * 4);
-    c.throttle = platform_.touchThrottle();
-    c.brake = platform_.touchBrake();
+    const double steerIn = touchActive_ ? touchSteer_ : platform_.touchSteer();
+    c.steer = approach(c.steer, steerIn * (0.25 + 0.75 * limit), dt * 4);
+    c.throttle = touchActive_ ? touchThrottle_ : platform_.touchThrottle();
+    c.brake = touchActive_ ? touchBrake_ : platform_.touchBrake();
     c.clutch = 0;
   } else {
     c.device = "keyboard";
@@ -206,10 +283,13 @@ Controls Input::update(double dt, double speed, double selfAlign) {
                       : approach(c.clutch, 0, dt * (c.clutch > 0.3 && c.clutch < 0.78 ? 0.55 : 2.2));
   }
 
+  pollPointer();
+
   if (pad.present) {
     applyPadButtons(pad.buttons, pad.wheel);
     if (std::fabs(pad.lookX) > 0.15) mouseLookYaw_ = -pad.lookX * 1.9;
-    else if (!pad.wheel && std::fabs(mouseLookYaw_) > 0 && !platform_.dragging())
+    else if (!pad.wheel && std::fabs(mouseLookYaw_) > 0 && !dragging_ &&
+             !platform_.dragging())
       mouseLookYaw_ = approach(mouseLookYaw_, 0, dt * 6);
   }
 
@@ -217,6 +297,12 @@ Controls Input::update(double dt, double speed, double selfAlign) {
   if (c.starter) c.ignition = true;
   c.horn = keyDown("KeyH") || pad.horn;
 
+  // a finger glance swings back by itself
+  if (glance_ && !dragging_) {
+    mouseLookYaw_ = approach(mouseLookYaw_, 0, dt * 5);
+    mouseLookPitch_ = approach(mouseLookPitch_, 0, dt * 2.5);
+    if (mouseLookYaw_ == 0 && mouseLookPitch_ == 0) glance_ = false;
+  }
   // shoulder check / look around
   double yaw = mouseLookYaw_;
   bool lookL = keyDown("KeyJ");

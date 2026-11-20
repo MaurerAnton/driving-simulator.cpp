@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Scene graph checks: parent/child, world matrices, lights. */
 #include "../src/engine/scene.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

@@ -9,6 +9,8 @@
  */
 #include "game/game.h"
 
+#include "geo/utm.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -18,6 +20,32 @@ namespace fs {
 namespace {
 constexpr double PHYS_DT = 1.0 / 240.0;
 }  // namespace
+
+/**
+ * What the reality view asks the game: the saved settings, where on the map
+ * a photo may belong, and closing it again (the panel goes back to the pause
+ * menu through Game::closeReality).
+ */
+struct RealityHostImpl : RealityHost {
+  Game& game;
+  explicit RealityHostImpl(Game& g) : game(g) {}
+  Settings& settings() override { return game.settings; }
+  void saveSettings() override { fs::saveSettings(game.settings); }
+  void close() override { game.closeReality(); }
+  bool plausible(double lat, double lon) const override {
+    const auto p = latLonToWorld(lat, lon);
+    const WorldMetaJson& m = game.worldJson_.meta;
+    return p.first > m.minX - 500 && p.first < m.maxX + 500 && p.second > m.minZ - 500 &&
+           p.second < m.maxZ + 500;
+  }
+  int maxTexture() const override { return 8192; }
+  void openAerial() override {
+    // the map with aerial photographs is the browser's job (see the original's
+    // ?at= link); here nothing happens
+  }
+};
+
+Game::~Game() = default;
 
 Game::Game(HudHost& host, Platform& platform, AudioBackend& audioBackend,
            SignSource& signSource, TileSource& tileSource, int canvasWidth, int canvasHeight)
@@ -29,9 +57,84 @@ Game::Game(HudHost& host, Platform& platform, AudioBackend& audioBackend,
       tileSource_(tileSource),
       platform_(platform) {}
 
+
 std::string Game::t(const std::string& key) const {
   Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
   return fs::tr(key, l);
+}
+
+// ---------------------------------------------------------------- addresses
+/** The address list (house numbers of the map), read when somebody searches. */
+AddressIndex* Game::loadAddresses() {
+  if (addressAsked_) return addressIndex_.get();
+  addressAsked_ = true;
+  // the original fetches `map/addresses.json` here; the fetch layer lives in
+  // the platform, so the same code runs in the browser and in tests
+  addressIndex_.reset();   // no backend yet: nothing to search (see README)
+  return addressIndex_.get();
+}
+
+/** The spot on the road in front of an address, as a starting point. */
+bool Game::spawnAt(const AddressHit& hit, SpawnJson& out) {
+  if (!mainLanes_) mainLanes_ = std::make_unique<std::set<int>>(mainNetwork(*app.world, *lanes));
+  SpawnJson spot =
+      findRoadSpot(*app.world, *lanes, hit.x, hit.z, hit.street, 220, mainLanes_.get());
+  if (spot.kind.empty()) return false;
+  out = spot;
+  out.name = hit.label;
+  return true;
+}
+
+/** Free drive: jump to an address (from the pause menu). */
+void Game::teleportTo(const AddressHit& hit) {
+  if (state != GameState::Pause || hasLesson_) return;
+  SpawnJson spot;
+  if (!spawnAt(hit, spot)) {
+    hud->showPause();
+    Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
+    hud->message(fs::tr("addressNoRoad", l), hit.label);
+    return;
+  }
+  spawn_ = spot;
+  hasSpawn_ = true;
+  traffic->clear();
+  vehicle->vel[0] = vehicle->vel[1] = vehicle->vel[2] = 0;
+  vehicle->angVel[0] = vehicle->angVel[1] = vehicle->angVel[2] = 0;
+  input->c.handbrake = 1;
+  state = GameState::Placing;
+  car.root.visible = false;
+  Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
+  hud->showLoading(fs::tr("loadingTiles", l));
+}
+
+// ---------------------------------------------------------- reality view
+/** Real photographs of where the car is (own files and free imagery services). */
+void Game::openReality() {
+  if (state != GameState::Drive && state != GameState::Pause) return;
+  state = GameState::Reality;
+  input->enabled = false;
+  audio.suspend();
+  hud->hideOverlay();
+  hud->setHudVisible(false);
+  vehicle->getModelPosition(mpos_);
+  auto ll = worldToLatLon(mpos_[0], mpos_[2]);
+  // yaw: 0 = north, positive = to the left; a compass counts clockwise
+  double heading = std::fmod(-vehicle->yaw * 180.0 / M_PI, 360.0);
+  if (heading < 0) heading += 360.0;
+  RealityPlace place;
+  place.lat = ll.first;
+  place.lon = ll.second;
+  place.heading = heading;
+  place.name = rules->context.roadName;
+  reality_->open(place);
+}
+
+void Game::closeReality() {
+  if (state != GameState::Reality) return;
+  reality_->close();
+  state = GameState::Pause;
+  hud->setHudVisible(true);
+  hud->showPause();
 }
 
 void Game::onTile(LoadedTile& tile, bool loaded) {
@@ -107,17 +210,27 @@ void Game::toMenu() {
   }
 }
 
-void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro) {
+void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro,
+                 const AddressHit* address) {
   (void)skipIntro;   // the intro overlay is shown by tryPlace() when it is set
   audio.start();
-  const auto& spawns = worldJson_.spawns;
-  if (!spawns.empty()) {
-    int i = std::max(0, std::min(static_cast<int>(spawns.size()) - 1, spawnIdx));
-    spawn_ = spawns[static_cast<size_t>(i)];
+  // start at this address instead of one of the car parks (0.5.0)
+  SpawnJson at;
+  bool placed = address && spawnAt(*address, at);
+  if (placed) {
+    spawn_ = at;
+    spawn_.name = address->label;
     hasSpawn_ = true;
   } else {
-    spawn_ = SpawnJson();
-    hasSpawn_ = true;
+    const auto& spawns = worldJson_.spawns;
+    if (!spawns.empty()) {
+      int i = std::max(0, std::min(static_cast<int>(spawns.size()) - 1, spawnIdx));
+      spawn_ = spawns[static_cast<size_t>(i)];
+      hasSpawn_ = true;
+    } else {
+      spawn_ = SpawnJson();
+      hasSpawn_ = true;
+    }
   }
   hasLesson_ = false;
   for (const auto& l : lessons())
@@ -126,6 +239,7 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro) {
       hasLesson_ = true;
       break;
     }
+  hud->canTeleport = !hasLesson_;
   const VehicleSpec& spec = settings.transmission == Transmission::Automatic
                                 ? compactCarAutomatic()
                                 : (settings.transmission == Transmission::Assist
@@ -143,6 +257,7 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro) {
   c.seatbelt = !cold;
   vehicle->resetDrivetrain(!cold);
   rules->reset();
+  hud->clearNotices();
   rules->strict = hasLesson_ && lesson_.kind == "exam";
   traffic->clear();
   nav->clear();
@@ -462,10 +577,22 @@ void Game::boot(const QueryParams& q) {
   hud = std::make_unique<Hud>(host_, settings, *a.world);
   input = std::make_unique<Input>(platform_, settings);
   input->onAction([this](Action act) { onAction(act); });
-  hud->onStart = [this](const StartRequest& r) { begin(r.mode, r.spawn); };
+  hud->onStart = [this](const StartRequest& r) {
+    begin(r.mode, r.spawn, false, r.hasAddress ? &r.address : nullptr);
+  };
   hud->onResume = [this]() { resume(); };
   hud->onQuit = [this]() { toMenu(); };
   hud->onSettingsChanged = [this]() { applySettings(); };
+  // reality view (0.4.0): real photographs of where the car is
+  hud->onReality = [this]() { openReality(); };
+  realityHost_ = std::make_unique<RealityHostImpl>(*this);
+  reality_ = std::make_unique<RealityPanel>(host_, *realityHost_, nullptr);
+  // 0.5.0: the pause menu (menu button in the HUD), the address search of the
+  // start menu and jumping to an address while paused
+  hud->onPause = [this]() { pause(); };
+  hud->loadAddresses = [this]() { return loadAddresses(); };
+  hud->onTeleport = [this](const AddressHit& hit) { teleportTo(hit); };
+  hud->attachInput(*input);
   rules->onViolation = [this](const Violation& v) {
     hud->toast(v);
     audio.click(ClickKind::Chime);
@@ -482,6 +609,20 @@ void Game::boot(const QueryParams& q) {
     settings.mirrors = qm == "off" ? Mirrors::Off
                                    : (qm == "alternate" ? Mirrors::Alternate : Mirrors::Full);
   if (!q.get("traffic").empty()) settings.traffic = std::atof(q.get("traffic").c_str());
+  // ?reality=1|test opens the reality view once the drive has started ("test":
+  // with a drawn panorama), ?rv=panoramax,kartaview switches services on
+  autoReality_ = q.get("reality");
+  for (const std::string& r : {"panoramax", "kartaview", "mapillary"})
+    if (q.get("rv").find(r) != std::string::npos) {
+      if (r == "panoramax") settings.reality.panoramax = true;
+      else if (r == "kartaview") settings.reality.kartaview = true;
+      else settings.reality.mapillary = true;
+    }
+  // ?notice=red|yellow|both shows sample notices, ?touch=on|off|auto forces
+  // the on-screen controls, ?addr=<street and number> starts at that address
+  autoNotice_ = q.get("notice");
+  const std::string tc = q.get("touch");
+  if (tc == "on" || tc == "off" || tc == "auto") settings.touchControls = tc;
   applySettings();
 
   // developer / test shortcuts
@@ -492,8 +633,25 @@ void Game::boot(const QueryParams& q) {
   autoDrive_ = std::atof(q.get("auto").c_str());
 
   std::string start = q.get("start");
-  if (!start.empty()) begin(start, std::atoi(q.get("spawn").c_str()), true);
-  else toMenu();
+  std::string addr = q.get("addr");
+  if (!start.empty() && !addr.empty()) {
+    // the address list is read once, then the first hit becomes the start
+    AddressIndex* ix = loadAddresses();
+    AddressHit hit;
+    bool found = false;
+    if (ix) {
+      std::vector<AddressHit> hits = ix->search(addr, 1);
+      if (!hits.empty()) {
+        hit = hits[0];
+        found = true;
+      }
+    }
+    begin(start, std::atoi(q.get("spawn").c_str()), true, found ? &hit : nullptr);
+  } else if (!start.empty()) {
+    begin(start, std::atoi(q.get("spawn").c_str()), true);
+  } else {
+    toMenu();
+  }
 }
 
 void Game::frame(double now) {

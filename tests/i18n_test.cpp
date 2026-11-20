@@ -11,8 +11,8 @@
 using namespace fs;
 
 int main() {
-  // 108 UI keys + 35 violation ids at v0.4.0
-  assert(UI_ENTRIES.size() == 108);
+  // 149 UI keys + 35 violation ids at v0.5.0
+  assert(UI_ENTRIES.size() == 149);
   assert(VIOLATION_ENTRIES.size() == 35);
 
   // basic lookups (verbatim from the TypeScript table)
@@ -20,6 +20,11 @@ int main() {
   assert(tr("loading", Lang::En) == "Loading map …");
   assert(tr("webglMissing", Lang::De) == "Dieser Browser unterstützt kein WebGL 2.");
   assert(tr("navRoundabout", Lang::En) == "take the {n}. exit at the roundabout");
+
+  // 0.5.0: the touch variants of the tips and the address search
+  assert(tr("startEngineTouch", Lang::De) == "Motor starten: hier gedrückt halten");
+  assert(tr("teleport", Lang::En) == "Jump to an address");
+  assert(tr("lessonNoRoute", Lang::De).find("freie Fahrt") != std::string::npos);
 
   // unknown key returns the key itself
   assert(tr("nopeNotAKey", Lang::En) == "nopeNotAKey");

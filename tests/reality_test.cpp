@@ -4,6 +4,7 @@
  * own pictures, the drawn panorama and the panel's ranking.
  */
 #include "../src/reality/imagemeta.h"
+#include <cmath>
 #include "../src/reality/testpano.h"
 #include "../src/ui/reality.h"
 #include <cassert>

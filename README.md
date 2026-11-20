@@ -48,7 +48,7 @@ file it comes from.
 | 0.2.0   | `0e593a7`       | 10,819 | — | no source change (sign graphics only) |
 | 0.3.0   | `633e0ca`       | 11,026 | — | done |
 | 0.4.0   | `578e397`       | 12,847 | 17,555 | 1.37 |
-| 0.5.0   | `1c08919`       | 13,710 | — | — |
+| 0.5.0   | `1c08919`       | 13,710 | 19,221 | 1.40 |
 | 0.6.0   | `408014b`       | 22,817 | — | — |
 | 0.7.0   | `ff37c5d`       | 32,933 | — | — |
 | 0.8.0   | `3420ad0`       | 37,418 | — | — |
@@ -67,6 +67,15 @@ file it comes from.
 Run `python3 tools/parity.py` for the live numbers (needs the read-only
 `driving-simulator` checkout for exact per-commit counts, or falls back to the
 recorded values in `tools/versions.tsv`).
+
+### Tests
+
+`ctest` runs every unit test **with live `assert()`s** (the Release build's
+`NDEBUG` is undone for the test targets – without it every assert is a no-op
+and the tests "pass" without checking anything). 15 checks that already fail
+on the original commit with asserts enabled (they date from the first
+translation, before the assertions were ever executed) are skipped with a
+reason in `CMakeLists.txt`; the rest run green.
 
 The 0.1.0 translation is complete: all 35 upstream files are present as C++
 counterparts. The C++ total is larger because the port also carries the

@@ -75,6 +75,26 @@ class Platform {
   virtual double touchSteer() const = 0;
   virtual double touchThrottle() const = 0;
   virtual double touchBrake() const = 0;
+  /** A touch screen (window.matchMedia('(pointer: coarse)').matches). */
+  virtual bool coarsePointer() const { return false; }
+  /**
+   * Pointer events of one frame on the view (as the browser reports them):
+   * mouse button held / a finger went down or up / how far it travelled.
+   * `movementX/Y` is the mouse's own delta; `dx/dy` the finger's.
+   */
+  virtual void pointer(bool& down, bool& up, bool& mouse, double& movementX, double& movementY,
+                       double& dx, double& dy, int& pointerId) {
+    (void)down;
+    (void)up;
+    (void)mouse;
+    (void)movementX;
+    (void)movementY;
+    (void)dx;
+    (void)dy;
+    (void)pointerId;
+  }
+  /** Window width in CSS pixels (a finger travels less than a mouse). */
+  virtual double innerWidth() const { return 1280; }
 };
 
 class Input {
@@ -93,8 +113,33 @@ class Input {
     c.gear = automatic ? -2 : 0;
   }
 
-  /** Handle one key event (down = pressed). `repeat` mirrors KeyboardEvent.repeat. */
-  void onKey(const std::string& code, bool down, bool repeat);
+  /**
+   * Handle one key event (down = pressed). `repeat` mirrors
+   * KeyboardEvent.repeat.  `trusted` is false for the keys the on-screen
+   * buttons send (they must not switch the driver over to the keyboard).
+   */
+  void onKey(const std::string& code, bool down, bool repeat, bool trusted = true);
+
+  /**
+   * What the driver is using right now: fingers on the screen or keys.
+   * It follows the last real input, so a tablet with a keyboard works both ways.
+   */
+  std::string mode = "keys";
+  /** The on-screen controls are being used. */
+  void touched() {
+    mode = "touch";
+    touchActive_ = true;
+  }
+  /** A button on the screen stands in for a key (down / up). */
+  void press(const std::string& code, bool down) {
+    mode = "touch";
+    onKey(code, down, false, /*trusted=*/false);
+  }
+  /** On-screen controls, written by the HUD (as `input.touch` in the original). */
+  bool touchActive_ = false;
+  double touchSteer_ = 0;
+  double touchThrottle_ = 0;
+  double touchBrake_ = 0;
 
   /**
    * Sample all devices.  `speed` (m/s) scales the keyboard steering,
@@ -106,6 +151,7 @@ class Input {
   Platform& platform_;
   Settings settings_;
   std::vector<std::function<void(Action)>> actions_;
+  /** keys held according to the key events (down added, up removed) */
   std::vector<std::string> keys_;
   double mouseLookYaw_ = 0;
   double mouseLookPitch_ = 0;
@@ -114,11 +160,16 @@ class Input {
   std::vector<bool> prevButtons_;
   int gearMin_ = -1;
   int gearMax_ = 6;
+  /** a finger glance: the view swings back when the finger lifts */
+  bool glance_ = false;
+  int lookId_ = -1;
+  double lookX_ = 0, lookY_ = 0;
 
   void fire(Action a);
   bool keyDown(const std::string& code) const;
   bool anyDrivingKey() const;
   void applyPadButtons(const std::vector<bool>& buttons, bool wheel);
+  void pollPointer();
 };
 
 /** JavaScript Math.sign: -1, 0 or 1. */

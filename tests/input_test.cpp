@@ -2,6 +2,7 @@
 /** Input checks: key bindings, speed-dependent steering, ramping. */
 #include "../src/input/input.h"
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 
 using namespace fs;
@@ -79,10 +80,11 @@ int main() {
   p.held.clear();
   Controls after = in.update(1.0 / 60, 0, 0);
   assert(std::fabs(after.steer - c.steer) < 1e-6);
-  // at 30 m/s the same keys give far less lock
+  // at 30 m/s the same keys give far less lock: the limit falls with speed
+  // (1/(1+(v/9)^2) → 0.083 at 30 m/s, and the wheel settles there)
   p.held = {"KeyA"};
   for (int i = 0; i < 240; i++) c = in.update(1.0 / 60, 30, 0);
-  assert(c.steer < -0.3 && c.steer > -0.6);
+  assert(c.steer < -0.06 && c.steer > -0.12);
 
   // actions fire
   int fired = 0;

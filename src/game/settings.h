@@ -59,6 +59,17 @@ struct Settings {
     bool mapillary = false;
     std::string mapillaryToken;
   } reality;
+  /**
+   * Driving controls on the screen (steering bar, pedals, buttons):
+   * 'auto' shows them while the screen is being touched and hides them as soon
+   * as a keyboard is used; 'on' / 'off' force them.
+   */
+  /** stored as the original's 'auto' | 'on' | 'off' */
+  std::string touchControls = "auto";
+  /** how solid the on-screen controls are drawn, 0.15 … 1 */
+  double touchOpacity = 0.55;
+  /** short reminder of the keys while standing or crawling (keyboard only) */
+  bool keyHints = true;
 };
 
 /** The defaults the TypeScript DEFAULT_SETTINGS starts from. */

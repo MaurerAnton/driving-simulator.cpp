@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Sky: sun direction, day/night colours, dome placement. */
 #include "../src/render/sky.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 

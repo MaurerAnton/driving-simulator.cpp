@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Car exterior: body, four steered/spinning wheels, lamps, plates. */
 #include "../src/render/car.h"
+#include <cmath>
 #include <cassert>
 #include <cstdio>
 
