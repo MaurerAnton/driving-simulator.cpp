@@ -59,8 +59,7 @@ Game::Game(HudHost& host, Platform& platform, AudioBackend& audioBackend,
 
 
 std::string Game::t(const std::string& key) const {
-  Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
-  return fs::tr(key, l);
+  return fs::tr(key, settings.lang);
 }
 
 // ---------------------------------------------------------------- addresses
@@ -91,8 +90,7 @@ void Game::teleportTo(const AddressHit& hit) {
   SpawnJson spot;
   if (!spawnAt(hit, spot)) {
     hud->showPause();
-    Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
-    hud->message(fs::tr("addressNoRoad", l), hit.label);
+    hud->message(fs::tr("addressNoRoad", settings.lang), hit.label);
     return;
   }
   spawn_ = spot;
@@ -103,8 +101,7 @@ void Game::teleportTo(const AddressHit& hit) {
   input->c.handbrake = 1;
   state = GameState::Placing;
   car.root.visible = false;
-  Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
-  hud->showLoading(fs::tr("loadingTiles", l));
+  hud->showLoading(fs::tr("loadingTiles", settings.lang));
 }
 
 // ---------------------------------------------------------- reality view
@@ -307,9 +304,8 @@ void Game::finish() {
   input->enabled = false;
   audio.suspend();
   hud->setHudVisible(false);
-  int li = settings.lang == LangSetting::De ? 0 : 1;
   ResultSummary r;
-  r.title = hasLesson_ ? (li == 0 ? lesson_.title.first : lesson_.title.second) : t("free");
+  r.title = hasLesson_ ? lessonTitle(lesson_.id, settings.lang) : t("free");
   r.exam = exam;
   r.passed = !failed;
   r.log = rules->log;
@@ -479,38 +475,24 @@ void Game::updateLesson(double dt, const PlayerState& p) {
   if (l.kind == "basics") {
     Controls& c = input->c;
     bool auto_ = v->spec.transmission == "automatic";
-    bool de = settings.lang == LangSetting::De;
     struct Step {
-      std::string text;
+      const char* key;
       std::function<bool()> done;
     };
+    // the texts are the basics.* ones, in the reader's language (0.6.0)
     std::vector<Step> steps = {
-        {de ? "Anschnallen: B druecken" : "Fasten your seat belt: press B",
-         [&]() { return c.seatbelt; }},
-        {de ? (auto_ ? "Bremse treten (S) und Motor starten: Enter halten"
-                     : "Motor starten: Enter halten (Gang raus oder Kupplung treten)")
-            : (auto_ ? "Hold the brake (S) and start the engine: hold Enter"
-                     : "Start the engine: hold Enter (neutral or clutch pressed)"),
+        {"basics.belt", [&]() { return c.seatbelt; }},
+        {auto_ ? "basics.startAuto" : "basics.startManual",
          [&]() { return v->engineRunning; }},
-        {de ? (auto_ ? "Waehlhebel auf D: E druecken" : "1. Gang einlegen: Taste 1")
-            : (auto_ ? "Select D: press E" : "Select 1st gear: key 1"),
+        {auto_ ? "basics.gearAuto" : "basics.gearManual",
          [&]() { return auto_ ? c.gear == 1 : v->gear == 1; }},
-        {de ? "Handbremse loesen: Leertaste" : "Release the handbrake: Space",
-         [&]() { return c.handbrake < 0.5; }},
-        {de ? "Sanft anfahren: etwas Gas (W), bis 15 km/h"
-            : "Pull away gently: a little throttle (W) up to 15 km/h",
-         [&]() { return v->speed * 3.6 > 15; }},
-        {de ? (auto_ ? "Weiter beschleunigen bis 30 km/h"
-                     : "In den 2. Gang schalten (E) und bis 30 km/h beschleunigen")
-            : (auto_ ? "Accelerate to 30 km/h" : "Change up to 2nd (E) and accelerate to 30 km/h"),
+        {"basics.handbrake", [&]() { return c.handbrake < 0.5; }},
+        {"basics.pullAway", [&]() { return v->speed * 3.6 > 15; }},
+        {auto_ ? "basics.accelAuto" : "basics.accelManual",
          [&]() { return v->speed * 3.6 > 30 && (auto_ || v->gear >= 2); }},
-        {de ? "Bis zum Stillstand bremsen (S)" : "Brake to a standstill (S)",
-         [&]() { return std::fabs(v->speed) < 0.1; }},
-        {de ? "Rueckwaertsgang: R - und ein Stueck zuruecksetzen"
-            : "Reverse gear: R - and back up a little",
-         [&]() { return v->speed < -1; }},
-        {de ? "Anhalten und Handbremse anziehen (Leertaste)"
-            : "Stop and apply the handbrake (Space)",
+        {"basics.brake", [&]() { return std::fabs(v->speed) < 0.1; }},
+        {"basics.reverse", [&]() { return v->speed < -1; }},
+        {"basics.stop",
          [&]() { return std::fabs(v->speed) < 0.1 && c.handbrake > 0.5; }},
     };
     if (basicsStep_ < static_cast<int>(steps.size()) &&
@@ -522,6 +504,8 @@ void Game::updateLesson(double dt, const PlayerState& p) {
       finish();
       return;
     }
+    lessonLine_ = std::to_string(basicsStep_ + 1) + "/" + std::to_string(steps.size()) +
+                  " \u00b7 " + fs::tr(steps[static_cast<size_t>(basicsStep_)].key, settings.lang);
     return;
   }
 
@@ -548,10 +532,23 @@ void Game::updateLesson(double dt, const PlayerState& p) {
     audio.click(ClickKind::Chime);
     if (targetIdx_ >= static_cast<int>(l.targets.size())) finish();
   }
+  lessonLine_ = lessonTitle(l.id, settings.lang) + " \u00b7 " +
+                std::to_string(targetIdx_ + 1) + "/" + std::to_string(l.targets.size());
 }
 
 void Game::boot(const QueryParams& q) {
   App& a = app;
+  // ?lang=xx chooses the language for this visit
+  const std::string ql = q.get("lang");
+  if (!ql.empty()) {
+    bool known = false;
+    for (const LangInfo& l : LANGS)
+      if (l.code == ql) known = true;
+    if (known) settings.lang = ql;
+  }
+  // the texts of the chosen language (built in or registered now; the
+  // original fetches the file) – unknown or refused: English
+  if (!loadLang(settings.lang)) settings.lang = "en";
   // the world JSON comes from the platform (the original fetches world.json)
   a.loadWorld(worldJson_, tileSource_);
   lanes = std::make_unique<LaneGraph>(*a.world);
@@ -666,7 +663,33 @@ void Game::frame(double now) {
     if (hasSpawn_) tiles->update(spawn_.x, spawn_.z);
     tryPlace();
   } else if (state == GameState::Drive) {
+    // fingers or keys: follows what the driver last used, unless the settings
+    // say otherwise (0.5.0); the texts name keys accordingly (0.6.0)
+    const std::string& want = settings.touchControls;
+    inputMode_ = want == "on" ? "touch" : (want == "off" ? "keys" : input->mode);
+    hud->setInputMode(inputMode_);
+    setKeyStyle(inputMode_ == "touch" ? KeyStyle::Touch : KeyStyle::Keys);
     stepDrive(dt);
+    if (!autoNotice_.empty() && time_ - startTime_ > 0.3) {
+      // (they stay: the automated check may take minutes for a frame)
+      const std::string kind = autoNotice_;
+      autoNotice_.clear();
+      if (kind != "yellow") {
+        Violation v;
+        v.id = "redLight";
+        v.severity = Severity::Fail;
+        v.time = time_;
+        hud->toast(v, 3600);
+      }
+      if (kind != "red") {
+        Violation v;
+        v.id = "speed";
+        v.severity = Severity::Minor;
+        v.time = time_;
+        v.data = {{"limit", "30"}, {"speed", "42"}};
+        hud->toast(v, 3600);
+      }
+    }
   }
 
   bool haveCar = vehicle != nullptr && car.root.visible;
@@ -774,46 +797,55 @@ void Game::updateVisuals(double dt) {
   NavHint& h = nav->hint;
   std::string navText;
   if (nav->goal && hasLesson_ && lesson_.kind != "basics") {
-    Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
+    const std::string& lang = settings.lang;
     std::string what = h.what == "navRoundabout"
-                           ? fs::tr("navRoundabout", l, {{"n", std::to_string(h.n)}})
-                           : fs::tr(h.what, l);
+                           ? fs::tr("navRoundabout", lang, {{"n", std::to_string(h.n)}})
+                           : fs::tr(h.what, lang);
     if (h.what == "navFollow" || h.dist < 0)
-      navText = fs::tr("navFollow", l);
+      navText = fs::tr("navFollow", lang);
     else if (h.dist < 35)
-      navText = fs::tr("navNow", l, {{"what", what}});
+      navText = fs::tr("navNow", lang, {{"what", what}});
     else
-      navText = fs::tr("navIn", l,
+      navText = fs::tr("navIn", lang,
                        {{"d", std::to_string(std::lround(h.dist / 10) * 10)}, {"what", what}});
     speak(h.what, h.dist, navText);
     // § 9 StVO: get in lane in good time – the route goes on from a particular lane
     if (h.lane != 0)
-      navText += " – " + fs::tr(h.lane < 0 ? "laneLeft" : "laneRight", l);
+      navText += " – " + fs::tr(h.lane < 0 ? "laneLeft" : "laneRight", lang);
+  } else if (hasLesson_ && lesson_.kind == "basics") {
+    navText = lessonLine_;   // the steps of the basics lesson, as in the original
   }
 
   std::string tip;
   if (time_ < tipUntil_) tip = tipText_;
+  std::string tipAction;
+  // on a touch screen the tip says what to tap – and is itself the button
+  const bool touchTip = inputMode_ == "touch";
+  auto say = [&](const char* key, const char* action) {
+    tip = fs::tr(touchTip ? std::string(key) + "Touch" : std::string(key), settings.lang);
+    tipAction = action;
+  };
   if (tip.empty()) {
-    Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
+    const std::string& lang = settings.lang;
     bool stalledRecently = false;
     for (const auto& x : rules->log)
       if (x.id == "stall" && time_ - x.time < 6) stalledRecently = true;
     if (!v.engineRunning)
-      tip = fs::tr(stalledRecently ? "engineStalled" : "startEngine", l);
+      say(stalledRecently ? "engineStalled" : "startEngine", "Enter");
     else if (!c.seatbelt && std::fabs(kmh) < 5)
-      tip = fs::tr("fastenBelt", l);
+      say("fastenBelt", "KeyB");
     else if (c.handbrake > 0.5 && c.throttle > 0.1)
-      tip = fs::tr("releaseHandbrake", l);
+      say("releaseHandbrake", "Space");
     else if (c.throttle > 0.1 && std::fabs(kmh) < 2 &&
              (s.automatic ? (c.gear == -2 || c.gear == 0) : v.gear == 0))
-      tip = fs::tr(s.automatic ? "selectDrive" : "selectGear", l);
+      say(s.automatic ? "selectDrive" : "selectGear", "KeyE");
     else {
       Lane* lane = currentLane();
       if (lane && lane->to && lane->to->ctrl == CTRL_MAP_END &&
           lane->len - laneFront() < 120)
-        tip = fs::tr("offMap", l);
+        tip = fs::tr("offMap", lang);
       else if (!ctx.onRoad && std::fabs(kmh) < 3 && time_ - lastGood_.t > 6)
-        tip = fs::tr("resetHint", l);
+        say("resetHint", "KeyT");
     }
   }
 
@@ -837,11 +869,17 @@ void Game::updateVisuals(double dt) {
   hs.navText = navText;
   hs.navSub = hasLesson_ && lesson_.kind != "basics" ? "" : ctx.roadName;
   hs.navArrow = h.arrow;
+  hs.navActive = hasLesson_ && h.dist >= 0 && h.what != "navFollow" && h.what != "routeDone";
   hs.tip = tip;
+  hs.tipAction = tipAction;
   hs.showDash = cameraMode != CameraMode::Cockpit;
   hs.indicator = c.indicator;
   hs.hazard = c.hazard;
   hs.blinkOn = s.blinkOn;
+  hs.handbrake = c.handbrake > 0.5;
+  hs.seatbelt = c.seatbelt;
+  hs.engineOn = v.engineRunning;
+  hs.lights = c.lowBeam;
   hs.points = rules->points();
   int faults = 0;
   for (const auto& x : rules->log)
@@ -851,11 +889,9 @@ void Game::updateVisuals(double dt) {
   hs.z = mpos_[2];
   hs.yaw = v.yaw;
   if (navText.empty() && !hasLesson_) {
-    Lang l = settings.lang == LangSetting::En ? Lang::En : Lang::De;
-    hs.navText = ctx.roadName.empty()
-                     ? fs::tr("free", l)
-                     : ctx.roadName;
-    hs.navSub = fs::tr("free", l);
+    const std::string& lang = settings.lang;
+    hs.navText = ctx.roadName.empty() ? fs::tr("free", lang) : ctx.roadName;
+    hs.navSub = fs::tr(inputMode_ == "touch" ? "navSubTouch" : "navSubKeys", lang);
     hs.navArrow = 0;
   }
   hud->update(hs, time_);

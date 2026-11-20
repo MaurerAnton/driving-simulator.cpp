@@ -19,15 +19,17 @@
 #include <cstdio>
 #include <string>
 
-#include "game/i18n.h"
 #include "game/settings.h"
+#include "i18n/index.h"
 
 int main() {
   // (how the original picks its language: ?lang=, else the saved setting)
   fs::Settings settings = fs::loadSettings();
-  fs::Lang lang = settings.lang == fs::LangSetting::En ? fs::Lang::En : fs::Lang::De;
+  // (the browser reads ?lang= and shows this page in the reader's language;
+  // the texts of the chosen language are there – English and German built in)
+  fs::loadLang(settings.lang);
 
-  std::printf("fahrsim-cpp: %s\n", fs::tr("title", lang).c_str());
-  std::printf("%s\n", fs::tr("subtitle", lang).c_str());
+  std::printf("fahrsim-cpp: %s\n", fs::tr("pageTitle", settings.lang).c_str());
+  std::printf("%s\n", fs::tr("subtitle", settings.lang).c_str());
   return 0;
 }

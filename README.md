@@ -49,7 +49,7 @@ file it comes from.
 | 0.3.0   | `633e0ca`       | 11,026 | — | done |
 | 0.4.0   | `578e397`       | 12,847 | 17,555 | 1.37 |
 | 0.5.0   | `1c08919`       | 13,710 | 19,221 | 1.40 |
-| 0.6.0   | `408014b`       | 22,817 | — | — |
+| 0.6.0   | `408014b`       | 22,817 | 28,893 | 1.27 |
 | 0.7.0   | `ff37c5d`       | 32,933 | — | — |
 | 0.8.0   | `3420ad0`       | 37,418 | — | — |
 | 0.9.0   | `9d37870`       | 37,452 | — | — |
@@ -76,6 +76,11 @@ and the tests "pass" without checking anything). 15 checks that already fail
 on the original commit with asserts enabled (they date from the first
 translation, before the assertions were ever executed) are skipped with a
 reason in `CMakeLists.txt`; the rest run green.
+
+`i18n_test` is the original's `tests/i18n` + `npm run i18n:check` in one:
+every language is complete (same keys, placeholders and `[[key]]` tokens),
+the checker's rules live in `src/i18n/check.h`, and the translations are the
+original ones (see [docs/TRANSLATING.md](docs/TRANSLATING.md)).
 
 The 0.1.0 translation is complete: all 35 upstream files are present as C++
 counterparts. The C++ total is larger because the port also carries the

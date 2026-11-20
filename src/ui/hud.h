@@ -16,8 +16,8 @@
 #include <vector>
 
 #include "game/address.h"
-#include "game/i18n.h"
 #include "game/nav.h"
+#include "i18n/index.h"
 #include "game/settings.h"
 #include "input/input.h"
 #include "platform/canvas2d.h"
@@ -139,7 +139,7 @@ class Hud {
   bool canTeleport = false;
   std::vector<Lane*> routeLanes;
 
-  LangSetting langSetting() const { return settings_.lang; }
+  std::string langSetting() const { return settings_.lang; }
   std::string t(const std::string& key) const;
   std::string t(const std::string& key,
                 const std::vector<std::pair<std::string, std::string>>& p) const;
@@ -201,6 +201,10 @@ class Hud {
   HudState lastState_;
   bool hasLastState_ = false;
   std::string keysFor_;
+  /** the word currently in the speed-limit roundel (its size only changes with it) */
+  std::string roundelText_;
+  /** font size at which a word fits into the roundel (0.6.0) */
+  int fitRoundel(const std::string& text) const;
   /** free drive: the start menu's address picker (kept alive while open) */
   std::unique_ptr<AddressPicker> menuPicker_;
   /** the address the picker chose (carried into the StartRequest) */
@@ -211,6 +215,13 @@ class Hud {
   std::unique_ptr<HudNode> buildHud();
   /** The short reminder of the keys, depending on the gearbox chosen. */
   std::string keyReminder() const;
+  /**
+   * The list of languages, each under its own name.  Choosing one registers
+   * its texts and draws the current page again (the original fetches the file).
+   */
+  std::unique_ptr<HudNode> languagePicker(const std::function<void()>& redraw, bool inRow = false);
+  /** Key caps for the keys with these codes, as printed on the player's keyboard. */
+  std::string keycaps(const std::vector<std::string>& codes, const std::string& sep = "") const;
 };
 
 }  // namespace fs

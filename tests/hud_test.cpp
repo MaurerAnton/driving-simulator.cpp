@@ -84,6 +84,7 @@ int main() {
   WorldJson net = makeNet();
   World w(net);
   Settings st;
+  st.lang = "de";   // the original default without a browser
   TestHost host;
   Hud hud(host, st, w);
 

@@ -15,7 +15,6 @@ namespace fs {
 enum class Transmission { Assist, Manual, Automatic };
 enum class Quality { Low, Medium, High };
 enum class Mirrors { Off, Alternate, Full };
-enum class LangSetting { De, En };
 
 struct WheelMapping {
   int steerAxis = 0;
@@ -31,7 +30,8 @@ struct WheelMapping {
 };
 
 struct Settings {
-  LangSetting lang = LangSetting::De;
+  /** language code, one of LANGS in src/i18n (the original: string) */
+  std::string lang = "de";
   Transmission transmission = Transmission::Assist;
   Quality quality = Quality::Medium;
   /** off | one mirror per frame | all mirrors every frame */

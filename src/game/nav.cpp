@@ -159,83 +159,27 @@ NavHint& Navigator::update(double dt, Lane* lane, double s, double x, double z) 
 const std::vector<LessonDef>& lessons() {
   static const std::vector<LessonDef> list = {
       {"basics",
-       {"1 · Anfahren, Schalten, Anhalten", "1 · Pulling away, changing gear, stopping"},
-       {"Sitz und Spiegel passen, also: anschnallen (B), Kupplung treten und Motor starten "
-        "(Enter halten), 1. Gang, Handbremse lösen (Leertaste). Kupplung langsam kommen lassen "
-        "und etwas Gas geben. Geschaltet wird bei etwa 2000–2500 Umdrehungen.",
-        "Seat and mirrors are set: fasten your belt (B), press the clutch and start the engine "
-        "(hold Enter), select 1st, release the handbrake (Space). Let the clutch up slowly and "
-        "add a little throttle. Change up at about 2000–2500 rpm."},
        "basics",
        {}},
       {"rbl",
-       {"2 · Rechts vor links (Tempo-30-Zone)", "2 · Right before left (30 km/h zone)"},
-       {"In Wohngebieten ohne Vorfahrtschilder gilt: Wer von rechts kommt, fährt zuerst "
-        "(§ 8 StVO). Fahre so an jede Einmündung heran, dass du anhalten kannst, und schau "
-        "zuerst nach rechts. In der Zone gilt 30 km/h, bis das Zonen-Ende-Schild kommt.",
-        "In residential areas without priority signs, whoever comes from the right goes first "
-        "(§ 8 StVO). Approach every junction ready to stop and look right first. The 30 km/h "
-        "zone lasts until the end-of-zone sign."},
        "route",
        {TargetType::Rbl, TargetType::Rbl, TargetType::Home}},
       {"priority",
-       {"3 · Vorfahrt gewähren und Stopp", "3 · Give way and stop"},
-       {"Das auf der Spitze stehende Dreieck (Zeichen 205) heißt: Vorfahrt gewähren. Das "
-        "Achteck (Zeichen 206): an der Haltlinie anhalten – immer. Die gelbe Raute (Zeichen 306) "
-        "zeigt: du bist auf der Vorfahrtstraße.",
-        "The inverted triangle (sign 205) means give way. The octagon (sign 206): stop at the "
-        "line – always. The yellow diamond (sign 306) tells you that you are on the priority road."},
        "route",
        {TargetType::Priority, TargetType::Priority, TargetType::Home}},
       {"signals",
-       {"4 · Ampelkreuzungen und Abbiegen", "4 · Traffic lights and turning"},
-       {"Gelb heißt: anhalten, wenn es gefahrlos geht. Bei Grün links abbiegen: Gegenverkehr "
-        "durchlassen. Rechts abbiegen: Schulterblick nach rechts, Radfahrer und Fußgänger haben "
-        "Vorrang. Blinken nicht vergessen.",
-        "Amber means stop if you safely can. Turning left on green: let oncoming traffic pass. "
-        "Turning right: shoulder check to the right, cyclists and pedestrians go first. Do not "
-        "forget to indicate."},
        "route",
        {TargetType::Signals, TargetType::Signals, TargetType::Home}},
       {"roundabout",
-       {"5 · Kreisverkehr", "5 · Roundabout"},
-       {"Am Kreisverkehr (Zeichen 215 mit 205) hat der Verkehr im Kreis Vorfahrt. Beim "
-        "Einfahren nicht blinken, beim Ausfahren rechts blinken. Auf Fußgänger an den Überwegen "
-        "achten.",
-        "At a roundabout (sign 215 with 205) traffic on the roundabout has priority. Do not "
-        "indicate when entering; indicate right when leaving. Watch for pedestrians at the "
-        "crossings."},
        "route",
        {TargetType::Roundabout, TargetType::Roundabout, TargetType::Home}},
       {"rural",
-       {"6 · Überlandfahrt", "6 · Country roads"},
-       {"Hinter dem Ortsausgangsschild gilt ohne weitere Schilder 100 km/h, am Ortseingang "
-        "(gelbe Ortstafel) wieder 50 km/h. Abstand: halber Tacho. Vor Kurven und Kuppen "
-        "rechtzeitig Tempo anpassen.",
-        "Beyond the end-of-town sign the limit is 100 km/h unless signed otherwise; at the "
-        "yellow town sign it is 50 km/h again. Distance: half your speed in metres. Adjust your "
-        "speed early for bends and crests."},
        "route",
        {TargetType::Rural, TargetType::Home}},
       {"motorway",
-       {"7 · Autobahn A 49", "7 · Motorway A 49"},
-       {"Auf dem Beschleunigungsstreifen zügig beschleunigen, Spiegel, Schulterblick, blinken – "
-        "der durchgehende Verkehr hat Vorfahrt. Rechts fahren, links überholen. "
-        "Richtgeschwindigkeit 130 km/h. Ausfahrt: rechtzeitig blinken, erst auf dem "
-        "Verzögerungsstreifen bremsen.",
-        "Accelerate briskly on the slip road, mirrors, shoulder check, indicate – through "
-        "traffic has priority. Keep right, overtake on the left. Recommended speed 130 km/h. "
-        "Exit: indicate early, brake only on the deceleration lane."},
        "route",
        {TargetType::Motorway, TargetType::Home}},
       {"exam",
-       {"Prüfungsfahrt", "Driving test"},
-       {"Der Prüfer sagt die Richtung an. Bewertet werden Verkehrsbeobachtung, Geschwindigkeit, "
-        "Vorfahrt, Abbiegen und Fahrzeugbedienung. Eine Gefährdung oder mehrere schwere Fehler "
-        "führen zum Nichtbestehen.",
-        "The examiner gives the directions. Observation, speed, right of way, turning and "
-        "vehicle handling are assessed. A dangerous situation or several serious faults mean a "
-        "fail."},
        "exam",
        {TargetType::Rbl, TargetType::Signals, TargetType::Roundabout, TargetType::Priority,
         TargetType::Rural, TargetType::Home}},

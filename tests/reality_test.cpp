@@ -26,6 +26,7 @@ class TestHost : public HudHost {
 class TestGame : public RealityHost {
  public:
   Settings s;
+  TestGame() { s.lang = "de"; }   // the panel shows German, as the test expects
   Settings& settings() override { return s; }
   void saveSettings() override {}
   void close() override { closed++; }

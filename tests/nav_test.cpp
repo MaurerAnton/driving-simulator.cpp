@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** Navigation: route hints, roundabout exit counting, target picking. */
 #include "../src/game/nav.h"
+#include "../src/i18n/index.h"
 #include <cassert>
 #include <cstdio>
 
@@ -50,17 +51,18 @@ int main() {
   LaneGraph g(w);
   Navigator nav(g);
 
-  // lessons ship with the original texts
+  // lessons ship with their ids and routes; the texts are the lesson.* ones
+  // in every language (0.6.0)
   const auto& ls = lessons();
   assert(ls.size() == 8);
   assert(ls[0].id == "basics" && ls[0].kind == "basics");
   assert(ls[1].id == "rbl" && ls[1].targets.size() == 3);
   assert(ls[7].id == "exam" && ls[7].kind == "exam");
-  assert(ls[7].title.first == "Prüfungsfahrt");
-  assert(ls[7].intro.second.find("examiner") != std::string::npos);
+  assert(lessonTitle("exam", "de") == "Prüfungsfahrt");
+  assert(lessonIntro("exam", "en").find("examiner") != std::string::npos);
   for (const auto& l : ls) {
-    assert(!l.title.first.empty() && !l.title.second.empty());
-    assert(!l.intro.first.empty() && !l.intro.second.empty());
+    assert(!lessonTitle(l.id, "de").empty() && !lessonTitle(l.id, "en").empty());
+    assert(!lessonIntro(l.id, "de").empty() && !lessonIntro(l.id, "en").empty());
   }
 
   // setting a goal plans a route; driving it produces a hint

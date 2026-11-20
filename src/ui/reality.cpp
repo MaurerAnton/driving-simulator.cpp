@@ -9,6 +9,8 @@
  */
 #include "ui/reality.h"
 
+#include "i18n/index.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -34,14 +36,12 @@ RealityPanel::RealityPanel(HudHost& host, RealityHost& realityHost, HttpBackend*
     : host_(host), game_(realityHost), http_(http) {}
 
 std::string RealityPanel::t(const std::string& key) const {
-  Settings& s = game_.settings();
-  return fs::tr(key, s.lang == LangSetting::En ? Lang::En : Lang::De);
+  return fs::tr(key, game_.settings().lang);
 }
 
 std::string RealityPanel::t(const std::string& key,
                             const std::vector<std::pair<std::string, std::string>>& p) const {
-  Settings& s = game_.settings();
-  return fs::tr(key, s.lang == LangSetting::En ? Lang::En : Lang::De, p);
+  return fs::tr(key, game_.settings().lang, p);
 }
 
 void RealityPanel::build() {

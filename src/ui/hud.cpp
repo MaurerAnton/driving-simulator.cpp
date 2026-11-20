@@ -8,13 +8,14 @@
  */
 #include "ui/hud.h"
 
+#include "i18n/index.h"
+
 #include "ui/addresspicker.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 
-#include "game/i18n.h"
 #include "sim/signals.h"
 
 namespace fs {
@@ -40,13 +41,6 @@ std::unique_ptr<HudNode> button(const std::string& cls, const std::string& text,
   auto b = node("button", cls, text);
   b->click = click;
   return b;
-}
-
-/** The legal basis of a violation ("§ 37 StVO"), as the notices show it. */
-std::string violationRef(const std::string& id) {
-  for (const auto& e : VIOLATION_ENTRIES)
-    if (e.first == id) return e.second.ref;
-  return "";
 }
 
 NoticeSeverity severityOf(Severity s) {
@@ -90,15 +84,11 @@ Hud::Hud(HudHost& host, Settings& settings, World& world)
 
 Hud::~Hud() = default;
 
-std::string Hud::t(const std::string& key) const {
-  Lang l = settings_.lang == LangSetting::En ? Lang::En : Lang::De;
-  return fs::tr(key, l);
-}
+std::string Hud::t(const std::string& key) const { return fs::tr(key, settings_.lang); }
 
 std::string Hud::t(const std::string& key,
-                   const std::vector<std::pair<std::string, std::string>>& p) const {
-  Lang l = settings_.lang == LangSetting::En ? Lang::En : Lang::De;
-  return fs::tr(key, l, p);
+                    const std::vector<std::pair<std::string, std::string>>& p) const {
+  return fs::tr(key, settings_.lang, p);
 }
 
 void Hud::setOverlay(std::unique_ptr<HudNode> nodeIn) {
@@ -131,6 +121,8 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   hasPickedAddress_ = false;   // a new menu starts without an address picked
   auto o = node("div", "overlay");
   auto p = node("div", "panel");
+  // the language first: whoever cannot read the page must be able to find it
+  p->add(languagePicker([this, spawns, lastSpawn]() { showMenu(spawns, lastSpawn); }));
   p->add(node("h1", "", "Fahrsim <span>Baunatal</span>"));
   p->add(node("p", "", t("subtitle")));
 
@@ -192,12 +184,9 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
     cards->add(std::move(c));
   };
   card(t("free"), t("freeDesc"), "free");
-  int li = settings_.lang == LangSetting::De ? 0 : 1;
-  for (const auto& l : lessons()) {
-    const std::string& title = li == 0 ? l.title.first : l.title.second;
-    const std::string& intro = li == 0 ? l.intro.first : l.intro.second;
-    card(title, l.kind == "exam" ? t("examDesc") : intro.substr(0, 118) + "...", l.id);
-  }
+  for (const auto& l : lessons())
+    card(lessonTitle(l.id, settings_.lang),
+         l.kind == "exam" ? t("examDesc") : lessonIntro(l.id, settings_.lang), l.id);
   p->add(std::move(cards));
 
   auto b = node("div", "buttons");
@@ -248,11 +237,13 @@ void Hud::showSettings(const std::function<void()>& back) {
     p->add(std::move(row));
   };
 
-  select(t("language"), s.lang == LangSetting::De ? "de" : "en",
-         {{"de", "Deutsch"}, {"en", "English"}}, [this, back](const std::string& v) {
-           settings_.lang = v == "en" ? LangSetting::En : LangSetting::De;
-           showSettings(back);
-         });
+  {
+    // the list of languages, each under its own name (0.6.0)
+    auto row = node("div", "row");
+    row->add(node("label", "", t("language")));
+    row->add(languagePicker([this, back]() { showSettings(back); }, /*inRow=*/true));
+    p->add(std::move(row));
+  }
   select(t("transmission"),
          s.transmission == Transmission::Assist
              ? "assist"
@@ -297,25 +288,27 @@ void Hud::showSettings(const std::function<void()>& back) {
 }
 
 void Hud::showControls(const std::function<void()>& back) {
-  bool de = settings_.lang == LangSetting::De;
-  const std::vector<std::pair<std::string, std::string>> rows = {
-      {"W S / arrows", de ? "Gas / Bremse" : "Throttle / brake"},
-      {"A D / arrows", de ? "Lenken" : "Steer"},
-      {"Shift", de ? "Kupplung" : "Clutch"},
-      {"E Q", de ? "Gang hoch / runter" : "Gear up / down"},
-      {"1-6, R, N", de ? "Gang direkt, Rueckwaerts, Leerlauf" : "Direct gear, reverse, neutral"},
-      {"Space", de ? "Handbremse" : "Handbrake"},
-      {"Enter / I", de ? "Motor starten / Zuedung aus" : "Start engine / ignition off"},
-      {"Z C X", de ? "Blinker, Warnblinker" : "Indicators, hazards"},
-      {"J K", de ? "Schulterblick" : "Shoulder check"},
-      {"B", de ? "Gurt anlegen" : "Seat belt"},
-      {"L / O", de ? "Abblendlicht / Fernlicht" : "Dipped / main beam"},
-      {"H", de ? "Hupe" : "Horn"},
-      {"V", de ? "Kamera wechseln" : "Change camera"},
-      {"T", de ? "Auto zurueck auf die Strasse" : "Put the car back on the road"},
-      {"F", de ? "Realansicht: echte Fotos dieser Stelle (oder die Karte anklicken)"
-               : "Reality view: real photos of this place (or click the map)"},
-      {"Esc", de ? "Pause" : "Pause"},
+  // the keys as printed on the player's keyboard (0.6.0: [[KeyX]] codes -> caps)
+  const std::vector<std::pair<std::vector<std::string>, std::string>> rows = {
+      {{"KeyW", "KeyS", "/", "ArrowUp", "ArrowDown"}, "ctl.throttleBrake"},
+      {{"KeyA", "KeyD", "/", "ArrowLeft", "ArrowRight"}, "ctl.steer"},
+      {{"ShiftLeft"}, "ctl.clutch"},
+      {{"KeyE", "KeyQ"}, "ctl.gearUpDown"},
+      {{"Digit1", "\xe2\x80\x93", "Digit6", " ", "KeyR", " ", "KeyN"}, "ctl.gearDirect"},
+      {{"KeyP"}, "ctl.park"},
+      {{"Space"}, "ctl.handbrake"},
+      {{"Enter", "/", "KeyI"}, "ctl.engine"},
+      {{"KeyZ", "KeyC", "/", "KeyX"}, "ctl.indicators"},
+      {{"KeyJ", "KeyK"}, "ctl.look"},
+      {{"KeyB"}, "ctl.belt"},
+      {{"KeyL", "/", "KeyO"}, "ctl.lights"},
+      {{"KeyH"}, "ctl.horn"},
+      {{"KeyV"}, "ctl.camera"},
+      {{"KeyT"}, "ctl.reset"},
+      {{"KeyF"}, "ctl.reality"},
+      {{"KeyM"}, "ctl.endDrive"},
+      {{"Escape"}, "ctl.pause"},
+      {{"F1"}, "ctl.help"},
   };
   auto o = node("div", "overlay");
   auto p = node("div", "panel");
@@ -323,31 +316,22 @@ void Hud::showControls(const std::function<void()>& back) {
   auto table = node("table", "keys");
   for (const auto& kv : rows) {
     auto tr = node("tr");
-    tr->add(node("td", "", kv.first));
-    tr->add(node("td", "", kv.second));
+    // the caps, or the separators between them, exactly as the row lists them
+    std::string caps;
+    for (const std::string& code : kv.first) {
+      if (code == "/" || code == "\xe2\x80\x93" || code == " ")
+        caps += code == " " ? " " : (code == "/" ? " / " : "\xe2\x80\x93");
+      else
+        caps += "<kbd>" + keyName(code, settings_.lang) + "</kbd>";
+    }
+    tr->add(node("td", "", caps));
+    tr->add(node("td", "", t(kv.second)));
     table->add(std::move(tr));
   }
   p->add(std::move(table));
-  p->add(node(
-      "p", "",
-      de
-          ? "<b>Maus und Touchscreen:</b> Straßenname oben links antippen = Menü und "
-            "Einstellungen, Karte antippen = Realansicht. Auf dem Touchscreen: links die "
-            "Lenkleiste und die Blinker, rechts Gas, Bremse, Gänge (▲ ▼) und Handbremse (P); "
-            "„⋯" " oben öffnet Gurt, Anlasser, Licht, Hupe, Kamera und mehr. Über das Bild "
-            "wischen = umsehen (Schulterblick), loslassen = wieder geradeaus. Gelbe Hinweise "
-            "unten lassen sich antippen. Deckkraft und Anzeige der Bedienelemente stehen in "
-            "den Einstellungen."
-          : "<b>Mouse and touch screen:</b> tap the street name at the top left for the menu "
-            "and settings, tap the map for the reality view. On a touch screen: steering bar "
-            "and indicators on the left; throttle, brake, gears (▲ ▼) and handbrake (P) on "
-            "the right; \"⋯\" at the top opens seat belt, starter, lights, horn, camera and "
-            "more. Swipe across the picture to look around (shoulder check), let go to look "
-            "ahead again. Yellow tips at the bottom can be tapped. Opacity and visibility of "
-            "the controls are in the settings."));
-  p->add(node("p", "", de
-                         ? "Gamepad: linker Stick lenken, RT Gas, LT Bremse, RB/LB schalten."
-                         : "Gamepad: left stick steers, RT throttle, LT brake, RB/LB shift."));
+  p->add(node("p", "", t("ctl.layoutNote")));
+  p->add(node("p", "", "<b>" + t("ctl.touchTitle") + ":</b> " + t("ctl.touchText")));
+  p->add(node("p", "", "<b>" + t("ctl.padTitle") + ":</b> " + t("ctl.padText")));
   auto b = node("div", "buttons");
   b->add(button("btn", t("back"), back));
   p->add(std::move(b));
@@ -359,7 +343,16 @@ void Hud::showAbout(const std::function<void()>& back) {
   auto o = node("div", "overlay");
   auto p = node("div", "panel");
   p->add(node("h1", "", t("about")));
-  p->add(node("p", "", "Fahrsim Baunatal - " + t("subtitle")));
+  p->add(node("p", "", t("about.text")));
+  p->add(node("h2", "", t("credits")));
+  p->add(node("p", "", t("about.dataOsm")));
+  p->add(node("p", "", t("about.dataHessen")));
+  p->add(node("p", "", t("about.signs")));
+  p->add(node("p", "", t("about.photos")));
+  p->add(node("h2", "", t("source")));
+  p->add(node("p", "",
+              "<a href=\"https://github.com/MaurerAnton/driving-simulator\" "
+              "target=\"_blank\" rel=\"noopener\">github.com/MaurerAnton/driving-simulator</a>"));
   auto b = node("div", "buttons");
   b->add(button("btn", t("back"), back));
   p->add(std::move(b));
@@ -435,18 +428,48 @@ void Hud::showTeleport() {
 void Hud::showResult(const ResultSummary& r) {
   auto o = node("div", "overlay");
   auto p = node("div", "panel");
-  p->add(node("h1", "", r.passed ? t("passed") : t("failed")));
-  p->add(node("p", "", r.title));
-  auto list = node("div");
+  p->add(node("h1", "", t("result") + ": " + r.title));
+  if (r.exam)
+    p->add(node("div", r.passed ? "verdict ok" : "verdict bad",
+                r.passed ? t("passed") : t("failed")));
+  // distance and duration the way the language writes them (0.6.0)
+  const std::string km = formatUnit(r.distanceKm, "kilometer", settings_.lang, 1);
+  const std::string min = formatUnit(r.minutes, "minute", settings_.lang);
+  p->add(node("p", "", t("distance") + ": " + km + " \u00b7 " + t("duration") + ": " + min +
+                         " \u00b7 " + t("points") + ": " + std::to_string(r.points)));
+  if (r.log.empty()) p->add(node("p", "", t("noFaults")));
+  // group identical faults
+  std::vector<std::pair<const Violation*, int>> groups;
   for (const auto& v : r.log) {
-    Lang l = settings_.lang == LangSetting::En ? Lang::En : Lang::De;
-    auto row = node("div", "row");
-    row->add(node("b", "", violationTitle(v.id, l, v.data)));
-    row->add(node("small", "", violationWhy(v.id, l)));
-    list->add(std::move(row));
+    bool found = false;
+    for (auto& g : groups)
+      if (g.first->id == v.id) {
+        g.second++;
+        found = true;
+        break;
+      }
+    if (!found) groups.push_back({&v, 1});
   }
-  p->add(std::move(list));
-  p->add(node("p", "", t("points") + ": " + std::to_string(r.points)));
+  auto order = [](Severity sv) {
+    return sv == Severity::Fail ? 0 : sv == Severity::Major ? 1
+                                   : sv == Severity::Minor  ? 2
+                                                            : 3;
+  };
+  std::stable_sort(groups.begin(), groups.end(),
+                   [&](const auto& a, const auto& b) { return order(a.first->severity) < order(b.first->severity); });
+  for (const auto& g : groups) {
+    const Violation& v = *g.first;
+    std::string sev = v.severity == Severity::Hint ? "hint"
+                       : v.severity == Severity::Minor ? "minor"
+                       : v.severity == Severity::Major  ? "major"
+                                                        : "fail";
+    auto f = node("div", "fault " + sev);
+    f->add(node("b", "", violationTitle(v.id, settings_.lang, v.data) +
+                            (g.second > 1 ? " (" + std::to_string(g.second) + "\u00d7)" : "")));
+    f->add(node("small", "", violationWhy(v.id, settings_.lang)));
+    f->add(node("em", "", this->t(sev) + " \u00b7 " + violationRef(v.id, settings_.lang)));
+    p->add(std::move(f));
+  }
   auto b = node("div", "buttons");
   b->add(button("btn", t("menu"), [this]() {
     if (onQuit) onQuit();
@@ -551,18 +574,42 @@ std::unique_ptr<HudNode> Hud::buildHud() {
   return h;
 }
 
+/**
+ * Font size at which a word ("walk", "none" – in any language and script)
+ * fits into the speed-limit roundel: the original measures it with a canvas;
+ * here the rule the checker enforces (a word of at most 9 letters fits the
+ * width, wide scripts 4) gives the size in the same range 13 … 7 px.
+ */
+int Hud::fitRoundel(const std::string& text) const {
+  size_t widest = 0, word = 0;
+  for (char c : text) {
+    if (c == ' ') {
+      widest = std::max(widest, word);
+      word = 0;
+    } else {
+      word++;
+    }
+  }
+  widest = std::max(widest, word);
+  if (widest <= 4) return 13;   // wide scripts: fewer letters fit
+  if (widest <= 6) return 11;
+  if (widest <= 8) return 9;
+  if (widest <= 9) return 8;
+  return 7;
+}
+
 void Hud::setHudVisible(bool v) { host_.setVisible("hud", v); }
 
 void Hud::toast(const Violation& v, double seconds) {
-  Lang l = settings_.lang == LangSetting::En ? Lang::En : Lang::De;
+  const std::string& lang = settings_.lang;
   std::string sev = v.severity == Severity::Hint ? "hint"
                      : v.severity == Severity::Minor ? "minor"
                      : v.severity == Severity::Major  ? "major"
                                                       : "fail";
   if (seconds < 0) seconds = v.severity == Severity::Hint ? 5.5 : 8;
-  notices_.add(violationTitle(v.id, l, v.data), violationWhy(v.id, l),
-               this->t(sev) + " \u00b7 " + violationRef(v.id), severityOf(v.severity), seconds,
-               nowMs());
+  notices_.add(violationTitle(v.id, lang, v.data), violationWhy(v.id, lang),
+               this->t(sev) + " \u00b7 " + violationRef(v.id, lang), severityOf(v.severity),
+               seconds, nowMs());
 }
 
 void Hud::message(const std::string& title, const std::string& sub) {
@@ -613,8 +660,14 @@ void Hud::update(const HudState& s, double now) {
       if (none) cls += " none";
       if (!none && s.speedKmh > s.limit + 6) cls += " over";
       host_.setClass("roundel", cls);
-      host_.setText("roundel", none ? t("limitNone")
-                                    : (s.zone == 7 ? t("walk") : std::to_string(s.limit)));
+      // a word in any script, fitted to the roundel (0.6.0: its own font size)
+      const std::string word = none ? t("limitNone") : (s.zone == 7 ? t("walk") : "");
+      const std::string shown = word.empty() ? std::to_string(s.limit) : word;
+      if (shown != roundelText_) {
+        roundelText_ = shown;
+        host_.setText("roundel", shown);
+        host_.setText("roundelSize", word.empty() ? "" : std::to_string(fitRoundel(word)));
+      }
       host_.setVisible("zone", s.zone == 30 || s.zone == 20);
       if (s.zone == 30 || s.zone == 20) host_.setText("zone", "ZONE");
     } else {
@@ -703,7 +756,7 @@ void Hud::update(const HudState& s, double now) {
       // key reminder: while standing or crawling, out of the way once rolling
       const bool want = settings_.keyHints && std::fabs(s.speedKmh) < 12;
       host_.setVisible("keyhelp", want);
-      const std::string key = std::string(settings_.lang == LangSetting::En ? "en" : "de") + ":" +
+      const std::string key = settings_.lang + ":" +
                               (settings_.transmission == Transmission::Automatic ? "automatic"
                                : settings_.transmission == Transmission::Manual   ? "manual"
                                                                                  : "assist");
@@ -857,37 +910,84 @@ void Hud::setInputMode(const std::string& mode) {
   host_.setVisible("touch", mode == "touch");
 }
 
+/**
+ * The list of languages, each under its own name.  Choosing one registers its
+ * texts and draws the current page again (the original fetches its file).
+ */
+std::unique_ptr<HudNode> Hud::languagePicker(const std::function<void()>& redraw, bool inRow) {
+  auto sel = node("select", inRow ? "" : "lang");
+  sel->id = "lang";
+  for (const LangInfo& l : LANGS) {
+    auto op = node("option", "", l.name);
+    op->id = "lang:" + l.code;   // the option shows the name, carries the code
+    sel->add(std::move(op));
+  }
+  sel->text = settings_.lang;
+  for (auto& op : sel->children) {
+    // choosing an option (the platform clicks it) registers the texts,
+    // saves the setting and redraws the page in the new language
+    std::string code = op->id.substr(5);   // after "lang:"
+    op->click = [this, redraw, code]() {
+      const bool ok = loadLang(code);
+      if (ok) {
+        settings_.lang = code;
+        saveSettings(settings_);
+        if (onSettingsChanged) onSettingsChanged();
+      }
+      redraw();
+    };
+  }
+  return sel;
+}
+
+/** Key caps for the keys with these codes, as printed on the player's keyboard. */
+std::string Hud::keycaps(const std::vector<std::string>& codes, const std::string& sep) const {
+  // tokens that are not key codes ("/", "–", " ") are printed as they are
+  auto isCode = [](const std::string& c) {
+    return c.rfind("Key", 0) == 0 || c.rfind("Digit", 0) == 0 || c.rfind("Arrow", 0) == 0 ||
+           c == "Space" || c == "Enter" || c == "NumpadEnter" || c == "ShiftLeft" ||
+           c == "ShiftRight" || c == "Escape" || (c.size() == 2 && c[0] == 'F');
+  };
+  std::string out;
+  for (size_t i = 0; i < codes.size(); i++) {
+    if (i && sep == " ") out += " ";
+    else if (i) out += sep;
+    out += isCode(codes[i]) ? "<kbd>" + keyName(codes[i], settings_.lang) + "</kbd>" : codes[i];
+  }
+  return out;
+}
+
 /** The short reminder of the keys, depending on the gearbox chosen. */
 std::string Hud::keyReminder() const {
-  const bool de = settings_.lang == LangSetting::De;
-  auto k = [&](std::initializer_list<const char*> keys) {
-    std::string out;
-    for (const char* x : keys) out += "<kbd>" + std::string(x) + "</kbd>";
-    return out;
+  // the caps as the player's keyboard prints them, the words as the language
+  // writes them (0.6.0: keyName + the kr.* texts)
+  auto item = [&](const std::string& textKey, const std::vector<std::string>& codes,
+                  const std::string& sep = " ") {
+    return "<span>" + keycaps(codes, sep) + " " + t(textKey) + "</span>";
   };
-  const std::string tr = settings_.transmission == Transmission::Automatic
+  const std::string trn = settings_.transmission == Transmission::Automatic
                               ? "automatic"
                               : (settings_.transmission == Transmission::Manual ? "manual" : "assist");
   std::vector<std::string> parts;
-  if (tr == "automatic") {
-    parts.push_back(k({"E", "Q"}) + " " + (de ? "Wählhebel P·R·N·D" : "selector P·R·N·D"));
-    parts.push_back(k({"P"}) + " " + (de ? "Parken" : "park"));
-    parts.push_back(k({"R"}) + " " + (de ? "rückwärts" : "reverse"));
-    parts.push_back(k({"N"}) + " " + (de ? "Leerlauf" : "neutral"));
+  if (trn == "automatic") {
+    parts.push_back(item("kr.selector", {"KeyE", "KeyQ"}));
+    parts.push_back(item("kr.park", {"KeyP"}));
+    parts.push_back(item("kr.reverse", {"KeyR"}));
+    parts.push_back(item("kr.neutral", {"KeyN"}));
   } else {
-    if (tr == "manual") parts.push_back(k({"Shift"}) + " " + (de ? "Kupplung" : "clutch"));
-    parts.push_back(k({"1"}) + "\u2013" + k({"6"}) + " " + (de ? "Gang" : "gear"));
-    parts.push_back(k({"R"}) + " " + (de ? "rückwärts" : "reverse"));
-    parts.push_back(k({"N"}) + " " + (de ? "Leerlauf" : "neutral"));
-    parts.push_back(k({"E", "Q"}) + " " + (de ? "hoch / runter" : "up / down"));
+    if (trn == "manual") parts.push_back(item("kr.clutch", {"ShiftLeft"}));
+    parts.push_back(item("kr.gear", {"Digit1", "\xe2\x80\x93", "Digit6"}));
+    parts.push_back(item("kr.reverse", {"KeyR"}));
+    parts.push_back(item("kr.neutral", {"KeyN"}));
+    parts.push_back(item("kr.upDown", {"KeyE", "KeyQ"}));
   }
-  parts.push_back(k({"Space"}) + " " + (de ? "Handbremse" : "handbrake"));
-  parts.push_back(k({"Enter"}) + " " + (de ? "Motor starten" : "start engine"));
-  parts.push_back(k({"Y", "C"}) + " " + (de ? "Blinker" : "indicators"));
-  parts.push_back(k({"J", "K"}) + " " + (de ? "Schulterblick" : "shoulder check"));
-  parts.push_back(k({"F1"}) + " " + (de ? "alle Tasten" : "all keys"));
+  parts.push_back(item("kr.handbrake", {"Space"}));
+  parts.push_back(item("kr.startEngine", {"Enter"}));
+  parts.push_back(item("kr.indicators", {"KeyZ", "KeyC"}));
+  parts.push_back(item("kr.shoulder", {"KeyJ", "KeyK"}));
+  parts.push_back(item("kr.allKeys", {"F1"}));
   std::string out;
-  for (const std::string& x : parts) out += "<span>" + x + "</span>";
+  for (const std::string& x : parts) out += x;
   return out;
 }
 

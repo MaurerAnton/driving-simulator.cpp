@@ -8,6 +8,8 @@
  */
 #include "game/settings.h"
 
+#include "i18n/index.h"
+
 #include <cstdlib>
 
 namespace fs {
@@ -20,15 +22,23 @@ bool g_hasSaved = false;
 
 Settings defaultSettings() {
   Settings s;
-  // JS: typeof navigator !== 'undefined' && !navigator.language.startsWith('de') ? 'en' : 'de'
-  // Without a browser navigator the language stays German, as the original does.
-  s.lang = LangSetting::De;
+  // JS: typeof navigator !== 'undefined' ? pickLang(navigator.languages …) : 'en'
+  // Without a browser navigator no language is reported: English, as the
+  // original falls back to it (the native build starts in it too).
+  s.lang = pickLang({});
   return s;
 }
 
 Settings loadSettings() {
   if (!g_hasSaved) return defaultSettings();
-  return g_saved;
+  Settings s = g_saved;
+  // a language the simulator speaks, or the default (as the original checks)
+  if (s.lang.empty()) s.lang = defaultSettings().lang;
+  bool known = false;
+  for (const LangInfo& l : LANGS)
+    if (l.code == s.lang) known = true;
+  if (!known) s.lang = defaultSettings().lang;
+  return s;
 }
 
 void saveSettings(const Settings& s) {

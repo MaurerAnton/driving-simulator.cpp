@@ -64,9 +64,8 @@ enum class TargetType { Rbl, Signals, Roundabout, Rural, Motorway, Priority, Hom
 
 /** One lesson or the driving test. */
 struct LessonDef {
+  /** title and introduction are texts: "lesson.<id>.title", "lesson.<id>.intro" */
   std::string id;
-  std::pair<std::string, std::string> title;   // [German, English]
-  std::pair<std::string, std::string> intro;   // [German, English]
   /** 'free' | 'basics' | 'route' | 'exam' */
   std::string kind;
   std::vector<TargetType> targets;

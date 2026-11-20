@@ -19,7 +19,7 @@
 #include "engine/math.h"
 #include "game/address.h"
 #include "game/app.h"
-#include "game/i18n.h"
+#include "i18n/index.h"
 #include "game/nav.h"
 #include "game/settings.h"
 #include "input/input.h"
@@ -118,6 +118,8 @@ class Game {
   bool hasSpawn_ = false;
   LessonDef lesson_;
   bool hasLesson_ = false;
+  /** the line the lesson shows under the street name ("2 · Vorfahrt … · 1/3") */
+  std::string lessonLine_;
   int targetIdx_ = 0;
   Edge* homeEdge_ = nullptr;
   std::set<Edge*> visited_;
