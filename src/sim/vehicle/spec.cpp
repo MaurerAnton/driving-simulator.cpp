@@ -3,10 +3,14 @@
 /**
  * The built-in vehicle definitions.
  *
- * Origin: src/sim/vehicle/spec.ts (MaurerAnton/driving-simulator @ 5b6ddc7,
- * v0.1.0).  The numbers are carried over exactly.
+ * Origin: src/sim/vehicle/spec.ts (MaurerAnton/driving-simulator @ ff37c5d,
+ * v0.7.0).  The numbers are carried over exactly.
  */
 #include "sim/vehicle/spec.h"
+
+#include <algorithm>
+#include <cmath>
+#include <string>
 
 namespace fs {
 
@@ -90,5 +94,99 @@ const VehicleSpec COMPACT_CAR_AUTOMATIC = [] {
   v.drivelineEfficiency = 0.87;
   return v;
 }();
+
+const double BASE_POWER_PS = 150;
+
+const VehicleSpec TRUCK = [] {
+  VehicleSpec s;
+  s.name = "Lkw 12 t mit Kofferaufbau, 180 kW, automatisiertes Getriebe";
+  s.mass = 9500;
+  s.inertia = {61000, 58000, 13000};
+  s.wheelBase = 4.7;
+  s.track = 2.04;
+  s.cgHeight = 1.25;
+  s.cgToFront = 2.82;  // 40 % of the weight on the front axle
+  s.wheelRadius = 0.49;
+  s.wheelInertia = 16;
+
+  // ride frequencies ≈ 1.5 Hz front / 1.6 Hz rear
+  s.springRate = {168000, 288000};
+  s.damperBump = {9000, 14000};
+  s.damperRebound = {16000, 24000};
+  s.antiRoll = {120000, 90000};
+  s.travel = 0.26;
+
+  s.muPeak = 0.78;
+  s.slipRatioPeak = 0.12;
+  s.slipAnglePeak = 0.12;
+  s.loadSensitivity = 0.08;
+  s.relaxLong = 0.3;
+  s.relaxLat = 0.6;
+  s.rollingResistance = 0.008;
+
+  // a diesel: all its torque between 1100 and 1600 rpm, nothing above 2600
+  s.torqueCurve = {{0, 300},   {500, 620},  {600, 760},  {900, 960},  {1100, 1050},
+                   {1600, 1050}, {1900, 950}, {2200, 800}, {2400, 600}, {2600, 0}};
+  s.idleRpm = 600;
+  s.limiterRpm = 2400;
+  s.stallRpm = 300;
+  s.engineInertia = 1.3;
+  s.engineFriction = {70, 0.07};
+
+  s.transmission = "automatic";
+  s.gearRatios = {9.3, 6.5, 4.6, 3.3, 2.3, 1.6, 1.15, 0.8};
+  s.reverseRatio = 8.9;
+  s.finalDrive = 3.7;
+  s.clutchTorque = 2600;
+  s.drivelineEfficiency = 0.9;
+  s.autoClutch = false;
+
+  s.brakeTorque = 40000;
+  s.brakeBiasFront = 0.55;
+  s.handbrakeTorque = 36000;
+  s.abs = true;
+
+  s.steeringRatio = 20;
+  s.maxWheelAngle = 0.72;
+
+  s.dragArea = 5.8;
+
+  s.rearDrive = true;
+  s.length = 8.2;
+  s.width = 2.5;
+  s.bodyPoints = {{-1.25, 0.6, -3.75}, {1.25, 0.6, -3.75}, {-1.25, 0.6, 4.45},
+                  {1.25, 0.6, 4.45},   {-1.2, 3.0, -3.7},   {1.2, 3.0, -3.7},
+                  {-1.25, 3.6, -1.7},  {1.25, 3.6, -1.7},   {-1.25, 3.6, 4.45},
+                  {1.25, 3.6, 4.45}};
+  // (the kick-down limit lies below the full-throttle shift point, or the
+  // gearbox would hunt)
+  s.hasAuto = true;
+  s.autoBox.up = {1250, 2000};
+  s.autoBox.down = {850, 1250};
+  s.autoBox.kickdownRpm = 1750;
+  s.autoBox.lockOmega = 85;
+  s.autoBox.converter = 0.05;
+  return s;
+}();
+
+const HitchPoint TRUCK_HITCH = {1.7, 0.85};   // behind the rear axle, above the ground
+
+VehicleSpec withPower(const VehicleSpec& spec, double ps) {
+  const double k = ps / BASE_POWER_PS;
+  if (std::fabs(k - 1) < 0.01) return spec;
+  const double low = std::max(k, std::min(1.0, 0.45 + 0.55 * k));
+  VehicleSpec out = spec;
+  out.name = spec.name + ", " + std::to_string(static_cast<int>(ps)) + " PS";
+  out.torqueCurve.clear();
+  for (const auto& pt : spec.torqueCurve) {
+    const double rpm = pt.first, t = pt.second;
+    const double blend = std::min(1.0, std::max(0.0, (rpm - 1000.0) / 900.0));
+    const double scaled = t * (low + (k - low) * blend);
+    out.torqueCurve.push_back({rpm, std::round(scaled * 10.0) / 10.0});
+  }
+  // a stronger engine needs a clutch that holds its torque
+  out.clutchTorque = std::max(spec.clutchTorque, spec.clutchTorque * k * 1.1);
+  return out;
+}
 
 }  // namespace fs

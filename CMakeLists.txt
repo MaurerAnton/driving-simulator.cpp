@@ -77,9 +77,9 @@ else()
     # assertions (they date from the first commit) do not: they are recorded
     # as EXPECTED failures with the reason, and still print their output.
     set(tname_will_fail "")
-    foreach(wf app_test geometry_test geom_test hud_test i18n_test lanes_test
-               mirrors_test props_test scene_test signs_test sim_test sky_test
-               tiles_test traffic_test vehicle_test world_test)
+    foreach(wf app_test geometry_test geom_test i18n_test lanes_test mirrors_test
+               props_test scene_test signs_test sim_test sky_test tiles_test
+               traffic_test vehicle_test world_test)
       if(tname STREQUAL wf)
         set(tname_will_fail WILL_FAIL)
       endif()

@@ -80,11 +80,12 @@ int main() {
   p.held.clear();
   Controls after = in.update(1.0 / 60, 0, 0);
   assert(std::fabs(after.steer - c.steer) < 1e-6);
-  // at 30 m/s the same keys give far less lock: the limit falls with speed
-  // (1/(1+(v/9)^2) → 0.083 at 30 m/s, and the wheel settles there)
+  // at 30 m/s the keys ask for the lock of a comfortable lateral acceleration
+  // (~3.1 m/s²) – the wheel held at full lock winds down toward it within
+  // about half a second (the original's lockFor/keyLateral, v0.7.0)
   p.held = {"KeyA"};
   for (int i = 0; i < 240; i++) c = in.update(1.0 / 60, 30, 0);
-  assert(c.steer < -0.06 && c.steer > -0.12);
+  assert(c.steer < -0.7 && c.steer > -1.0);
 
   // actions fire
   int fired = 0;

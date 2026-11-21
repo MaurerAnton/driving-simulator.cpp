@@ -107,7 +107,8 @@ struct VehicleSpec {
   std::array<double, 2> engineFriction{14, 0.0085};
 
   std::string transmission = "manual";  // 'manual' | 'automatic'
-  std::array<double, 6> gearRatios{3.77, 2.09, 1.32, 0.98, 0.78, 0.64};
+  /** the forward gears (the truck's automated box has eight) */
+  std::vector<double> gearRatios{3.77, 2.09, 1.32, 0.98, 0.78, 0.64};
   double reverseRatio = 3.6;
   double finalDrive = 3.65;
   double clutchTorque = 420;     // Nm
@@ -123,6 +124,33 @@ struct VehicleSpec {
   double maxWheelAngle = 0.576;  // rad at the road wheel
 
   double dragArea = 0.65;        // Cd·A
+
+  // ---- what differs for a truck (a car leaves these out) ----
+  /** the rear wheels are driven (default: the front wheels) */
+  bool rearDrive = false;
+  /** outer length and width of the vehicle (m); default: a compact car */
+  double length = 0, width = 0;
+  /**
+   * Corners of the body shell relative to the point on the ground below the
+   * middle of the wheelbase (x right, y up, z back) – what touches the ground
+   * when the vehicle lies on its side or roof.  Default: a compact car.
+   */
+  std::vector<std::array<double, 3>> bodyPoints;
+  /**
+   * The automatic gearbox: shift points as engine speed (rpm) at no and at
+   * full throttle, up to which speed a kick-down shifts back, from which
+   * speed of the gearbox input (rad/s) the converter locks up, and the
+   * converter's capacity (N·m per (rad/s)²).  Default: a petrol car.
+   * `set` says whether these are the vehicle's own (a car leaves them out).
+   */
+  bool hasAuto = false;
+  struct AutoBox {
+    std::array<double, 2> up{0, 0};
+    std::array<double, 2> down{0, 0};
+    double kickdownRpm = 0;
+    double lockOmega = 0;
+    double converter = 0;
+  } autoBox;
 };
 
 /** One of the built-in vehicles (COMPACT_CAR, …), see spec.h. */

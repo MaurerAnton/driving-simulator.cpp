@@ -39,6 +39,8 @@ struct Controls {
   /** head turn target in radians (+ = left) and pitch */
   double lookYaw = 0;
   double lookPitch = 0;
+  /** distance of the camera behind the car in metres (mouse wheel) */
+  double lookZoom = 7;
   /** which device is steering: decides how much assistance the input layer adds */
   std::string device = "keyboard";
 };
@@ -130,6 +132,22 @@ class Input {
     mode = "touch";
     touchActive_ = true;
   }
+  /** The camera was changed: look straight ahead again. */
+  void resetLook(bool orbitIn) {
+    orbit = orbitIn;
+    mouseLookYaw_ = 0;
+    mouseLookPitch_ = 0;
+    c.lookYaw = 0;
+    c.lookPitch = 0;
+    glance_ = false;
+  }
+
+  /** The car that is being steered (for how much lock the keys may ask for at speed). */
+  void setSteering(double wheelbaseIn, double maxWheelAngleIn) {
+    wheelbase = wheelbaseIn;
+    maxWheelAngle = maxWheelAngleIn;
+  }
+
   /** A button on the screen stands in for a key (down / up). */
   void press(const std::string& code, bool down) {
     mode = "touch";
@@ -164,8 +182,23 @@ class Input {
   bool glance_ = false;
   int lookId_ = -1;
   double lookX_ = 0, lookY_ = 0;
+  /**
+   * The camera circles the car (view from behind): looking around has no
+   * stops, and the view swings back behind the car by itself once the car is
+   * driving.  False: the driver's head (stops at the shoulders).
+   */
+  bool orbit = false;
+  double lookIdle = 0;
+  double wheelbase = 2.63;
+  double maxWheelAngle = 0.576;
+  /** how far the outside camera can be moved away (m) – more for a truck with a trailer */
+  double zoomMax = 18;
 
   void fire(Action a);
+  /** Looking around with the mouse or a finger; the stops depend on the mode. */
+  void turnLook(double dYaw, double dPitch);
+  /** The lock an input may ask for at this speed (lateral-acceleration limit). */
+  double lockFor(double lateral, double speed) const;
   bool keyDown(const std::string& code) const;
   bool anyDrivingKey() const;
   void applyPadButtons(const std::vector<bool>& buttons, bool wheel);

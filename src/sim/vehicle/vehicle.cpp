@@ -179,8 +179,10 @@ double Vehicle::torqueAt(double rpm_) const {
 double Vehicle::ratio(int g) const {
   if (g == 0 || g == -2) return 0;
   if (g < 0) return -spec.reverseRatio * spec.finalDrive;
-  int idx = std::min(g, 6) - 1;
+  const int gears = static_cast<int>(spec.gearRatios.size());
+  int idx = std::min(g, gears) - 1;
   if (idx < 0) idx = 0;
+  if (idx >= gears) idx = gears - 1;
   return spec.gearRatios[static_cast<size_t>(idx)] * spec.finalDrive;
 }
 
@@ -227,7 +229,10 @@ void Vehicle::substep(double h, const DriverInput& inp) {
   }
 
   // ---- gearbox / clutch engagement ----------------------------------------
-  double driveOmega = (w[0].omega + w[1].omega) / 2;
+  // the driven axle: wheels 0 and 1 (front) or 2 and 3 (rear)
+  const int d0 = s.rearDrive ? 2 : 0;
+  const int d1 = d0 + 1;
+  double driveOmega = (w[d0].omega + w[d1].omega) / 2;
   double engagement = 0;
   int g = gear;
   bool parkLock = false;
@@ -249,15 +254,22 @@ void Vehicle::substep(double h, const DriverInput& inp) {
         // shift schedule on engine speed, later with more throttle
         int ag = autoGear;
         if (shiftTimer <= 0) {
-          double up = 1900 + 4300 * inp.throttle;
-          double down = 1050 + 1700 * inp.throttle;
+          const bool hasAuto = s.hasAuto;
+          const double up = hasAuto
+                                ? s.autoBox.up[0] + (s.autoBox.up[1] - s.autoBox.up[0]) * inp.throttle
+                                : 1900 + 4300 * inp.throttle;
+          const double down = hasAuto
+                                  ? s.autoBox.down[0] + (s.autoBox.down[1] - s.autoBox.down[0]) * inp.throttle
+                                  : 1050 + 1700 * inp.throttle;
+          const double kickdown = hasAuto ? s.autoBox.kickdownRpm : 5900;
           double rpmNow = engineOmega * RPM;
           double syncRpm = driveOmega * ratio(ag) * RPM;
-          if (ag < 6 && syncRpm > up && rpmNow > up * 0.9) {
+          const int gears = static_cast<int>(s.gearRatios.size());
+          if (ag < gears && syncRpm > up && rpmNow > up * 0.9) {
             ag++;
             shiftTimer = 0.38;
           } else if (ag > 1 && (syncRpm < down ||
-                                (inp.throttle > 0.92 && driveOmega * ratio(ag - 1) * RPM < 5900))) {
+                                (inp.throttle > 0.92 && driveOmega * ratio(ag - 1) * RPM < kickdown))) {
             ag--;
             shiftTimer = 0.38;
           }
@@ -499,7 +511,15 @@ void Vehicle::substep(double h, const DriverInput& inp) {
   bodyContact = false;
   if (upY < 0.9) {
     const auto& mo = modelOrigin;
-    for (const auto& b : BODY_POINTS) {
+    // (a heavier vehicle needs a harder shell to be carried by it)
+    const double shell = s.mass / 1375;
+    static const std::vector<std::array<double, 3>> DEFAULT_CORNERS = [] {
+      std::vector<std::array<double, 3>> out;
+      for (const auto& c : BODY_POINTS) out.push_back({c[0], c[1], c[2]});
+      return out;
+    }();
+    const auto& points = s.bodyPoints.empty() ? DEFAULT_CORNERS : s.bodyPoints;
+    for (const auto& b : points) {
       double bx = b[0] + mo[0];
       double by = b[1] + mo[1];
       double bz = b[2] + mo[2];
@@ -513,7 +533,8 @@ void Vehicle::substep(double h, const DriverInput& inp) {
       double vpy = vy + wz * rx - wx * rz;
       double vpz = vz + wx * ry - wy * rx;
       double vn = vpx * sampleState.nx + vpy * sampleState.ny + vpz * sampleState.nz;
-      double Nb = clampD(BODY_STIFFNESS * std::min(depth, 0.4) - BODY_DAMPING * vn, 0, 90000);
+      double Nb = clampD((BODY_STIFFNESS * std::min(depth, 0.4) - BODY_DAMPING * vn) * shell, 0,
+                         90000 * shell);
       if (Nb <= 0) continue;
       // sheet metal sliding on the ground
       double tx = vpx - vn * sampleState.nx;
@@ -580,10 +601,10 @@ void Vehicle::substep(double h, const DriverInput& inp) {
 
   // ---- clutch as a friction constraint ---------------------------------------
   // inverse inertia of the two driven wheels (implicit against the tyre damping)
-  double inv0 = 1 / (s.wheelInertia * wheelImp[0]);
-  double inv1 = 1 / (s.wheelInertia * wheelImp[1]);
-  double S = rollTorque(fxTyre[0], s.wheelRadius) * inv0 +
-             rollTorque(fxTyre[1], s.wheelRadius) * inv1;
+  double inv0 = 1 / (s.wheelInertia * wheelImp[d0]);
+  double inv1 = 1 / (s.wheelInertia * wheelImp[d1]);
+  double S = rollTorque(fxTyre[d0], s.wheelRadius) * inv0 +
+             rollTorque(fxTyre[d1], s.wheelRadius) * inv1;
   // Gearbox and differential losses: less torque arrives when the engine
   // drives, more is taken when the wheels drive the engine.
   bool driving = lastTc * rati * driveOmega >= 0;
@@ -594,8 +615,8 @@ void Vehicle::substep(double h, const DriverInput& inp) {
     if (converter) {
       // fluid coupling: capacity grows with engine speed squared, locked up when cruising
       double sync = std::fabs(driveOmega * rati);
-      capacity = 0.00356 * we * we;
-      if (gear >= 2 && sync > 135 && shiftTimer <= 0)
+      capacity = (s.hasAuto ? s.autoBox.converter : 0.00356) * we * we;
+      if (gear >= 2 && sync > (s.hasAuto ? s.autoBox.lockOmega : 135) && shiftTimer <= 0)
         capacity = std::max(capacity, s.clutchTorque);
       if (shiftTimer > 0) capacity *= 0.35;
       capacity = std::min(capacity, s.clutchTorque * 1.1);
@@ -637,12 +658,12 @@ void Vehicle::substep(double h, const DriverInput& inp) {
     bool front = i < 2;
     double Ii = Iw * wheelImp[i];
     double T = -fxTyre[i] * s.wheelRadius;
-    if (front) T += (Tc * wheelRatio) / 2;
+    if (i == d0 || i == d1) T += (Tc * wheelRatio) / 2;
     wh.omega += (T / Ii) * h;
     double brake = inp.brake * s.brakeTorque *
                    (front ? s.brakeBiasFront / 2 : (1 - s.brakeBiasFront) / 2) * absMul[i];
     if (!front) brake += inp.handbrake * (s.handbrakeTorque / 2);
-    if (front && parkLock) brake += 6000;
+    if ((i == d0 || i == d1) && parkLock) brake += 6000 * std::max(1.0, s.mass / 1375);
     if (brake > 0) {
       double need = (std::fabs(wh.omega) * Ii) / h;
       if (brake >= need) {

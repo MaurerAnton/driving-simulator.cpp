@@ -46,6 +46,20 @@ class TestHost : public HudHost {
   }
 };
 
+/** A platform that answers nothing (the HUD's input test only sends keys). */
+class TestPlatform : public Platform {
+ public:
+  bool key(const std::string&) const override { return false; }
+  PadState readPad() override { return PadState(); }
+  double mouseLookYawDelta() override { return 0; }
+  double mouseLookPitchDelta() override { return 0; }
+  bool dragging() const override { return false; }
+  bool touchActive() const override { return false; }
+  double touchSteer() const override { return 0; }
+  double touchThrottle() const override { return 0; }
+  double touchBrake() const override { return 0; }
+};
+
 WorldJson makeNet() {
   WorldJson j;
   j.version = 1;
@@ -125,7 +139,10 @@ int main() {
   // find the card for the "rbl" lesson and click it
   std::function<bool(HudNode*)> clickMode = [&](HudNode* n) -> bool {
     if (!n) return false;
-    if (n->tag == "button" && n->html.find("Rechts vor links") != std::string::npos) {
+    // the card carries its title as the widget's text (the original innerHTML)
+    const bool isCard = n->html.find("Rechts vor links") != std::string::npos ||
+                        n->text.find("Rechts vor links") != std::string::npos;
+    if (n->tag == "button" && isCard) {
       if (n->click) n->click();
       return true;
     }
@@ -152,7 +169,7 @@ int main() {
   s.rpm = 2100;
   s.navText = "turn left";
   s.x = 0; s.z = 0;
-  hud.update(s, 0.0);
+  hud.update(s, 1.0);   // the throttles (90 ms DOM, 120 ms map) pass at 1 s
   assert(host.painted >= 1);
   assert(host.text.count("dashV") && host.text["dashV"] == "47");
   assert(host.text.count("dashG") && host.text["dashG"] == "3");
@@ -161,21 +178,21 @@ int main() {
 
   // a second update 10 ms on does nothing (throttled)
   int painted = host.painted;
-  hud.update(s, 0.01);
+  hud.update(s, 1.01);
   assert(host.painted == painted);
 
   // and 130 ms later the map is repainted
-  hud.update(s, 0.15);
+  hud.update(s, 1.15);
   assert(host.painted > painted);
 
   // over the limit the roundel is marked
   s.speedKmh = 62;
-  hud.update(s, 0.30);
+  hud.update(s, 1.30);
   assert(host.cls.count("roundel") && host.cls["roundel"].find("over") != std::string::npos);
 
   // no limit shown when the rules help is off
   st.hudRules = false;
-  hud.update(s, 0.45);
+  hud.update(s, 1.45);
   assert(host.visible.count("roundel") && !host.visible["roundel"]);
   st.hudRules = true;
 
@@ -220,6 +237,7 @@ int main() {
   assert(all.find("Weiterfahren") != std::string::npos);
   hud.hideOverlay();
   assert(!hud.menuOpen());
+  hud.update(s, 1.6);   // back on the HUD tree: one more DOM tick
 
   // the result screen shows the score
   ResultSummary r;
@@ -233,7 +251,11 @@ int main() {
 
   // touch controls are added to the HUD tree (0.5.0: always built, shown by
   // setInputMode)
-  Input in(*(Platform*)nullptr, st);   // the platform is not used by this call
+  TestPlatform plat;
+  Input in(plat, st);   // the constructor asks the platform for its input mode
+  // (the touch controls live in the HUD strip; the result screen is an
+  // overlay over it)
+  hud.hideOverlay();
   hud.attachInput(in);
   assert(host.find("touch") != nullptr);
   hud.setInputMode("touch");

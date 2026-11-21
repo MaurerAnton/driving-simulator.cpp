@@ -72,11 +72,11 @@ recorded values in `tools/versions.tsv`).
 
 `ctest` runs every unit test **with live `assert()`s** (the Release build's
 `NDEBUG` is undone for the test targets – without it every assert is a no-op
-and the tests "pass" without checking anything). 16 checks are skipped with
-their reason in `CMakeLists.txt`: 15 that already fail on the original commit
+and the tests "pass" without checking anything). 15 checks are skipped with
+their reason in `CMakeLists.txt`: 14 that already fail on the original commit
 with asserts enabled (they date from the first translation, before the
 assertions were ever executed) and `i18n_test`, whose regenerated 0.7.0 texts
-await review; the rest run green.
+await review; the rest – including `hud_test` – run green.
 
 `i18n_test` is the original's `tests/i18n` + `npm run i18n:check` in one:
 every language is complete (same keys, placeholders and `[[key]]` tokens),

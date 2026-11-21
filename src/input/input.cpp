@@ -19,6 +19,18 @@ double approach(double cur, double target, double maxStep) {
   return std::fabs(target - cur) <= maxStep ? target : cur + signOf(target - cur) * maxStep;
 }
 
+namespace {
+/** Lateral acceleration (m/s²) the steering keys may ask for: brisk in town, gentle on the motorway. */
+double keyLateral(double v) {
+  return 2.4 + 3.4 / (1 + (v / 15) * (v / 15));
+}
+/** … and what full deflection of a stick or of the steering bar asks for. */
+constexpr double ANALOG_LATERAL = 7;
+constexpr double TAU = 6.283185307179586;
+/** an angle brought into -π … π */
+double wrap(double a) { return a - TAU * std::round(a / TAU); }
+}  // namespace
+
 Input::Input(Platform& platform, const Settings& settings)
     : platform_(platform), settings_(settings) {
   // what the driver is using right now: a touch screen starts in touch mode
@@ -171,6 +183,26 @@ void Input::applyPadButtons(const std::vector<bool>& buttons, bool wheel) {
   prevButtons_ = buttons;
 }
 
+void Input::turnLook(double dYaw, double dPitch) {
+  if (orbit) {
+    mouseLookYaw_ = wrap(mouseLookYaw_ + dYaw);
+    // from just above the road to almost straight down onto the roof
+    mouseLookPitch_ = clamp(mouseLookPitch_ + dPitch, -1.15, 0.28);
+  } else {
+    mouseLookYaw_ = clamp(mouseLookYaw_ + dYaw, -2.6, 2.6);
+    mouseLookPitch_ = clamp(mouseLookPitch_ + dPitch, -0.8, 0.6);
+  }
+}
+
+/**
+ * How much of the steering lock an input may ask for at this speed so that
+ * the car turns with at most `lateral` m/s² (v²/r, r = wheelbase / angle).
+ * Full lock up to walking pace.
+ */
+double Input::lockFor(double lateral, double speed) const {
+  return clamp((lateral * wheelbase) / (std::max(speed * speed, 1.0) * maxWheelAngle), 0.003, 1.0);
+}
+
 void Input::pollPointer() {
   bool down = false, up = false, mouse = false;
   double mx = 0, my = 0, dx = 0, dy = 0;
@@ -247,9 +279,9 @@ Controls Input::update(double dt, double speed, double selfAlign) {
     c.clutch = pad.clutch;
   } else if (touchActive_ || platform_.touchActive()) {
     c.device = "touch";
-    double limit = 1.0 / (1.0 + (absSpeed / 20.0) * (absSpeed / 20.0));
+    double limit = lockFor(ANALOG_LATERAL, absSpeed);
     const double steerIn = touchActive_ ? touchSteer_ : platform_.touchSteer();
-    c.steer = approach(c.steer, steerIn * (0.25 + 0.75 * limit), dt * 4);
+    c.steer = approach(c.steer, steerIn * limit, dt * std::max(4.0 * limit, 0.05));
     c.throttle = touchActive_ ? touchThrottle_ : platform_.touchThrottle();
     c.brake = touchActive_ ? touchBrake_ : platform_.touchBrake();
     c.clutch = 0;
@@ -257,23 +289,30 @@ Controls Input::update(double dt, double speed, double selfAlign) {
     c.device = "keyboard";
     bool left = keyDown("KeyA") || keyDown("ArrowLeft");
     bool right = keyDown("KeyD") || keyDown("ArrowRight");
-    // full lock is only available at walking pace; at speed the keys ask for less
-    double limit = clamp(1.0 / (1.0 + (absSpeed / 9.0) * (absSpeed / 9.0)), 0.06, 1.0);
+    // A key is all or nothing: the keys ask for the lock that turns the car
+    // with a comfortable lateral acceleration at this speed – full lock at
+    // walking pace, a fraction of a degree on the motorway – and wind it on
+    // within about half a second.
+    double limit = lockFor(keyLateral(absSpeed), absSpeed);
     int target = (right ? 1 : 0) - (left ? 1 : 0);
     if (target != 0) {
-      double rate = 0.55 + 0.9 * limit;
-      c.steer = approach(c.steer, target * limit, dt * rate);
+      double rate = limit * (1.2 + 1.3 * (1 - limit));
       // counter-steering is quicker than winding on more lock
-      if (signOf(c.steer) != target) c.steer = approach(c.steer, 0, dt * 1.6);
+      if (signOf(c.steer) == -target)
+        c.steer = approach(c.steer, 0, dt * std::max(1.6 * limit, std::fabs(c.steer) * 4));
+      c.steer = approach(c.steer, target * limit, dt * rate);
     } else {
-      // hands off: the wheel centres itself when the car rolls, and stays put when it stands
-      double centring = clamp(absSpeed / 6.0, 0, 1) * (1.4 + std::fabs(selfAlign) * 2.5);
+      // hands off: the wheel centres itself when the car rolls, and stays put
+      double centring =
+          clamp(absSpeed / 6.0, 0, 1) *
+          std::max((1.4 + std::fabs(selfAlign) * 2.5) * std::max(limit, 0.15),
+                   std::fabs(c.steer) * 3);
       c.steer = approach(c.steer, 0, dt * centring);
     }
     bool gas = keyDown("KeyW") || keyDown("ArrowUp");
     bool brake = keyDown("KeyS") || keyDown("ArrowDown");
     // quick to half travel, slower to the floor: easier to dose with a key
-    c.throttle = gas ? approach(c.throttle, 1, dt * (c.throttle < 0.5 ? 2.4 : 0.9))
+    c.throttle = gas ? approach(c.throttle, 1, dt * (c.throttle < 0.35 ? 2.4 : 0.6))
                      : approach(c.throttle, 0, dt * 5);
     c.brake = brake ? approach(c.brake, 1, dt * (c.brake < 0.45 ? 2.6 : 1.3))
                     : approach(c.brake, 0, dt * 6);
@@ -307,11 +346,32 @@ Controls Input::update(double dt, double speed, double selfAlign) {
   double yaw = mouseLookYaw_;
   bool lookL = keyDown("KeyJ");
   bool lookR = keyDown("KeyK");
-  if (lookL && lookR) yaw = 2.6;
-  else if (lookL) yaw = 1.75;
-  else if (lookR) yaw = -1.75;
-  c.lookYaw = approach(c.lookYaw, yaw, dt * 7);
-  c.lookPitch = approach(c.lookPitch, platform_.mouseLookPitchDelta(), dt * 6);
+  const bool back = keyDown("KeyU") || (lookL && lookR);
+  // looking back: over the left shoulder through the rear window – or, seen
+  // from outside, the camera in front of the car
+  if (back)
+    yaw = orbit ? M_PI : 2.6;
+  else if (lookL)
+    yaw = 1.75;
+  else if (lookR)
+    yaw = -1.75;
+  if (orbit) {
+    // once the car is driving and nobody is looking around, the camera swings
+    // back behind it
+    if (dragging_ || back || lookL || lookR)
+      lookIdle = 0;
+    else
+      lookIdle += dt;
+    if (lookIdle > 2.2 && absSpeed > 2.5 && !glance_) {
+      mouseLookYaw_ = approach(mouseLookYaw_, 0, dt * 1.6);
+      mouseLookPitch_ = approach(mouseLookPitch_, 0, dt * 0.6);
+    }
+    // the short way round
+    c.lookYaw = wrap(c.lookYaw + clamp(wrap(yaw - c.lookYaw), -dt * 7, dt * 7));
+  } else {
+    c.lookYaw = approach(c.lookYaw, yaw, dt * 7);
+  }
+  c.lookPitch = approach(c.lookPitch, mouseLookPitch_, dt * 6);
 
   // indicator self-cancel: arms once the wheel is turned into the bend, cancels when it comes back
   if (c.indicator != 0) {

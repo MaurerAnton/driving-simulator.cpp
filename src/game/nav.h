@@ -66,9 +66,13 @@ enum class TargetType { Rbl, Signals, Roundabout, Rural, Motorway, Priority, Hom
 struct LessonDef {
   /** title and introduction are texts: "lesson.<id>.title", "lesson.<id>.intro" */
   std::string id;
-  /** 'free' | 'basics' | 'route' | 'exam' */
-  std::string kind;
+  /** 'yard': tasks on the practice yard only (class CE) */
+  std::string kind;   // 'free' | 'basics' | 'route' | 'exam' | 'yard'
   std::vector<TargetType> targets;
+  /** only for this vehicle (empty: both); "car" | "truck" */
+  std::string vehicle;
+  /** tasks on the practice yard, done one after the other before the drive */
+  std::vector<std::string> tasks;   // 'couple' | 'corner' | 'ramp'
 };
 
 /** The lessons and the exam, as the original ships them. */

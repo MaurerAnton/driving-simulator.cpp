@@ -15,6 +15,14 @@ namespace fs {
 enum class Transmission { Assist, Manual, Automatic };
 enum class Quality { Low, Medium, High };
 enum class Mirrors { Off, Alternate, Full };
+/** the camera a drive starts with: behind the car, or at the driver's eyes */
+enum class View { Chase, Cockpit };
+
+/** Engine powers that can be chosen, in PS (metric horsepower). */
+extern const int ENGINE_POWERS[6];
+
+/** a car (class B) or the truck with trailer (class CE) */
+enum class VehicleKind { Car, Truck };
 
 struct WheelMapping {
   int steerAxis = 0;
@@ -32,7 +40,23 @@ struct WheelMapping {
 struct Settings {
   /** language code, one of LANGS in src/i18n (the original: string) */
   std::string lang = "de";
-  Transmission transmission = Transmission::Assist;
+  VehicleKind vehicle = VehicleKind::Car;
+  Transmission transmission = Transmission::Automatic;
+  /** engine power in PS, one of ENGINE_POWERS */
+  int power = 75;
+  /** with keys or pedals on the screen the throttle eases off at the current speed limit */
+  bool limiter = true;
+  View view = View::Chase;
+  /** how solid the interior is drawn in the cockpit view, 0.2 (see-through) … 1 */
+  double cabinOpacity = 1;
+  /** where the last drive began: a start point of the map, or an address */
+  struct StartPlace {
+    int spawn = 0;
+    bool hasAddress = false;
+    std::string label, street;
+    double x = 0, z = 0;
+    bool exact = false;
+  } lastStart;
   Quality quality = Quality::Medium;
   /** off | one mirror per frame | all mirrors every frame */
   Mirrors mirrors = Mirrors::Alternate;
@@ -58,6 +82,8 @@ struct Settings {
     bool kartaview = false;
     bool mapillary = false;
     std::string mapillaryToken;
+    /** aerial photographs of the land survey under the map */
+    bool aerial = false;
   } reality;
   /**
    * Driving controls on the screen (steering bar, pedals, buttons):

@@ -157,32 +157,36 @@ NavHint& Navigator::update(double dt, Lane* lane, double s, double x, double z) 
 // ---------------------------------------------------------------------------
 
 const std::vector<LessonDef>& lessons() {
+  // (id, kind, targets, vehicle, tasks) as the original ships them (v0.7.0)
   static const std::vector<LessonDef> list = {
-      {"basics",
-       "basics",
-       {}},
-      {"rbl",
-       "route",
-       {TargetType::Rbl, TargetType::Rbl, TargetType::Home}},
-      {"priority",
-       "route",
-       {TargetType::Priority, TargetType::Priority, TargetType::Home}},
-      {"signals",
-       "route",
-       {TargetType::Signals, TargetType::Signals, TargetType::Home}},
+      {"basics", "basics", {}, "car", {}},
+      {"rbl", "route", {TargetType::Rbl, TargetType::Rbl, TargetType::Home}, "", {}},
+      {"priority", "route", {TargetType::Priority, TargetType::Priority, TargetType::Home}, "", {}},
+      {"signals", "route", {TargetType::Signals, TargetType::Signals, TargetType::Home}, "", {}},
       {"roundabout",
        "route",
-       {TargetType::Roundabout, TargetType::Roundabout, TargetType::Home}},
-      {"rural",
-       "route",
-       {TargetType::Rural, TargetType::Home}},
-      {"motorway",
-       "route",
-       {TargetType::Motorway, TargetType::Home}},
+       {TargetType::Roundabout, TargetType::Roundabout, TargetType::Home},
+       "",
+       {}},
+      {"rural", "route", {TargetType::Rural, TargetType::Home}, "", {}},
+      {"motorway", "route", {TargetType::Motorway, TargetType::Home}, "", {}},
       {"exam",
        "exam",
        {TargetType::Rbl, TargetType::Signals, TargetType::Roundabout, TargetType::Priority,
-        TargetType::Rural, TargetType::Home}},
+        TargetType::Rural, TargetType::Home},
+       "car",
+       {}},
+      // class CE: truck with trailer (Anlage 7 FeV: coupling, two basic
+      // manoeuvres, the drive)
+      {"ceCouple", "yard", {}, "truck", {"couple"}},
+      {"ceCorner", "yard", {}, "truck", {"corner"}},
+      {"ceRamp", "yard", {}, "truck", {"ramp"}},
+      {"ceExam",
+       "exam",
+       {TargetType::Signals, TargetType::Roundabout, TargetType::Priority, TargetType::Rural,
+        TargetType::Home},
+       "truck",
+       {"couple", "corner", "ramp"}},
   };
   return list;
 }

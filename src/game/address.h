@@ -8,6 +8,7 @@
  */
 #pragma once
 
+#include <functional>
 #include <set>
 #include <string>
 #include <vector>
@@ -98,8 +99,14 @@ std::set<int> mainNetwork(World& world, LaneGraph& graph);
  * drive on – preferably the street of that name –, in the right-hand lane,
  * with the house on the right, clear of the junctions.
  */
+/**
+ * `accept` filters the edges (the truck only uses wide roads); `room` is the
+ * metres of lane wanted behind the spot (a trailer must not hang back into
+ * the junction).
+ */
 SpawnJson findRoadSpot(World& world, LaneGraph& graph, double x, double z,
                        const std::string& street = "", double maxDist = 220,
-                       const std::set<int>* main = nullptr);
+                       const std::set<int>* main = nullptr,
+                       const std::function<bool(const Edge&)>& accept = {}, double room = 2);
 
 }  // namespace fs

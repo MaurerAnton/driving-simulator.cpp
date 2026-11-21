@@ -54,10 +54,29 @@ int main() {
   // lessons ship with their ids and routes; the texts are the lesson.* ones
   // in every language (0.6.0)
   const auto& ls = lessons();
-  assert(ls.size() == 8);
-  assert(ls[0].id == "basics" && ls[0].kind == "basics");
+  // 0.7.0: eight lessons for the car and four for the class-CE truck
+  assert(ls.size() == 12);
+  assert(ls[0].id == "basics" && ls[0].kind == "basics" && ls[0].vehicle == "car");
   assert(ls[1].id == "rbl" && ls[1].targets.size() == 3);
-  assert(ls[7].id == "exam" && ls[7].kind == "exam");
+  assert(ls[7].id == "exam" && ls[7].kind == "exam" && ls[7].vehicle == "car");
+  // the truck: three tasks on the practice yard, then the test with all of them
+  std::vector<std::string> truck;
+  for (const auto& l : ls)
+    if (l.vehicle == "truck") truck.push_back(l.id);
+  assert((truck == std::vector<std::string>{"ceCouple", "ceCorner", "ceRamp", "ceExam"}));
+  assert(ls[8].kind == "yard" && ls[8].tasks == std::vector<std::string>{"couple"});
+  assert(ls[9].tasks == std::vector<std::string>{"corner"});
+  assert(ls[10].tasks == std::vector<std::string>{"ramp"});
+  assert(ls[11].kind == "exam" &&
+         ls[11].tasks == std::vector<std::string>{"couple", "corner", "ramp"});
+  assert(ls[11].targets.size() >= 4);   // a drive in traffic follows the yard
+  // the car keeps its own lessons; the routes are for both
+  bool carExam = false, sharedRoute = false;
+  for (const auto& l : ls) {
+    if (l.vehicle == "car" && l.kind == "exam") carExam = true;
+    if (l.vehicle.empty() && l.kind == "route") sharedRoute = true;
+  }
+  assert(carExam && sharedRoute);
   assert(lessonTitle("exam", "de") == "Prüfungsfahrt");
   assert(lessonIntro("exam", "en").find("examiner") != std::string::npos);
   for (const auto& l : ls) {

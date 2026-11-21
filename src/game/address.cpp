@@ -483,7 +483,8 @@ std::set<int> mainNetwork(World& world, LaneGraph& graph) {
 }
 
 SpawnJson findRoadSpot(World& world, LaneGraph& graph, double x, double z,
-                       const std::string& street, double maxDist, const std::set<int>* main) {
+                       const std::string& street, double maxDist, const std::set<int>* main,
+                       const std::function<bool(const Edge&)>& accept, double room) {
   const std::string want = normaliseAddress(street);
   struct Best {
     Edge* edge = nullptr;
@@ -494,6 +495,7 @@ SpawnJson findRoadSpot(World& world, LaneGraph& graph, double x, double z,
   for (bool roomy : {true, false}) {
     world.edgesInBox(x - maxDist, z - maxDist, x + maxDist, z + maxDist, [&](Edge& e) {
       if (!LaneGraph::drivable(e, false)) return;
+      if (accept && !accept(e)) return;
       const LaneGraph::EdgeLanes& lanes = graph.edgeLanes[static_cast<size_t>(e.id)];
       auto someUsable = [&](const std::vector<Lane*>& ls) {
         for (const Lane* l : ls)
@@ -541,10 +543,13 @@ SpawnJson findRoadSpot(World& world, LaneGraph& graph, double x, double z,
       break;
     }
   const double d = lane->dir > 0 ? best.s - lane->s0 : lane->s0 - best.s;
-  const double room = std::min(2.0, lane->len / 2);
-  smp = lanePoint(*lane, std::max(room, std::min(lane->len - room, d)), smp);
+  // (`room`: metres of lane wanted behind the spot – a trailer must not hang
+  // back into the junction)
+  const double behind = std::min(room, lane->len / 2);
+  smp = lanePoint(*lane, std::max(behind, std::min(lane->len - room, d)), smp);
   SpawnJson out;
-  out.name = "";
+  // (named after its street, for whoever shows the spot on a map)
+  out.name = best.edge->name.empty() ? best.edge->ref : best.edge->name;
   out.x = smp.x;
   out.z = smp.z;
   out.yaw = std::atan2(-smp.tx, -smp.tz);
