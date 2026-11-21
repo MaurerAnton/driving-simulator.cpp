@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <functional>
+
 #include "sim/vehicle/types.h"
 #include "world/world.h"
 
@@ -32,6 +34,8 @@ class WorldGround : public Ground {
   SurfaceHit hit;
   /** global grip multiplier (rain, ice) */
   double weatherGrip = 1;
+  /** places that are paved for the time being, whatever the map says (the practice yard laid over a field) */
+  std::function<bool(double, double)> paved;
 
  private:
   World& world_;

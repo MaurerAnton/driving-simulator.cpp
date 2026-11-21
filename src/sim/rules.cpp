@@ -95,8 +95,28 @@ int RuleMonitor::segIndex(const Edge& e, double s) const {
   return static_cast<int>(lo);
 }
 
+void RuleMonitor::note(const std::string& id, Severity severity,
+                       const std::vector<std::pair<std::string, std::string>>& data,
+                       double cooldown) {
+  auto it = cooldown_.find(id);
+  double until = it == cooldown_.end() ? -1 : it->second;
+  if (time < until) return;
+  cooldown_[id] = time + cooldown;
+  Violation v;
+  v.id = id;
+  v.severity = severity;
+  v.time = time;
+  v.x = lastX_;
+  v.z = lastZ_;
+  v.data = data;
+  log.push_back(v);
+  if (onViolation) onViolation(log.back());
+}
+
 void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<TrafficEvent>& events) {
   time += dt;
+  lastX_ = p.x;
+  lastZ_ = p.z;
   RuleContext& ctx = context;
   double fx = -std::sin(p.yaw);
   double fz = -std::cos(p.yaw);

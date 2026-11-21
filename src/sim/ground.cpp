@@ -71,7 +71,7 @@ void WorldGround::sample(double x, double z, double yRef, GroundSample& out) {
   out.ny = 1 / l;
   out.nz = nz / l;
   int c = terrain_.coverAt(x, z);
-  if (c == COVER_ASPHALT || c == COVER_PAVED) {
+  if (c == COVER_ASPHALT || c == COVER_PAVED || (paved && paved(x, z))) {
     out.grip = 0.95 * weatherGrip;
     out.rolling = 1.1;
   } else if (c == COVER_WATER) {

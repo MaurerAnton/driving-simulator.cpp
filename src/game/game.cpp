@@ -12,6 +12,7 @@
 #include "geo/utm.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 
@@ -237,6 +238,11 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro,
       break;
     }
   hud->canTeleport = !hasLesson_;
+  // a free drive (and every mode but a lesson) can be ended by the driver
+  hud->canFinish = !hasLesson_;
+  // the camera a drive starts with: behind the car, or at the driver's eyes
+  cameraMode = settings.view == View::Cockpit ? CameraMode::Cockpit : CameraMode::Chase;
+  input->resetLook(cameraMode == CameraMode::Chase);
   const VehicleSpec& spec = settings.transmission == Transmission::Automatic
                                 ? compactCarAutomatic()
                                 : (settings.transmission == Transmission::Assist
@@ -313,6 +319,34 @@ void Game::finish() {
   r.distanceKm = (vehicle->odometer - startOdo_) / 1000;
   r.minutes = (time_ - startTime_) / 60;
   hud->showResult(r);
+  rememberDrive(r);
+}
+
+/**
+ * The faults of the drive that just ended join the log (they keep the street
+ * and the lesson they happened in – the original: the entries carry mode).
+ */
+void Game::rememberDrive(const ResultSummary& r) {
+  if (!faultLog_) return;
+  for (const Violation& v : r.log) {
+    FaultEntry f;
+    f.t = std::chrono::duration<double, std::milli>(
+              std::chrono::system_clock::now().time_since_epoch())
+              .count();
+    f.id = v.id;
+    f.severity = v.severity;
+    f.data = v.data;
+    f.street = rules->context.roadName;
+    f.mode = hasLesson_ ? lesson_.id : "free";
+    f.x = v.x;
+    f.z = v.z;
+    faultLog_->add(f);
+  }
+}
+
+void Game::openBigMap() {
+  // (0.7.0: the full-screen map; the buttons and the path to it are in place
+  // as soon as src/ui/bigmap is ported)
 }
 
 void Game::onAction(Action a) {
@@ -572,6 +606,10 @@ void Game::boot(const QueryParams& q) {
   car.root.visible = false;
 
   hud = std::make_unique<Hud>(host_, settings, *a.world);
+  // the log of faults survives the session (the original: localStorage)
+  faultLog_ = std::make_unique<FaultLog>(store_);
+  path_ = std::make_unique<DrivenPath>(store_);
+  hud->faultLog = faultLog_.get();
   input = std::make_unique<Input>(platform_, settings);
   input->onAction([this](Action act) { onAction(act); });
   hud->onStart = [this](const StartRequest& r) {
@@ -589,6 +627,7 @@ void Game::boot(const QueryParams& q) {
   hud->onPause = [this]() { pause(); };
   hud->loadAddresses = [this]() { return loadAddresses(); };
   hud->onTeleport = [this](const AddressHit& hit) { teleportTo(hit); };
+  hud->onMap = [this]() { openBigMap(); };
   hud->attachInput(*input);
   rules->onViolation = [this](const Violation& v) {
     hud->toast(v);

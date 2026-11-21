@@ -21,6 +21,8 @@
 #include "game/app.h"
 #include "i18n/index.h"
 #include "game/nav.h"
+#include "game/faultlog.h"
+#include "game/track.h"
 #include "game/settings.h"
 #include "input/input.h"
 #include "render/actors.h"
@@ -71,6 +73,8 @@ class Game {
   std::unique_ptr<RuleMonitor> rules;
   std::unique_ptr<Navigator> nav;
   std::unique_ptr<Hud> hud;
+  std::unique_ptr<FaultLog> faultLog_;
+  std::unique_ptr<DrivenPath> path_;
   std::unique_ptr<Input> input;
   std::unique_ptr<Vehicle> vehicle;
   std::unique_ptr<WorldGround> ground;
@@ -103,6 +107,10 @@ class Game {
 
  private:
   friend struct RealityHostImpl;   // the reality panel's bridge (game.cpp)
+  /** where the log and the path are kept (null: only for this session) */
+  KeyValueStore* store_ = nullptr;
+  /** the faults of the drive that just ended join the log (0.7.0) */
+  void rememberDrive(const ResultSummary& r);
   HudHost& host_;
   Platform& platform_;
   SignSource& signSource_;
@@ -175,11 +183,23 @@ class Game {
   /** Free drive: jump to an address (from the pause menu). */
   void teleportTo(const AddressHit& hit);
   void openReality();
+  /** the full-screen map of the town (0.7.0; drawn when ui/bigmap is ported) */
+  void openBigMap();
   void closeReality();
   void tryPlace();
   void resume();
   void pause();
   void finish();
+
+  /** the log of faults of this and of earlier drives (0.7.0) */
+  FaultLog& faultLog() { return *faultLog_; }
+  /** the driven path of this session, for the map (0.7.0) */
+  DrivenPath& drivenPath() { return *path_; }
+  /**
+   * What the browser's localStorage is here: the store the fault log and the
+   * driven path keep.  The platform hands its storage in (or none).
+   */
+  void setStore(KeyValueStore* store) { store_ = store; }
   void onAction(Action a);
   void resetToRoad();
   void stepDrive(double dt);

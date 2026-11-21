@@ -119,6 +119,8 @@ class HudHost {
   virtual void toastAdded() {}
 };
 
+class FaultLog;
+
 class Hud {
  public:
   Hud(HudHost& host, Settings& settings, World& world);
@@ -133,11 +135,23 @@ class Hud {
   std::function<void()> onPause;
   /** free drive: jump to an address (from the pause menu) */
   std::function<void(const AddressHit&)> onTeleport;
+  /** the full-screen map (the pause menu) */
+  std::function<void()> onMap;
+  /** let the simulator drive and watch it (the pause menu) */
+  std::function<void()> onDemo;
   /** fetches the address list when somebody first types an address */
   std::function<AddressIndex*()> loadAddresses;
   /** free drive: the pause menu offers to jump to an address */
   bool canTeleport = false;
+  /** a free drive can be ended by the driver (the pause menu: "End drive") */
+  bool canFinish = false;
+  /** the simulator can drive for demonstration (off in lessons and tests) */
+  bool canDemo = false;
   std::vector<Lane*> routeLanes;
+  /** the faults of this and of earlier drives (set by the game) */
+  FaultLog* faultLog = nullptr;
+  /** the end-drive button leads here (the result, then the menu) */
+  std::function<void()> onFinish;
 
   std::string langSetting() const { return settings_.lang; }
   std::string t(const std::string& key) const;
@@ -157,6 +171,8 @@ class Hud {
   /** Free drive: put the car in front of an address (0.5.0). */
   void showTeleport();
   void showResult(const ResultSummary& r);
+  /** the log of faults of this and of earlier drives (0.7.0) */
+  void showLog(const std::function<void()>& back);
   void hideOverlay();
 
   void setHudVisible(bool v);
@@ -219,6 +235,13 @@ class Hud {
    * The list of languages, each under its own name.  Choosing one registers
    * its texts and draws the current page again (the original fetches the file).
    */
+  /**
+   * The rule a fault refers to: the citation of the StVO, each paragraph a
+   * link to the official text (0.7.0).
+   */
+  std::unique_ptr<HudNode> ruleNode(const std::string& id) const;
+  /** date and time of a fault, written as its locale writes them (0.7.0). */
+  std::string faultWhen(double ms) const;
   std::unique_ptr<HudNode> languagePicker(const std::function<void()>& redraw, bool inRow = false);
   /** Key caps for the keys with these codes, as printed on the player's keyboard. */
   std::string keycaps(const std::vector<std::string>& codes, const std::string& sep = "") const;

@@ -9,6 +9,9 @@
 #include "ui/hud.h"
 
 #include "i18n/index.h"
+#include "i18n/violations.h"
+
+#include "game/faultlog.h"
 
 #include "ui/addresspicker.h"
 
@@ -194,6 +197,7 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   b->add(button("btn ghost", t("settings"), [this, back]() { showSettings(back); }));
   b->add(button("btn ghost", t("controls"), [this, back]() { showControls(back); }));
   b->add(button("btn ghost", t("about"), [this, back]() { showAbout(back); }));
+  b->add(button("btn ghost", t("logTitle"), [this, back]() { showLog(back); }));
   p->add(std::move(b));
   o->add(std::move(p));
   setOverlay(std::move(o));
@@ -385,14 +389,29 @@ void Hud::showPause() {
     if (onResume) onResume();
     hideOverlay();
   }));
+  b->add(button("btn ghost", t("mapTitle"), [this]() {
+    if (onMap) onMap();
+  }));
   b->add(button("btn ghost", t("realityButton"), [this]() {
     if (onReality) onReality();
   }));
   if (canTeleport) {
     b->add(button("btn ghost", t("teleport"), [this]() { showTeleport(); }));
+    // … or have the car drive somewhere by itself and watch how it is done
+    if (canDemo)
+      b->add(button("btn ghost", t("demo"), [this]() {
+        if (onDemo) onDemo();
+      }));
   }
+  b->add(button("btn ghost", t("logTitle"), [this]() { showLog([this]() { showPause(); }); }));
   b->add(button("btn ghost", t("settings"), [this]() { showSettings([this]() { showPause(); }); }));
   b->add(button("btn ghost", t("controls"), [this]() { showControls([this]() { showPause(); }); }));
+  if (canFinish) {
+    // a free drive ends when the driver says so: the result, then the main menu
+    b->add(button("btn ghost", t("endDrive"), [this]() {
+      if (onFinish) onFinish();
+    }));
+  }
   b->add(button("btn ghost", t("menu"), [this]() {
     if (onQuit) onQuit();
     hideOverlay();
@@ -467,7 +486,9 @@ void Hud::showResult(const ResultSummary& r) {
     f->add(node("b", "", violationTitle(v.id, settings_.lang, v.data) +
                             (g.second > 1 ? " (" + std::to_string(g.second) + "\u00d7)" : "")));
     f->add(node("small", "", violationWhy(v.id, settings_.lang)));
-    f->add(node("em", "", this->t(sev) + " \u00b7 " + violationRef(v.id, settings_.lang)));
+    auto em = node("em", "", this->t(sev) + " \u00b7 ");
+    em->add(ruleNode(v.id));   // the citation, each paragraph a link
+    f->add(std::move(em));
     p->add(std::move(f));
   }
   auto b = node("div", "buttons");
@@ -475,6 +496,114 @@ void Hud::showResult(const ResultSummary& r) {
     if (onQuit) onQuit();
     hideOverlay();
   }));
+  b->add(button("btn ghost", t("logTitle"), [this, r]() {
+    showLog([this, r]() { showResult(r); });
+  }));
+  p->add(std::move(b));
+  o->add(std::move(p));
+  setOverlay(std::move(o));
+}
+
+/**
+ * The rule a fault refers to: the citation of the StVO, each paragraph and
+ * annex a link to the official text (the original: an <a> with the URL from
+ * citationParts; a reference that is a text key just shows the text).
+ */
+std::unique_ptr<HudNode> Hud::ruleNode(const std::string& id) const {
+  std::string ref;
+  for (const auto& e : VIOLATION_REFS)
+    if (e.first == id) {
+      ref = e.second;
+      break;
+    }
+  auto node_ = node("span", "rule");
+  if (ref.rfind("@", 0) == 0 || ref.empty()) {
+    node_->text = violationRef(id, settings_.lang);
+    return node_;
+  }
+  for (const auto& part : citationParts(ref)) {
+    if (part.url.empty()) {
+      node_->text += part.text;
+      continue;
+    }
+    auto a = node("a", "");
+    a->text = part.text;
+    // shown by the platform as a link; title = what opens it
+    a->html = "<a href=\"" + part.url + "\" target=\"_blank\" rel=\"noopener noreferrer\">" +
+              part.text + "</a>";
+    a->id = part.url;                 // the platform opens exactly this URL
+    a->click = [url = part.url]() {   // (native: the host decides what a URL means)
+      (void)url;
+    };
+    node_->add(std::move(a));
+  }
+  return node_;
+}
+
+/** date and time of a fault, as its locale writes them (medium date, short time). */
+std::string Hud::faultWhen(double ms) const {
+  time_t secs = static_cast<time_t>(ms / 1000.0);
+  struct tm tmv;
+  gmtime_r(&secs, &tmv);
+  static const char* const MONTHS[12] = {
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"};
+  static const char* const MONTHS_DE[12] = {
+      "Januar", "Februar", "März", "April", "Mai", "Juni",
+      "Juli", "August", "September", "Oktober", "November", "Dezember"};
+  const bool german = settings_.lang == "de";
+  char out[80];
+  if (german)
+    std::snprintf(out, sizeof out, "%d. %s %d, %02d:%02d", tmv.tm_mday,
+                  MONTHS_DE[tmv.tm_mon], 1900 + tmv.tm_year, tmv.tm_hour, tmv.tm_min);
+  else
+    std::snprintf(out, sizeof out, "%s %d, %d, %d:%02d %s", MONTHS[tmv.tm_mon], tmv.tm_mday,
+                  1900 + tmv.tm_year, tmv.tm_hour % 12 == 0 ? 12 : tmv.tm_hour % 12, tmv.tm_min,
+                  tmv.tm_hour < 12 ? "AM" : "PM");
+  return out;
+}
+
+void Hud::showLog(const std::function<void()>& back) {
+  auto o = node("div", "overlay");
+  auto p = node("div", "panel");
+  p->add(node("h1", "", t("logTitle")));
+  static const std::vector<FaultEntry> NO_ENTRIES;
+  const std::vector<FaultEntry>& entries = faultLog ? faultLog->entries() : NO_ENTRIES;
+  if (entries.empty())
+    p->add(node("p", "", t("logEmpty")));
+  else
+    p->add(node("p", "", t("logText")));
+  auto list = node("div", "log");
+  for (size_t i = entries.size(); i-- > 0;) {
+    const FaultEntry& e = entries[i];
+    const std::string sevKey =
+        e.severity == Severity::Hint ? "hint"
+        : e.severity == Severity::Minor ? "minor"
+        : e.severity == Severity::Major  ? "major"
+                                         : "fail";
+    auto f = node("div", "fault " + sevKey);
+    // when · street · lesson or free drive
+    std::string where = faultWhen(e.t);
+    if (!e.street.empty()) where += " · " + e.street;
+    where += std::string(" · ") + (e.mode == "free"    ? t("free")
+                                        : e.mode == "exam"  ? t("exam")
+                                                            : lessonTitle(e.mode, settings_.lang));
+    f->add(node("small", "when", where));
+    f->add(node("b", "", violationTitle(e.id, settings_.lang, e.data)));
+    f->add(node("small", "", violationWhy(e.id, settings_.lang)));
+    auto em = node("em", "", t(sevKey) + " · ");
+    em->add(ruleNode(e.id));
+    f->add(std::move(em));
+    list->add(std::move(f));
+  }
+  p->add(std::move(list));
+  auto b = node("div", "buttons");
+  b->add(button("btn", t("back"), back));
+  if (!entries.empty())
+    b->add(button("btn ghost", t("logClear"), [this, back]() {
+      if (faultLog) faultLog->clear();
+      showLog(back);
+    }));
   p->add(std::move(b));
   o->add(std::move(p));
   setOverlay(std::move(o));

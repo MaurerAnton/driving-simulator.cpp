@@ -166,7 +166,11 @@ int main() {
   g.onActionCall(Action::Pause);
   assert(g.state == GameState::Drive);
 
-  // the view action switches the camera
+  // the view action switches the camera (the drive starts in the view the
+  // settings chose – chase by default, so this flips to the cockpit)
+  assert(g.cameraMode == CameraMode::Chase);
+  g.onActionCall(Action::View);
+  assert(g.cameraMode == CameraMode::Cockpit);
   g.onActionCall(Action::View);
   assert(g.cameraMode == CameraMode::Chase);
   g.onActionCall(Action::View);

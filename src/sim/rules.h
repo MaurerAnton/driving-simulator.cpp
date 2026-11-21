@@ -93,8 +93,18 @@ class RuleMonitor {
    *  against the driver there */
   const std::set<Edge*>* allowed = nullptr;
   double time = 0;
+  /** the practice yard of the class-CE tasks (the layout plays the road) */
+  bool yard = false;
+  /** the vehicle is a truck with a trailer: 60 km/h outside built-up areas */
+  bool truck = false;
 
   void reset();
+  /**
+   * A fault the driving instructor notes without the traffic around it (the
+   * tasks on the practice yard): cooldown `seconds` as the original's.
+   */
+  void note(const std::string& id, Severity severity,
+            const std::vector<std::pair<std::string, std::string>>& data = {}, double cooldown = 3);
   /** The lane the driver is tracking (the original reads it as `lane`). */
   Lane* currentLane() const { return lane_; }
   /** Distance of the front bumper along that lane (the original's `laneS`). */
@@ -106,6 +116,8 @@ class RuleMonitor {
  private:
   SurfaceHit hit_;
   SurfaceHit frontHit_;
+  /** where the driver was at the last step (a note has no position of its own) */
+  double lastX_ = 0, lastZ_ = 0;
   std::map<std::string, double> cooldown_;
   Lane* lane_ = nullptr;
   double laneS_ = 0;
