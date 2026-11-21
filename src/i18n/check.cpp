@@ -255,7 +255,7 @@ const char* const KEEP[] = {
     "CC BY-SA 4.0", "EXIF", "XMP", "GeoJSON", "JSON", "CSV", "JPEG", "PNG", "WebP",
     "WebGL 2", "▲", "▼", "⋯", "DGM1", "LoD2", "UrhG", "Marktplatz 5", "A 49", "Logitech",
     "Thrustmaster", "Fanatec", "RT", "LT", "RB/LB", "X/B", "Anlieger frei", "P·R·N·D",
-    "360°", "IP",
+    "360°", "IP", "Kassel", "CE",
 };
 
 // ---------------------------------------------------------------- rules
@@ -285,6 +285,18 @@ const std::vector<MaxRule>& maxRules() {
            if (k == e) return true;
          return false;
        }, 34},
+      {[](const std::string& k) { return k == "realityCopy" || k == "realityCopied"; }, 16},
+      {[](const std::string& k) { return k == "mapTitle"; }, 22},
+      {[](const std::string& k) {
+         static const char* const GROUP[] = {"viewChase", "viewCockpit", "enginePower",
+                                             "startView", "mapPath", "mapClearPath", "logClear",
+                                             "logTitle", "realityPlace", "mapTeleport",
+                                             "endDrive", "mapCentre", "mapPlace"};
+         for (const char* g : GROUP)
+           if (k == g) return true;
+         return false;
+       }, 36},
+      {[](const std::string& k) { return k == "realityAerial"; }, 44},
       {[](const std::string& k) {
          return k == "navLeft" || k == "navRight" || k == "navUturn" || k == "navFollow" ||
                 k == "navMotorway" || k == "laneLeft" || k == "laneRight" ||
@@ -294,6 +306,21 @@ const std::vector<MaxRule>& maxRules() {
          return k.rfind("lesson.", 0) == 0 && k.size() > 6 &&
                 k.compare(k.size() - 6, 6, ".title") == 0;
        }, 60},
+      {[](const std::string& k) {
+         return k == "demo" || k == "demoStart" || k == "demoClear" || k == "demoArrived" ||
+                k == "demoStop" || k == "demoTaken";
+       }, 34},
+      {[](const std::string& k) { return k == "demoAdd"; }, 40},
+      {[](const std::string& k) { return k == "demoRunning"; }, 120},
+      {[](const std::string& k) { return k.rfind("demo.", 0) == 0; }, 96},
+      {[](const std::string& k) { return k == "vehicle"; }, 30},
+      {[](const std::string& k) { return k == "vehCar" || k == "vehTruck"; }, 46},
+      {[](const std::string& k) { return k == "ce.corrections" || k == "ce.gap"; }, 46},
+      {[](const std::string& k) { return k == "ce.onFoot"; }, 64},
+      {[](const std::string& k) { return k.rfind("ce.step.", 0) == 0; }, 84},
+      {[](const std::string& k) {
+         return k.rfind("ce.do.", 0) == 0 || k == "ce.again";
+       }, 200},
       {[](const std::string& k) {
          return k.rfind("v.", 0) == 0 && k.size() > 6 &&
                 k.compare(k.size() - 6, 6, ".title") == 0;

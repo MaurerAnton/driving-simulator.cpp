@@ -9,7 +9,7 @@
  * missing.
  *
  * Origin: src/i18n/{index,keys,violations,types}.ts (MaurerAnton/driving-simulator
- * @ 408014b, v0.6.0).  The TypeScript fetches a language file when it is
+ * @ ff37c5d, v0.7.0).  The TypeScript fetches a language file when it is
  * chosen; here every dictionary is linked into the binary and registered on
  * first use, so `loadLang` answers the same way without the network.
  */

@@ -2,7 +2,7 @@
 /**
  * The labels of the keys, as the original writes them (src/i18n/keys.ts).
  *
- * Origin: src/i18n/keys.ts (MaurerAnton/driving-simulator @ 408014b, v0.6.0).
+ * Origin: src/i18n/keys.ts (MaurerAnton/driving-simulator @ ff37c5d, v0.7.0).
  */
 #include "i18n/keys.h"
 

@@ -3,7 +3,7 @@
  * Texts in many languages: the registry, the lookup with its fallbacks and
  * the formatting of quantities and dates.
  *
- * Origin: src/i18n/index.ts (MaurerAnton/driving-simulator @ 408014b, v0.6.0).
+ * Origin: src/i18n/index.ts (MaurerAnton/driving-simulator @ ff37c5d, v0.7.0).
  * German and English are built in; the other dictionaries are registered the
  * first time their language is asked for (the TypeScript fetches the file).
  */
@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
@@ -51,11 +50,10 @@ const std::vector<DictEntry>& dictOfZH();
 const std::vector<DictEntry>& dictOfJA();
 const std::vector<DictEntry>& dictOfKO();
 
-namespace {
-
 /** registered languages (code → texts), filled by loadLang */
 std::map<std::string, Dict> g_loaded;
 
+namespace {
 /** which style the [[KeyX]] tokens are written in */
 KeyStyle g_keyStyle = KeyStyle::Keys;
 
@@ -86,7 +84,7 @@ std::string lookup(const std::string& key, const std::string& lang) {
 
 /** Inside right-to-left text a citation such as "§ 37 Abs. 2 StVO" would be torn apart. */
 std::string ltrPiece(const std::string& s) {
-  return "\xe2\x81\xa7" + s + "\xe2\x81\xa9";  // ‪ …   (LRI … PDI)
+return "\xe2\x81\xa7" + s + "\xe2\x81\xa9";  // LRI … PDI (the marks around a citation)
 }
 
 bool citation(const std::string& s, size_t pos, size_t& len) {
@@ -95,9 +93,7 @@ bool citation(const std::string& s, size_t pos, size_t& len) {
   size_t i = pos + 2;
   // \s*\d
   while (i < s.size() && (s[i] == ' ' || s[i] == '\t')) i++;
-  if (i >= s.size() || s[i] < '0' || s[i] > '9') {
-    return false;
-  }
+  if (i >= s.size() || s[i] < '0' || s[i] > '9') return false;
   i++;
   // [\w\s.,()§]*? then StVO or UrhG
   size_t j = i;
@@ -293,9 +289,9 @@ std::string tr(const std::string& key, const std::string& lang,
         std::string piece = s.substr(i, len);
         for (size_t p = 0; p < piece.size(); p++)
           if (piece[p] == ' ') {
-            piece.replace(p, 1, "\xc2\xa0");
+            piece.replace(p, 1, "\xc2\xa0");   // non-breaking space
             p++;
-          }  // nbsp
+          }
         out += ltrPiece(piece);
         i += len;
       } else {

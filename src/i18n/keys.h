@@ -10,7 +10,7 @@
  * (Chromium: navigator.keyboard.getLayoutMap), otherwise from the layout that
  * is usual for the language.
  *
- * Origin: src/i18n/keys.ts (MaurerAnton/driving-simulator @ 408014b, v0.6.0).
+ * Origin: src/i18n/keys.ts (MaurerAnton/driving-simulator @ ff37c5d, v0.7.0).
  */
 #pragma once
 
