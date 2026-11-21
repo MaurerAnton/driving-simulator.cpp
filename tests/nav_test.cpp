@@ -68,7 +68,7 @@ int main() {
   assert(ls[9].tasks == std::vector<std::string>{"corner"});
   assert(ls[10].tasks == std::vector<std::string>{"ramp"});
   assert(ls[11].kind == "exam" &&
-         ls[11].tasks == std::vector<std::string>{"couple", "corner", "ramp"});
+         (ls[11].tasks == std::vector<std::string>{"couple", "corner", "ramp"}));
   assert(ls[11].targets.size() >= 4);   // a drive in traffic follows the yard
   // the car keeps its own lessons; the routes are for both
   bool carExam = false, sharedRoute = false;
