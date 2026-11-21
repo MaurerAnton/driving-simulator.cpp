@@ -262,6 +262,13 @@ struct WorldMetaJson {
   std::vector<std::string> attribution;
 };
 
+/** A level, open rectangle of the map: its middle, its size, and whether its long side runs east-west (0) or north-south (1). */
+struct YardJson {
+  double x = 0, z = 0;
+  double len = 0, wid = 0;
+  int rot = 0;
+};
+
 struct WorldJson {
   int version = 0;
   WorldMetaJson meta;
@@ -275,6 +282,9 @@ struct WorldJson {
   std::vector<SpawnJson> spawns;
   /** tile keys ("ix_iz") that exist on disk */
   std::vector<std::string> tiles;
+  /** the open field the practice yard of the truck lessons is laid on (0.7.0) */
+  bool hasYard = false;
+  YardJson yard;
 };
 
 }  // namespace fs
