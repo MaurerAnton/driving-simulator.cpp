@@ -11,7 +11,7 @@ TypeScript) while this port was being written; the parity table below is
 measured against every release, and the port follows the same order.
 
 **Status: in progress.** The port is built incrementally, upstream version by
-upstream version (v0.1.0 → v1.6.0), starting from the entry point
+upstream version (v0.1.0 → v1.7.2), starting from the entry point
 (`src/main.ts` at `5b6ddc7`). Each upstream commit's state is translated with
 real code only — no stubs, no placeholders.
 
@@ -50,7 +50,7 @@ file it comes from.
 | 0.4.0   | `578e397`       | 12,847 | 17,555 | 1.37 |
 | 0.5.0   | `1c08919`       | 13,710 | 19,221 | 1.40 |
 | 0.6.0   | `408014b`       | 22,817 | 28,893 | 1.27 |
-| 0.7.0   | `ff37c5d`       | 32,933 | — | — |
+| 0.7.0   | `ff37c5d`       | 32,933 | 34,397 | 1.04 |
 | 0.8.0   | `3420ad0`       | 37,418 | — | — |
 | 0.9.0   | `9d37870`       | 37,452 | — | — |
 | 1.0.0   | `v1.0.0`        | 42,762 | — | — |
@@ -66,7 +66,10 @@ file it comes from.
 
 Run `python3 tools/parity.py` for the live numbers (needs the read-only
 `driving-simulator` checkout for exact per-commit counts, or falls back to the
-recorded values in `tools/versions.tsv`).
+recorded values in `tools/versions.tsv`).  Both sides count every source file
+of the shipped program: `src/*.ts` with the language dictionaries for the
+original, `src/*.cpp` and `src/*.h` with the engine and the entry point for
+the port.
 
 ### Tests
 

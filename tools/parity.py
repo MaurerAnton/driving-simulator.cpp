@@ -2,8 +2,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 """LOC parity report: TypeScript original vs C++ port.
 
-The port tracks upstream versions (v0.1.0 … v1.6.0) as a measured ratio:
+The port tracks upstream versions (v0.1.0 … v1.7.2) as a measured ratio:
   parity = C++ LOC / TS LOC   (target ~1.0 for the final version).
+
+Both sides are counted the same way: every source file of the shipped
+program (for the TypeScript: src/*.ts including the language dictionaries;
+for the C++: src/*.cpp and src/*.h including the engine and the entry
+point).  The earlier numbers in tools/versions.tsv counted only src/*.ts of
+the code – they are kept as they were recorded, except the tags that were
+recounted with this rule.
 
 TS reference line counts are taken from the read-only source repo when it is
 available (env FAHRSIM_TS_REPO, default ../driving-simulator); otherwise the
@@ -21,6 +28,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TS_REPO = Path(os.environ.get("FAHRSIM_TS_REPO", ROOT.parent / "driving-simulator"))
 VERSIONS = ROOT / "tools" / "versions.tsv"
+
+
+def cpp_files_at(root: Path) -> list[Path]:
+    """Every source of the shipped program: what the WASM target compiles.
+
+    That includes src/app/main.cpp (the entry point) and the engine (the
+    three.js-equivalent renderer), so the count is the whole port.
+    """
+    return (
+        list((root / "src").rglob("*.cpp"))
+        + list((root / "src").rglob("*.h"))
+        + list((root / "src").rglob("*.hpp"))
+    )
 
 
 def count_lines(paths) -> int:
@@ -73,8 +93,7 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "--version":
         want = sys.argv[2] if len(sys.argv) > 2 else None
 
-    cpp_files = list((ROOT / "src").rglob("*.cpp")) + list((ROOT / "src").rglob("*.h")) \
-        + list((ROOT / "src").rglob("*.hpp"))
+    cpp_files = cpp_files_at(ROOT)
     cpp_loc = count_lines(cpp_files)
 
     rows = read_versions()

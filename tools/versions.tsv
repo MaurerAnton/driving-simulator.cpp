@@ -1,4 +1,4 @@
-# version	sha	ts_loc
+# version	sha	ts_loc (src/*.ts, code + dictionaries: as parity.py counts; recounted from 0.7.0 on)
 0.1.0	5b6ddc7d47e47f1db2aeb63fc30b756bad21a5ac	10819
 0.2.0	0e593a7e00463f0648b4b5bbee571bd76a503b5b	10819
 0.3.0	633e0cafe1735b1da5cd7270f21739f620fc5431	11026
