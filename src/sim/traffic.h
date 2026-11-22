@@ -104,8 +104,9 @@ struct SelfDriving {
   double v = 0;
   /** the connector it will take at the end of its lane */
   Connector* next = nullptr;
-  /** the connectors of its way beyond that, if it knows where it is going */
-  std::vector<Connector>* route = nullptr;
+  /** the connectors of its way beyond that, if it knows where it is going
+   *  (the navigation's route: a vector of connectors, seen from outside) */
+  const std::vector<Connector*>* route = nullptr;
   double length = 4.3, width = 1.8;
   double x = 0, y = 0, z = 0;
   double yaw = 0;
@@ -218,9 +219,9 @@ class Traffic {
   TrafficCar* aim(const SelfDriving& me);
   Lead leader(TrafficCar& car, double horizon);
   double playerAhead(TrafficCar& car, const PlayerState& player, double horizon,
-                     const std::vector<Connector>* route = nullptr);
+                     const std::vector<Connector*>* route = nullptr);
   void walk(Lane* lane, Connector* conn, double s, Connector* next,
-            const std::vector<Connector>* route, double step, double reach,
+            const std::vector<Connector*>* route, double step, double reach,
             const std::function<bool(double, double, double, double, double)>& visit);
   bool mayEnter(TrafficCar& car, Connector* c, double distToLine, const PlayerState& player,
                 bool impatient = false, double caution = 0);

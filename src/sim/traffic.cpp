@@ -630,7 +630,7 @@ Lead Traffic::leader(TrafficCar& car, double horizon) {
  * and test each point against the player's oriented box, in the player's frame.
  */
 double Traffic::playerAhead(TrafficCar& car, const PlayerState& player, double horizon,
-                            const std::vector<Connector>* route) {
+                            const std::vector<Connector*>* route) {
   double dx = player.x - car.x;
   double dz = player.z - car.z;
   if (dx * dx + dz * dz > (horizon + 8) * (horizon + 8)) return INFINITY;
@@ -659,8 +659,8 @@ double Traffic::playerAhead(TrafficCar& car, const PlayerState& player, double h
       // undecided beyond this lane: assume straight on (unless the way is known)
       Connector* nx = next;
       if (!nx && route)
-        for (const Connector& c2 : *route)
-          if (c2.from == lane) nx = const_cast<Connector*>(&c2);
+        for (const Connector* c2 : *route)
+          if (c2->from == lane) nx = const_cast<Connector*>(c2);
       if (!nx)
         for (Connector* q : lane->out)
           if (q->turn == TURN_STRAIGHT) {
@@ -703,7 +703,7 @@ double Traffic::playerAhead(TrafficCar& car, const PlayerState& player, double h
  * `visit` returns true.
  */
 void Traffic::walk(Lane* lane, Connector* conn, double s, Connector* next,
-                   const std::vector<Connector>* route, double step, double reach,
+                   const std::vector<Connector*>* route, double step, double reach,
                    const std::function<bool(double, double, double, double, double)>& visit) {
   double at = s;
   for (double dist = step; dist <= reach; dist += step) {
@@ -718,8 +718,8 @@ void Traffic::walk(Lane* lane, Connector* conn, double s, Connector* next,
     } else if (lane && at > lane->len) {
       Connector* nx = next;
       if (!nx && route)
-        for (const Connector& c : *route)
-          if (c.from == lane) nx = const_cast<Connector*>(&c);
+        for (const Connector* c : *route)
+          if (c->from == lane) nx = const_cast<Connector*>(c);
       if (!nx)
         for (Connector* q : lane->out)
           if (q->turn == TURN_STRAIGHT) {
@@ -887,7 +887,7 @@ Lead Traffic::aheadOf(const SelfDriving& me, double horizon) {
   // standing half in the road.  (`loose`: found by where it is.)
   double near = std::min(horizon, 8 + p->v * 2.2);
   PlayerState& box = box_;
-  std::vector<Connector>* route = me.route;
+  const std::vector<Connector*>* route = me.route;
   for (const auto& o : cars) {
     if (std::fabs(o.x - p->x) > near + 8 || std::fabs(o.z - p->z) > near + 8) continue;
     box.x = o.x;
@@ -909,7 +909,7 @@ Lead Traffic::aheadOf(const SelfDriving& me, double horizon) {
 
 double Traffic::crossingAhead(const SelfDriving& me, double reach) {
   TrafficCar* p = aim(me);
-  std::vector<Connector>* route = me.route;
+  const std::vector<Connector*>* route = me.route;
   std::vector<double>& way = way_;
   way.clear();
   walk(p->lane, p->conn, p->s, p->next, route, 1.5, reach,
