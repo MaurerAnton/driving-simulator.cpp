@@ -34,8 +34,12 @@ if(FAHRSIM_WASM)
   add_executable(fahrsim ${FAHRSIM_APP_SOURCE} ${FAHRSIM_SOURCES})
   target_include_directories(fahrsim PRIVATE ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim PRIVATE -O2)
-  # zlib ships with Emscripten's sysroot (its own zlib.h and libz); gzip is
-  # inflated by the platform.  FindZLIB cannot see it, so the link name alone.
+  # Emscripten's sysroot carries zlib.h and libz, but its toolchain puts
+  # neither on CMake's find path.  The headers live under $EMSDK; the linker
+  # finds libz by name (emcc adds its own library path).
+  if(DEFINED ENV{EMSDK})
+    target_include_directories(fahrsim PRIVATE "$ENV{EMSDK}/upstream/emscripten/system/include")
+  endif()
   target_link_libraries(fahrsim PRIVATE z)
   set_target_properties(fahrsim PROPERTIES OUTPUT_NAME "fahrsim" SUFFIX ".js")
   target_link_options(fahrsim PRIVATE
