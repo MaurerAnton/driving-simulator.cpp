@@ -263,6 +263,11 @@ void Game::applySettings() {
   props.setShadows(q == Quality::High);
   a.resize(0, 0);
   // the mirrors show what is behind (or nothing at all when switched off)
+  {
+    bool on = s.mirrors != Mirrors::Off;
+    for (auto& m : car.mirrors) m->setEnabled(on);
+    car.setCabinOpacity(s.cabinOpacity);
+  }
   if (truck) {
     bool on = s.mirrors != Mirrors::Off;
     for (auto& m : truck->mirrors) m->setEnabled(on);
@@ -1570,9 +1575,19 @@ void Game::frame(double now) {
     updateCamera(dt);
     Mirrors mode = settings.mirrors;
     if (cameraMode == CameraMode::Cockpit && mode != Mirrors::Off) {
+      // the mirrors show what is behind: every mirror when asked for, one per
+      // frame while the player turns their head (the original's mirror pass)
       double far = std::min(450.0, a.tiles->viewRadius * 0.4);
-      (void)far;
-      (void)mirrorTurn_;
+      const Matrix4& carMatrix = modelRoot().matrixWorld;
+      std::vector<std::unique_ptr<Mirror>>* ms = nullptr;
+      if (isTruck && truck) ms = &truck->mirrors;
+      else ms = &car.mirrors;
+      if (mode == Mirrors::Full || frames_ < 4) {
+        for (auto& m : *ms) m->render(a.renderer, a.scene, carMatrix, eyeWorld_, far);
+      } else {
+        size_t k = static_cast<size_t>(mirrorTurn_++) % ms->size();
+        (*ms)[k]->render(a.renderer, a.scene, carMatrix, eyeWorld_, far);
+      }
     }
     a.render(modelRoot().position);
   } else {
