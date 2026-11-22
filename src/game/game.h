@@ -90,6 +90,8 @@ class Game {
   PropRenderer props;
   std::unique_ptr<SignRenderer> signs;
   PlayerCar car;
+  /** the full-screen map (0.7.0): built at boot, shown by openBigMap */
+  std::unique_ptr<class BigMap> bigMap;
   TrafficRenderer actors;
   /** the truck of the class-CE lessons with its trailer (built when it is first driven) */
   std::unique_ptr<class PlayerTruck> truck;
@@ -119,6 +121,12 @@ class Game {
     begin(mode, spawnIdx, skipIntro, address);
   }
   void tryPlaceCall() { tryPlace(); }
+  /**
+   * One key event for the page to forward (the map takes the arrows and the
+   * zoom keys while it is open; everything else goes to the input).
+   * Returns true when the key was taken.
+   */
+  bool key(const std::string& code, bool down);
   void closeBigMapCall() { closeBigMap(); }
   WorldJson& worldJsonRef() { return worldJson_; }
 
@@ -264,6 +272,10 @@ class Game {
   AddressIndex* loadAddresses();
   /** The spot on the road in front of an address, as a starting point. */
   bool spawnAt(const AddressHit& hit, SpawnJson& out);
+  /** The place on a road next to a point of the map where the car could stand. */
+  SpawnJson spotAt(double x, double z);
+  /** Put the car at a spot chosen on the map (a free drive only). */
+  void teleportSpot(const SpawnJson& spot);
   /** Free drive: jump to an address (from the pause menu). */
   void teleportTo(const AddressHit& hit);
   void openReality();

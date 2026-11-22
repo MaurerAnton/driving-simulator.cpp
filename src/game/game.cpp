@@ -15,6 +15,7 @@
 #include "reality/testpano.h"
 #include "platform/gunzip.h"
 #include "render/truck.h"
+#include "ui/bigmap.h"
 #include "sim/autodriver.h"
 #include "sim/vehicle/spec.h"
 #include "render/yard.h"
@@ -120,6 +121,35 @@ bool Game::spawnAt(const AddressHit& hit, SpawnJson& out) {
   out = spot;
   out.name = hit.label;
   return true;
+}
+
+/** The place on a road next to a point of the map where the car could stand. */
+SpawnJson Game::spotAt(double x, double z) {
+  if (!mainLanes_) mainLanes_ = std::make_unique<std::set<int>>(mainNetwork(*app.world, *lanes));
+  SpawnJson s = findRoadSpot(*app.world, *lanes, x, z, "", 160, mainLanes_.get());
+  return s;
+}
+
+/** Put the car at a spot chosen on the map (a free drive only). */
+void Game::teleportSpot(const SpawnJson& spot) {
+  if (hasLesson_ || (state != GameState::Pause && state != GameState::Map)) return;
+  if (bigMap) bigMap->close();
+  demo_.reset();
+  nav->clear();
+  hud->routeLanes.clear();
+  rules->allowed = nullptr;
+  spawn_ = spot;
+  hasSpawn_ = true;
+  traffic->clear();
+  vehicle->vel[0] = vehicle->vel[1] = vehicle->vel[2] = 0;
+  vehicle->angVel[0] = vehicle->angVel[1] = vehicle->angVel[2] = 0;
+  input->c.handbrake = 1;
+  if (path_) path_->breakLine();
+  keepClock_ = true;
+  state = GameState::Placing;
+  showModel(false);
+  hud->setHudVisible(true);
+  hud->showLoading(t("loadingTiles"));
 }
 
 /** Free drive: jump to an address (from the pause menu). */
@@ -669,9 +699,9 @@ void Game::rememberDrive(const ResultSummary& r) {
 
 void Game::openBigMap() {
   if (state != GameState::Drive && state != GameState::Pause) return;
+  if (!bigMap) return;
   mapFrom_ = state == GameState::Pause ? "pause" : "drive";
-  // (0.7.0: the full-screen map; the buttons and the path to it are in place
-  // as soon as src/ui/bigmap is ported)
+  bigMap->open(false);
   state = GameState::Map;
   hud->setHudVisible(false);
   if (hud->onMapOpened) hud->onMapOpened();
@@ -679,6 +709,7 @@ void Game::openBigMap() {
 
 void Game::closeBigMap() {
   if (state != GameState::Map) return;
+  if (bigMap) bigMap->close();
   if (mapFrom_ == "pause") {
     state = GameState::Pause;
     hud->setHudVisible(true);
@@ -686,6 +717,15 @@ void Game::closeBigMap() {
   } else {
     resume();
   }
+}
+
+bool Game::key(const std::string& code, bool down) {
+  if (state == GameState::Map && bigMap && bigMap->isOpen()) {
+    if (down) bigMap->key(code);
+    return true;   // the map has the keyboard
+  }
+  if (input) input->onKey(code, down, false);
+  return false;
 }
 
 void Game::onAction(Action a) {
@@ -1146,6 +1186,42 @@ void Game::boot(const QueryParams& q) {
   car.root.visible = false;
 
   hud = std::make_unique<Hud>(host_, settings, *a.world);
+  // the full-screen map (0.7.0): everything it asks of the game
+  {
+    BigMapHost bh;
+    bh.world = a.world.get();
+    bh.lang = [this]() { return settings.lang; };
+    bh.car = [this](double& x, double& z, double& yaw) {
+      x = mpos_[0];
+      z = mpos_[2];
+      yaw = vehicle ? vehicle->yaw : 0;
+    };
+    bh.path = path_.get();
+    bh.spotAt = [this](double x, double z) { return spotAt(x, z); };
+    bh.canTeleport = [this]() { return !hasLesson_; };
+    bh.teleport = [this](const SpawnJson& spot) { teleportSpot(spot); };
+    bh.loadAddresses = [this]() { return loadAddresses(); };
+    bh.spotOf = [this](const AddressHit& hit, bool& ok) {
+      SpawnJson s;
+      ok = spawnAt(hit, s);
+      return s;
+    };
+    bh.startDemo = [this](const std::vector<SpawnJson>& stops) { startDemo(stops); };
+    bh.latLon = [](double x, double z) { return worldToLatLon(x, z); };
+    bh.aerial = [this]() { return settings.reality.aerial; };
+    bh.setAerial = [this](bool on) {
+      settings.reality.aerial = on;
+      saveSettings(settings);
+    };
+    bh.close = [this]() { closeBigMap(); };
+    bh.windowSize = [this](int& w, int& h) {
+      w = app.renderer.width();
+      h = app.renderer.height();
+    };
+    bh.onShow = [this](std::unique_ptr<HudNode> panel) { hud->setOverlay(std::move(panel)); };
+    bh.onHide = [this]() { hud->setOverlay(nullptr); };
+    bigMap = std::make_unique<BigMap>(std::move(bh));
+  }
   // a finger moving over the on-screen controls reaches them (the page's host
   // reports it; the HUD knows what each widget does)
   host_.onMoved = [this](const std::string& id, double fx, double fy) {
@@ -1352,6 +1428,16 @@ void Game::frame(double now) {
     }
   }
 
+  if (bigMap && bigMap->isOpen()) {
+    bigMap->poll();
+    // the map covers the window: nothing of the world needs drawing
+    int w = app.renderer.width(), h = app.renderer.height();
+    if (w > 0 && h > 0) {
+      Canvas2D picture(w, h);
+      bigMap->paint(picture);
+      host_.paint("bigmap", picture);
+    }
+  }
   bool haveCar = vehicle != nullptr && modelVisible();
   if (haveCar) {
     Vehicle& v = *vehicle;
@@ -1386,7 +1472,9 @@ void Game::frame(double now) {
   signalHeads->update(*signals);
   actors.update(traffic->cars, traffic->peds, time_);
 
-  if (haveCar) {
+  if (state == GameState::Map) {
+    // the map covers the window: nothing of the world needs drawing
+  } else if (haveCar) {
     updateCamera(dt);
     Mirrors mode = settings.mirrors;
     if (cameraMode == CameraMode::Cockpit && mode != Mirrors::Off) {

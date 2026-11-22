@@ -236,6 +236,11 @@ class Hud {
   void attachInput(Input& input);
   /** Fingers or keys?  Shows the on-screen controls or the key reminder. */
   void setInputMode(const std::string& mode);
+  /**
+   * Replace the HUD with a full-screen panel (the pause menu, the map) or
+   * take the panel away again with null.  The map borrows this to show itself.
+   */
+  void setOverlay(std::unique_ptr<HudNode> node);
 
  private:
   HudHost& host_;
@@ -281,7 +286,6 @@ class Hud {
   /** the start point chosen in the menu (the settings remember it) */
   int spawn_chose_ = 0;
 
-  void setOverlay(std::unique_ptr<HudNode> node);
   std::unique_ptr<HudNode> buildHud();
   /** The short reminder of the keys, depending on the gearbox chosen. */
   std::string keyReminder() const;

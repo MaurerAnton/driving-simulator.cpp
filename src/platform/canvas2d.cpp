@@ -219,6 +219,24 @@ void Canvas2D::line(double x0, double y0, double x1, double y1, uint32_t rgba, d
   }
 }
 
+void Canvas2D::strokePolyline(const std::vector<std::pair<double, double>>& pts, uint32_t rgba,
+                              double lineWidth, bool roundCap) {
+  if (pts.size() < 2) return;
+  rgba = withAlpha(rgba);
+  double half = std::max(0.5, lineWidth / 2);
+  for (size_t i = 1; i < pts.size(); i++) {
+    // the segment through the transform (line() maps its ends)
+    line(pts[i - 1].first, pts[i - 1].second, pts[i].first, pts[i].second, rgba, lineWidth);
+  }
+  if (roundCap) {
+    for (const auto& p : {pts.front(), pts.back()}) {
+      double x, y;
+      map(p.first, p.second, x, y);
+      fillCircle(x, y, half, rgba);
+    }
+  }
+}
+
 void Canvas2D::fillPoly(const std::vector<std::pair<double, double>>& pts, uint32_t rgba) {
   if (pts.size() < 3) return;
   double minY = 1e300, maxY = -1e300;
