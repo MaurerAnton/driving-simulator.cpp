@@ -258,13 +258,13 @@ void Sculpt::tube(const std::vector<std::vector<std::array<double, 3>>>& rings, 
   }
   size_t last = rings.size() - 1;
   if (capStart)
-    fan(rings[0], sub3(centroid(rings[0]), centroid(rings[1])).data());
+    fan(rings[0], sub3(centroid(rings[0]), centroid(rings[1])));
   if (capEnd)
-    fan(rings[last], sub3(centroid(rings[last]), centroid(rings[last - 1])).data());
+    fan(rings[last], sub3(centroid(rings[last]), centroid(rings[last - 1])));
 }
 
 void Sculpt::sheet(const std::vector<std::vector<std::array<double, 3>>>& rows,
-                   const double facing[3]) {
+                   const std::array<double, 3>& facing) {
   struct Quad {
     std::array<double, 3> q[4];
     std::array<double, 3> nq;
@@ -285,7 +285,7 @@ void Sculpt::sheet(const std::vector<std::vector<std::array<double, 3>>>& rows,
       quads.push_back(q);
     }
   }
-  bool flip = dot3(sum, {facing[0], facing[1], facing[2]}) < 0;
+  bool flip = dot3(sum, facing) < 0;
   for (const Quad& q : quads) {
     if (flip)
       quad(q.q[0].data(), q.q[3].data(), q.q[2].data(), q.q[1].data());
@@ -294,9 +294,10 @@ void Sculpt::sheet(const std::vector<std::vector<std::array<double, 3>>>& rows,
   }
 }
 
-void Sculpt::fan(const std::vector<std::array<double, 3>>& ring, const double facing[3]) {
+void Sculpt::fan(const std::vector<std::array<double, 3>>& ring,
+                 const std::array<double, 3>& facing) {
   auto c = centroid(ring);
-  bool flip = dot3(ringNormal(ring), {facing[0], facing[1], facing[2]}) < 0;
+  bool flip = dot3(ringNormal(ring), facing) < 0;
   for (size_t j = 0; j < ring.size(); j++) {
     const auto& a = ring[j];
     const auto& b = ring[(j + 1) % ring.size()];
@@ -605,8 +606,8 @@ CarShell buildCarShell(const CarDims& d) {
       outer.push_back({onSide, corner, onScreen});
       inner.push_back({onScreen, flankScreen, nose, flankSide, onSide});
     }
-    double facingOut[3] = {static_cast<double>(side), 0.3, -0.4};
-    double facingIn[3] = {-static_cast<double>(side), -0.3, 0.6};
+    std::array<double, 3> facingOut = {static_cast<double>(side), 0.3, -0.4};
+    std::array<double, 3> facingIn = {-static_cast<double>(side), -0.3, 0.6};
     pillarOut.sheet(outer, facingOut);
     pillarIn.sheet(inner, facingIn);
   }

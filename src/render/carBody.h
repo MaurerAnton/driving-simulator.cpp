@@ -99,10 +99,11 @@ class Sculpt {
             bool capEnd = false, bool inward = false);
 
   /** Skin over open rows of points; `facing` is a direction its visible side looks to. */
-  void sheet(const std::vector<std::vector<std::array<double, 3>>>& rows, const double facing[3]);
+  void sheet(const std::vector<std::vector<std::array<double, 3>>>& rows,
+             const std::array<double, 3>& facing);
 
   /** A flat polygon as a fan around its middle, looking towards `facing`. */
-  void fan(const std::vector<std::array<double, 3>>& ring, const double facing[3]);
+  void fan(const std::vector<std::array<double, 3>>& ring, const std::array<double, 3>& facing);
 
   /** Non-indexed geometry with normals; faces meeting at more than `creaseDeg` keep a sharp edge. */
   GeometryPtr build(double creaseDeg = 40) const;
