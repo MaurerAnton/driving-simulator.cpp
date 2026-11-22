@@ -36,52 +36,23 @@ if(FAHRSIM_WASM)
   target_compile_options(fahrsim PRIVATE -O2)
   # zlib in Emscripten's cache/sysroot (the headers the compiler itself uses,
   # not the source tree); libz links by name, emcc adds its library path.
-  # Emscripten keeps its headers in a cache sysroot; ask the compiler where.
-  execute_process(COMMAND em++ -print-search-dirs
-                  OUTPUT_VARIABLE _em_dirs OUTPUT_STRIP_TRAILING_WHITESPACE
-                  ERROR_QUIET)
-  string(REGEX MATCH "install: =[^\n]*" _em_install "${_em_dirs}")
-  string(REGEX REPLACE "^install: =" "" _em_sysroot "${_em_install}")
-  string(STRIP "${_em_sysroot}" _em_sysroot)
-  if(NOT _em_sysroot AND DEFINED ENV{EMSDK})
-    file(GLOB _em_try "$ENV{EMSDK}/upstream/emscripten/cache/sysroot/include/zlib.h")
-    if(_em_try)
-      get_filename_component(_em_sysroot "$ENV{EMSDK}/upstream/emscripten/cache/sysroot" DIRECTORY)
-    endif()
+  # zlib lives in Emscripten's cache sysroot.  The toolchain prints its paths
+  # in its own -v output ("libraries: =…/cache/sysroot/lib/…"); the directory
+  # two levels above that holds the headers too.  libz links by name, emcc
+  # adds its own library path.
+  execute_process(COMMAND emcc -v -E -x c++ /dev/null
+                  OUTPUT_QUIET ERROR_VARIABLE _em_err ERROR_STRIP_TRAILING_WHITESPACE)
+  set(_em_sysroot "")
+  if(_em_err MATCHES "libraries: =([^\n ]*/cache/sysroot)")
+    set(_em_sysroot "${CMAKE_MATCH_1}")
+  elseif(DEFINED ENV{EMSDK} AND EXISTS "$ENV{EMSDK}/upstream/emscripten/cache/sysroot")
+    set(_em_sysroot "$ENV{EMSDK}/upstream/emscripten/cache/sysroot")
   endif()
-  message(STATUS "Emscripten sysroot: '${_em_sysroot}' (search dirs: '${_em_dirs}')")
   if(_em_sysroot)
+    message(STATUS "Emscripten sysroot: ${_em_sysroot}")
     target_include_directories(fahrsim PRIVATE "${_em_sysroot}/include")
-  endif()
-  # … and ask the compiler itself where a header lives (works for every layout)
-  execute_process(COMMAND em++ -E -x c++ - -v
-                  INPUT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/gunzip.h"
-                  OUTPUT_QUIET ERROR_VARIABLE _em_verbose ERROR_STRIP_TRAILING_WHITESPACE)
-  string(REGEX MATCH "#include <\.\.\.> search starts here:\\n([^#]*)" _em_search "${_em_verbose}")
-  string(REGEX REPLACE "#include <\\.\\.\\.> search starts here:\\n" "" _em_search "${_em_search}")
-  string(REGEX MATCH "^[^#]*" _em_search "${_em_search}")
-  string(REPLACE "\n" ";" _em_search_list "${_em_search}")
-  set(_em_found "")
-  foreach(_dir IN LISTS _em_search_list)
-    string(STRIP "${_dir}" _dir)
-    if(_dir AND EXISTS "${_dir}/zlib.h")
-      set(_em_found "${_dir}")
-      break()
-    endif()
-  endforeach()
-  # (the verbose output is line-buffered by the shell step: search the known
-  # sysroot candidates too, from what the compiler printed above)
-  if(NOT _em_found AND _em_dirs MATCHES "sysroot/lib")
-    string(REGEX REPLACE "lib/wasm32-emscripten.*" "sysroot" _em_root "${_em_dirs}")
-    if(EXISTS "${_em_root}/include/zlib.h")
-      set(_em_found "${_em_root}/include")
-    endif()
-  endif()
-  if(_em_found)
-    message(STATUS "zlib.h: ${_em_found}")
-    target_include_directories(fahrsim PRIVATE "${_em_found}")
   else()
-    message(WARNING "zlib.h not found in em++' search path")
+    message(WARNING "Emscripten sysroot not found; zlib.h will be missing")
   endif()
   target_link_libraries(fahrsim PRIVATE z)
   set_target_properties(fahrsim PROPERTIES OUTPUT_NAME "fahrsim" SUFFIX ".js")
