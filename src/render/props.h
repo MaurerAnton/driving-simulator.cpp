@@ -25,6 +25,9 @@ class PropRenderer {
   /** global multiplier for how many trees are drawn (quality setting) */
   double density = 1;
 
+  /** Trees throw shadows (the highest quality only: there are many of them). */
+  void setShadows(bool on);
+
   void add(LoadedTile& tile);
   void remove(const std::string& key);
   /** Choose tree detail and density per tile from the viewer distance. */
@@ -43,6 +46,7 @@ class PropRenderer {
     double cx = 0, cz = 0;
   };
 
+  bool shadows_ = false;
   TreeSet trees_;
   GeometryPtr lampGeo_;
   MaterialKind kindTree_ = MaterialKind::Struct;

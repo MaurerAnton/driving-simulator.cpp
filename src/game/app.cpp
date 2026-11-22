@@ -48,10 +48,34 @@ void App::loadWorld(const WorldJson& json, TileSource& source) {
 void App::resize(int canvasWidth, int canvasHeight) {
   int w = canvasWidth > 0 ? canvasWidth : 1;
   int h = canvasHeight > 0 ? canvasHeight : 1;
-  renderer.setPixelRatio(std::min(1.5, renderer.available() ? 1.0 : 1.0));
+  renderer.setPixelRatio(std::min(1.5, renderer.available() ? 1.0 : 1.0) * renderScale);
   renderer.setSize(w, h, false);
   camera.aspect = static_cast<double>(w) / static_cast<double>(h);
   camera.updateProjectionMatrix();
+}
+
+void App::setShadows(int mapSize, double reach) {
+  DirectionalLight& sun = sky.sun;
+  sun.castShadow = mapSize > 0;
+  if (mapSize == 0) return;
+  DirectionalLight::Shadow::Camera& cam = sun.shadow.camera;
+  cam.left = -reach;
+  cam.right = reach;
+  cam.top = reach;
+  cam.bottom = -reach;
+  cam.near = 60;
+  cam.far = 640;
+  cam.updateProjectionMatrix();
+  if (static_cast<int>(sun.shadow.mapSize.x) != mapSize) {
+    sun.shadow.mapSize.x = mapSize;
+    sun.shadow.mapSize.y = mapSize;
+    // (the shadow map is rebuilt by the renderer on the next frame)
+  }
+  // enough to keep surfaces from shadowing themselves, little enough to keep shadows attached to what casts them
+  double texel = (2 * reach) / mapSize;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = std::max(0.05, texel * 1.6);
+  sun.shadow.radius = 1.6;
 }
 
 void App::render(const Vector3& focus) {

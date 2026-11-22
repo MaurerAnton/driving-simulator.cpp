@@ -41,6 +41,10 @@ struct AddressPicker {
   void type(const std::string& text);
   /** Enter was pressed: the first hit is the one meant. */
   void enter();
+  /** An arrow key: walk the mark through the list below the field. */
+  void arrow(int dir);   // +1 down, -1 up
+  /** Escape: close the list first; a second Escape reaches the menu. */
+  bool escape();
   /** The field was focused (the original loads the list then). */
   void focus() { ensure(); }
 
@@ -48,8 +52,13 @@ struct AddressPicker {
   AddressIndex* index = nullptr;
   bool asked = false;
   std::vector<AddressHit> hits;
+  /** the entry the arrow keys have reached, -1: none yet */
+  int active = -1;
+  std::vector<HudNode*> buttons;
 
  private:
+  /** The entry the arrow keys have reached is marked in the list. */
+  void mark(int i);
   void say(const std::string& text);
   void show(const std::string& q);
   void choose(const AddressHit& h);

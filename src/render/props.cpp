@@ -96,6 +96,13 @@ GeometryPtr lampGeometry() {
 }
 }  // namespace
 
+void PropRenderer::setShadows(bool on) {
+  if (shadows_ == on) return;
+  shadows_ = on;
+  for (auto& kv : perTile_)
+    for (Mesh* t : kv.second.trees) t->castShadow = on;
+}
+
 PropRenderer::PropRenderer() {
   treeGeometries(trees_.hi, trees_.lo);
   lampGeo_ = lampGeometry();
@@ -144,6 +151,7 @@ void PropRenderer::add(LoadedTile& tile) {
         col.set(v * (0.94 + 0.12 * r), v, v * (0.9 + 0.1 * r));
         mesh->instanceColors.push_back(col);
       }
+      mesh->castShadow = shadows_;
       props.trees.push_back(mesh.get());
       props.treeKind.push_back(kind);
       props.treeTotal.push_back(counts[kind]);

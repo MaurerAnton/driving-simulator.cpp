@@ -193,15 +193,22 @@ void Game::applySettings() {
   // no shadows, a short view.  Medium: sharp, shadows around the car.
   // High: every pixel of the screen, the longest view, all trees.
   a.pixelRatioCap = q == Quality::Low ? 1 : (q == Quality::Medium ? 1.5 : 3);
+  a.renderScale = q == Quality::Low ? 0.7 : 1;
+  a.setShadows(q == Quality::Low ? 0 : (q == Quality::Medium ? 1536 : 3072), q == Quality::High ? 120 : 55);
   a.tiles->viewRadius = q == Quality::Low ? 700 : (q == Quality::Medium ? 1250 : 2000);
   a.sky.fog->near = a.tiles->viewRadius * 0.3;
   a.sky.fog->far = a.tiles->viewRadius * 1.05;
   props.density = q == Quality::Low ? 0.35 : (q == Quality::Medium ? 0.8 : 1);
+  props.setShadows(q == Quality::High);
   a.resize(0, 0);
+  // the mirrors show what is behind (or nothing at all when switched off)
+  if (truck) {
+    bool on = s.mirrors != Mirrors::Off;
+    for (auto& m : truck->mirrors) m->setEnabled(on);
+    truck->setCabinOpacity(s.cabinOpacity);
+  }
   audio.setVolume(s.volume);
   if (traffic) traffic->targetCount = static_cast<int>(std::lround(s.traffic * 34));
-  // the cabin seen through from the driver's seat (0.7.0)
-  (void)s.cabinOpacity;
 }
 
 // ------------------------------------------------- class CE: truck and trailer

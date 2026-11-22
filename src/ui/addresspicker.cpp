@@ -52,10 +52,23 @@ void AddressPicker::setValue(const std::string& v) {
 
 void AddressPicker::clearList() {
   hits.clear();
+  buttons.clear();
+  active = -1;
   if (node && node->children.size() > 1) {
     HudNode* list = node->children[1].get();
     list->children.clear();
     list->text.clear();
+  }
+}
+
+/** The entry the arrow keys have reached is marked (the field keeps the focus). */
+void AddressPicker::mark(int i) {
+  int n = static_cast<int>(hits.size());
+  active = n == 0 ? -1 : ((i % n) + n) % n;
+  for (size_t k = 0; k < buttons.size(); k++) {
+    if (!buttons[k]) continue;
+    // (the mark is a class: the platform shows it; aria-selected goes with it)
+    buttons[k]->cls = static_cast<int>(k) == active ? "on" : "";
   }
 }
 
@@ -100,9 +113,12 @@ void AddressPicker::show(const std::string& qRaw) {
     HudNode* list = node->children[1].get();
     for (const AddressHit& h : hits) {
       auto b = mk("button", "", h.label);
+      // the field keeps the focus: a click or a pointer on the entry takes it
       b->click = [this, h]() { choose(h); };
+      buttons.push_back(b.get());
       list->add(std::move(b));
     }
+    mark(-1);
   }
 }
 
@@ -121,7 +137,23 @@ void AddressPicker::type(const std::string& text) {
 }
 
 void AddressPicker::enter() {
-  if (!hits.empty()) choose(hits[0]);
+  if (!hits.empty()) choose(hits[active >= 0 ? active : 0]);
+}
+
+/** An arrow key: walk the mark through the list below the field. */
+void AddressPicker::arrow(int dir) {
+  if (hits.empty()) {
+    show(value());
+    return;
+  }
+  mark(active < 0 ? (dir > 0 ? 0 : static_cast<int>(hits.size()) - 1) : active + dir);
+}
+
+/** Escape: close the list first; a second Escape reaches the menu. */
+bool AddressPicker::escape() {
+  if (hits.empty()) return false;
+  clearList();
+  return true;
 }
 
 }  // namespace fs

@@ -53,8 +53,26 @@ void Sky::setSun(double elevationDeg, double azimuthDeg) {
 void Sky::follow(const Camera& camera, const Vector3& focus) {
   dome->position.copy(camera.position);
   dome->scale.set(1, 1, 1);
-  sun.position.set(focus.x + uSunDir.x * 300, focus.y + uSunDir.y * 300, focus.z + uSunDir.z * 300);
-  sun.target.position.copy(focus);
+  double fx = focus.x, fy = focus.y, fz = focus.z;
+  if (sun.castShadow) {
+    // The shadow box moves with the car.  Moved in whole texels of the shadow
+    // map (along the light's own axes) the edges of the shadows stay still
+    // instead of crawling.
+    const DirectionalLight::Shadow& sh = sun.shadow;
+    double texel = (sh.camera.right - sh.camera.left) / sh.mapSize.x;
+    Vector3 r(uSunDir.z, 0, -uSunDir.x);
+    r.normalize();  // up × dir
+    Vector3 u;
+    u.crossVectors(uSunDir, r);
+    double a = std::round((fx * r.x + fz * r.z) / texel) * texel;
+    double b = std::round((fx * u.x + fy * u.y + fz * u.z) / texel) * texel;
+    double c = fx * uSunDir.x + fy * uSunDir.y + fz * uSunDir.z;
+    fx = r.x * a + u.x * b + uSunDir.x * c;
+    fy = u.y * b + uSunDir.y * c;
+    fz = r.z * a + u.z * b + uSunDir.z * c;
+  }
+  sun.position.set(fx + uSunDir.x * 300, fy + uSunDir.y * 300, fz + uSunDir.z * 300);
+  sun.target.position.set(fx, fy, fz);
   sun.target.updateMatrixWorld();
 }
 

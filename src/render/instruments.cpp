@@ -22,6 +22,8 @@ namespace fs {
 InstrumentPanel::InstrumentPanel() : face_(static_cast<size_t>(W) * H * 4, 0),
                                       pixels_(static_cast<size_t>(W) * H * 4, 0) {
   drawFace();
+  // never a blank cluster: until the first update it shows the dials, unlit
+  pixels_ = face_;
 }
 
 void InstrumentPanel::drawFace() {
@@ -61,7 +63,10 @@ void InstrumentPanel::drawFace() {
 }
 
 void InstrumentPanel::update(const DashState& s, double now) {
-  if (now - last_ < 0.045) return;
+  // (a clock that starts below zero or jumps back must not stop the instruments:
+  // only a short step forward counts as "drawn a moment ago")
+  double since = now - last_;
+  if (since >= 0 && since < 0.045) return;
   last_ = now;
   Canvas2D c(W, H);
   // start from the static face

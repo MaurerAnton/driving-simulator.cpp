@@ -255,6 +255,25 @@ class DirectionalLight : public Light {
   DirectionalLight() = default;
   DirectionalLight(uint32_t hex, double i) { color.setHex(hex); intensity = i; }
   Object3D target;  // where the light points at
+
+  /**
+   * The box the shadows are cast from (three.js DirectionalLightShadow):
+   * `mapSize` pixels square around the target, `bias` keeps surfaces from
+   * shadowing themselves.  Off until App::setShadows asks for one.
+   */
+  bool castShadow = false;
+  struct Shadow {
+    /** the orthographic box around the target (metres) */
+    struct Camera {
+      double left = -100, right = 100, top = 100, bottom = -100;
+      double near = 60, far = 640;
+      void updateProjectionMatrix() {}
+    } camera;
+    struct MapSize {
+      double x = 1024, y = 1024;
+    } mapSize;
+    double bias = 0, normalBias = 0, radius = 1;
+  } shadow;
 };
 
 class HemisphereLight : public Light {
