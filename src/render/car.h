@@ -64,6 +64,14 @@ class CarExterior {
   /** the four wheel pivots (steer), each holding a spinner (spin) */
   std::vector<Group*> wheels;
   std::vector<Group*> wheelSpinners;
+  /** the lamps, with what they are: 0 head, 1 tail, 2 reverse, 3 blinkL, 4 blinkR */
+  struct Lamp {
+    Mesh* mesh = nullptr;
+    int which = 0;
+  };
+  std::vector<Lamp> lamps;
+  /** no lamp is lit (the colours are only rebuilt when the state changes) */
+  bool lampOff_ = false;
 
   void setWheels(const double steer[4], const double spin[4], const double y[4]);
   void setLamps(bool low, bool high, bool brake, bool reverse, bool left, bool right);

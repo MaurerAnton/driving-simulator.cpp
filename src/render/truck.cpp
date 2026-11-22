@@ -305,10 +305,10 @@ void PlayerTruck::setCabinOpacity(double opacity) {
 void PlayerTruck::update(const CarVisualState& s, double dt, double now) {
   (void)dt;
   for (size_t i = 0; i < wheels_.size() && i < 4; i++) {
-    wheels_[i]->position.y = TRUCK.wheelRadius + (i < 4 ? s.wheelY[i] : 0);
-    // + steer = right = negative rotation about +Y; rolling = negative about +X
-    Vector3 steerAxis(0, 1, 0);
-    wheels_[i]->quaternion.setFromAxisAngle(steerAxis, i < 2 ? -s.wheelSteer[i] : 0);
+    wheels_[i]->position.y = TRUCK.wheelRadius + s.wheelY[i];
+    // YXZ: rolling (-spin, about x) first, then steering (only the front axle, about y)
+    wheels_[i]->quaternion.setFromEuler(Euler(-s.wheelSpin[i], i < 2 ? -s.wheelSteer[i] : 0, 0,
+                                               Euler::YXZ));
     wheels_[i]->matrixAutoUpdate = true;
   }
   if (steering_) steering_->quaternion.setFromAxisAngle(Vector3(0, 0, 1), -s.steerWheel);

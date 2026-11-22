@@ -10,6 +10,8 @@
  */
 #include "render/car.h"
 
+#include <cstring>
+
 #include <cmath>
 
 namespace fs {
@@ -99,24 +101,31 @@ CarExterior::CarExterior(uint32_t color, const CarDims& dims_, const std::string
 
   // lamps
   double hw = shell.halfWidth;
-  struct Lamp {
-    std::unique_ptr<Mesh> mesh;
-    int which;  // 0 head, 1 tail, 2 reverse, 3 blinkL, 4 blinkR
+  std::vector<std::unique_ptr<Mesh>> built;
+  std::vector<int> which;
+  auto keep = [&](std::unique_ptr<Mesh> m, int w) {
+    built.push_back(std::move(m));
+    which.push_back(w);
   };
-  std::vector<Lamp> lamps;
   for (int side : {-1, 1}) {
-    lamps.push_back({box(0.34, 0.1, 0.05, side * hw * 0.62, 0.635, shell.zFront + 0.115, 0, side * -0.35), 0});
-    lamps.push_back({box(0.1, 0.07, 0.05, side * hw * 0.86, 0.6, shell.zFront + 0.2, 0, side * -0.8), side < 0 ? 4 : 4});
-    lamps.push_back({box(0.3, 0.13, 0.05, side * hw * 0.7, 0.9, shell.zRear - 0.115, 0, side * 0.3), 1});
-    lamps.push_back({box(0.1, 0.09, 0.05, side * hw * 0.88, 0.9, shell.zRear - 0.19, 0, side * 0.7), 4});
-    lamps.push_back({box(0.12, 0.05, 0.04, side * hw * 0.45, 0.86, shell.zRear - 0.06), 2});
+    keep(box(0.34, 0.1, 0.05, side * hw * 0.62, 0.635, shell.zFront + 0.115, 0, side * -0.35), 0);
+    keep(box(0.1, 0.07, 0.05, side * hw * 0.86, 0.6, shell.zFront + 0.2, 0, side * -0.8),
+         side < 0 ? 3 : 4);
+    keep(box(0.3, 0.13, 0.05, side * hw * 0.7, 0.9, shell.zRear - 0.115, 0, side * 0.3), 1);
+    keep(box(0.1, 0.09, 0.05, side * hw * 0.88, 0.9, shell.zRear - 0.19, 0, side * 0.7), 4);
+    keep(box(0.12, 0.05, 0.04, side * hw * 0.45, 0.86, shell.zRear - 0.06), 2);
     // mirror housings (the player's car builds its own, aligned with the glass)
     group.add(std::unique_ptr<Object3D>(
         new Mesh(box(0.2, 0.13, 0.09, side * (hw + 0.1), shell.beltY + 0.06, shell.zCowl + 0.4)
                      ->geometry,
                  MaterialKind::Struct)));
   }
-  for (auto& l : lamps) group.add(std::unique_ptr<Object3D>(l.mesh.release()));
+  for (size_t i = 0; i < built.size(); i++) {
+    Mesh* raw = built[i].get();
+    group.add(std::unique_ptr<Object3D>(built[i].release()));
+    lamps.push_back({raw, which[i]});
+  }
+  setLamps(false, false, false, false, false, false);
 
   // grille and number plates
   group.add(std::unique_ptr<Object3D>(
@@ -152,15 +161,23 @@ void CarExterior::setWheels(const double steer[4], const double spin[4], const d
 }
 
 void CarExterior::setLamps(bool low, bool high, bool brake, bool reverse, bool left, bool right) {
-  (void)low;
-  (void)high;
-  (void)brake;
-  (void)reverse;
-  (void)left;
-  (void)right;
-  // The lamp colours live on the materials in the original; the port keeps
-  // them as vertex colours on the lamp boxes, which the renderer uploads per
-  // mesh, so the state is applied by rebuilding the colours here.
+  // The lamp colours live on the materials in the original; here they are the
+  // vertex colours of the lamp boxes (rebuilt only when the state changes).
+  struct Combo { bool low, high, brake, reverse, left, right; };
+  static const Combo none{false, false, false, false, false, false};
+  Combo now{low, high, brake, reverse, left, right};
+  if (memcmp(&now, &none, sizeof now) == 0 && lampOff_) return;
+  lampOff_ = memcmp(&now, &none, sizeof now) == 0;
+  for (const Lamp& l : lamps) {
+    uint32_t c;
+    switch (l.which) {
+      case 0: c = high ? 0xffffff : (low ? 0xf4f6f0 : 0xcfd6da); break;
+      case 1: c = brake ? 0xff2a1e : (low ? 0xa01410 : 0x5a0d0d); break;
+      case 2: c = reverse ? 0xffffff : 0x777777; break;
+      default: c = (l.which == 3 ? left : right) ? 0xffa010 : 0x6a3a08; break;
+    }
+    tint(l.mesh->geometry, c);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -176,13 +193,15 @@ PlayerCar::PlayerCar() {
 }
 
 void PlayerCar::update(const CarVisualState& s, double dt, double now) {
-  (void)now;
   if (exterior) {
     exterior->setWheels(s.wheelSteer, s.wheelSpin, s.wheelY);
+    // (the lamps blink: only the lit phase of the indicators is shown)
     exterior->setLamps(s.lowBeam, s.highBeam, s.braking, s.reversing,
-                       s.indicator < 0 || s.hazard, s.indicator > 0 || s.hazard);
+                       s.blinkOn && (s.hazard || s.indicator < 0),
+                       s.blinkOn && (s.hazard || s.indicator > 0));
   }
   (void)dt;
+  (void)now;
 }
 
 }  // namespace fs
