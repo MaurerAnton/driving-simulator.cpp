@@ -36,10 +36,24 @@ if(FAHRSIM_WASM)
   target_compile_options(fahrsim PRIVATE -O2)
   # zlib in Emscripten's cache/sysroot (the headers the compiler itself uses,
   # not the source tree); libz links by name, emcc adds its library path.
-  file(GLOB _em_zlib_h "$ENV{EMSDK}/upstream/emscripten/cache/sysroot/include/zlib.h")
-  if(_em_zlib_h)
-    get_filename_component(_em_zlib_inc "$_em_zlib_h" DIRECTORY)
-    target_include_directories(fahrsim PRIVATE "${_em_zlib_inc}")
+  execute_process(COMMAND emcc --show-ports
+                  OUTPUT_VARIABLE _em_ports OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  execute_process(COMMAND em++ -print-search-dirs
+                  OUTPUT_VARIABLE _em_dirs OUTPUT_STRIP_TRAILING_WHITESPACE
+                  ERROR_QUIET)
+  string(REPLACE "\n" ";" _em_dirs_list "${_em_dirs}")
+  set(_em_sysroot "")
+  foreach(_line IN LISTS _em_dirs_list)
+    if(_line MATCHES "^install: =(.*)")
+      set(_em_sysroot "${CMAKE_MATCH_1}")
+    endif()
+  endforeach()
+  if(NOT _em_sysroot AND DEFINED ENV{EMSDK})
+    set(_em_sysroot "$ENV{EMSDK}/upstream/emscripten/cache/sysroot")
+  endif()
+  if(_em_sysroot)
+    target_include_directories(fahrsim PRIVATE "${_em_sysroot}/include")
   endif()
   target_link_libraries(fahrsim PRIVATE z)
   set_target_properties(fahrsim PROPERTIES OUTPUT_NAME "fahrsim" SUFFIX ".js")
