@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -73,10 +74,13 @@ std::string aerialKey(const AerialTile& t);
 /**
  * Fetches tiles when they are asked for and keeps the most recently used
  * ones.  `onLoad` is called whenever a picture has arrived (draw again).
+ *
+ * The backend answers synchronously (the page's fetch is performed by the
+ * platform); null means "no network here" and every picture stays missing.
  */
 class AerialCache {
  public:
-  AerialCache(const std::function<void()>& onLoad, int max = 90);
+  AerialCache(const std::function<void()>& onLoad, HttpBackend* http = nullptr, int max = 90);
 
   /** The picture of a tile if it is there; otherwise it is ordered. */
   const Canvas2D* get(const AerialTile& t);
@@ -84,14 +88,18 @@ class AerialCache {
   /** Forget what was ordered but is no longer in view (called before a new picture of the map is drawn). */
   void beginFrame();
 
+  /** Finish what is in flight (the platform's fetch answers in the background). */
+  void poll();
+
  private:
   struct Entry {
     std::unique_ptr<Canvas2D> img;
+    /** the picture's bytes while they are not decoded yet */
+    std::vector<uint8_t> bytes;
     bool ready = false, failed = false;
     int used = 0;
   };
   std::map<std::string, Entry> tiles_;
-  int loading_ = 0;
   int tick_ = 0;
   std::vector<AerialTile> queue_;
   std::function<void()> onLoad_;

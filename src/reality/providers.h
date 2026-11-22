@@ -25,6 +25,17 @@ class HttpBackend {
   virtual ~HttpBackend() = default;
   /** GET `url` as text; `ok` says whether the status was 2xx. */
   virtual std::string get(const std::string& url, bool& ok, int& status) = 0;
+  /**
+   * GET `url` and hand the answer to `done` (the aerial photographs are
+   * fetched while the map is drawn: the page fetches in the background and
+   * calls AerialCache::poll when its promises settle).  The default answers
+   * right away, as a synchronous backend does.
+   */
+  virtual void order(const std::string& url, const std::function<void(bool, std::string)>& done) {
+    bool ok = false;
+    int status = 0;
+    done(true, get(url, ok, status));
+  }
 };
 
 std::string panoramaxUrl(const SearchArea& a, int limit = 60);
