@@ -37,6 +37,7 @@
 #include "render/panorama.h"
 #include "sim/collision.h"
 #include "sim/ground.h"
+#include "sim/rail.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
@@ -79,6 +80,8 @@ class Game {
   std::unique_ptr<LaneGraph> lanes;
   std::unique_ptr<SignalSystem> signals;
   std::unique_ptr<Traffic> traffic;
+  /** trams and trains on the tracks around the player (0.7.0) */
+  std::unique_ptr<RailTraffic> rail;
   std::unique_ptr<RuleMonitor> rules;
   std::unique_ptr<Navigator> nav;
   std::unique_ptr<Hud> hud;
@@ -211,10 +214,15 @@ class Game {
   bool demoRunAuto_ = false;   // ?demo has run
   /** ?map=1|aerial: open the full-screen map once the drive has started */
   std::string autoMap_;
+  /** ?tram=1 puts a tram on the nearest track within 150 m as soon as the drive has started */
+  bool autoTram_ = false;
   /** where the full-screen map was opened from ("drive" | "pause") */
   std::string mapFrom_ = "drive";
   /** the stops of ?demo=x,z;x,z, run once the drive has started */
   std::string autoDemo_;
+  /** what the rail traffic asks each step: the road users as circles, and their boxes for the player */
+  std::vector<RailObstacle> railOthers_;
+  std::vector<PlayerState> railBoxes_;
   void startDemo(const std::vector<SpawnJson>& stops);
   /** The drive is over: the car has arrived, the player takes it over, or there is no way to go on. */
   void endDemo(const std::string& why);   // "arrived" | "taken" | "lost"

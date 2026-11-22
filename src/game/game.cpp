@@ -141,6 +141,7 @@ void Game::teleportSpot(const SpawnJson& spot) {
   spawn_ = spot;
   hasSpawn_ = true;
   traffic->clear();
+  if (rail) rail->clear();
   vehicle->vel[0] = vehicle->vel[1] = vehicle->vel[2] = 0;
   vehicle->angVel[0] = vehicle->angVel[1] = vehicle->angVel[2] = 0;
   input->c.handbrake = 1;
@@ -164,6 +165,7 @@ void Game::teleportTo(const AddressHit& hit) {
   spawn_ = spot;
   hasSpawn_ = true;
   traffic->clear();
+  if (rail) rail->clear();
   vehicle->vel[0] = vehicle->vel[1] = vehicle->vel[2] = 0;
   vehicle->angVel[0] = vehicle->angVel[1] = vehicle->angVel[2] = 0;
   input->c.handbrake = 1;
@@ -268,6 +270,11 @@ void Game::applySettings() {
   }
   audio.setVolume(s.volume);
   if (traffic) traffic->targetCount = static_cast<int>(std::lround(s.traffic * 34));
+  if (rail) {
+    rail->target = s.traffic > 0.02 ? 4 : 0;
+    rail->ringMax = std::min(620.0, a.tiles->viewRadius * 0.8);
+    rail->far = std::min(900.0, a.tiles->viewRadius * 1.1);
+  }
 }
 
 // ------------------------------------------------- class CE: truck and trailer
@@ -341,6 +348,7 @@ void Game::endTasks() {
 /** Put the vehicle somewhere else in the middle of a lesson (the next task, the road after the yard). */
 void Game::placeAgain() {
   traffic->clear();
+  if (rail) rail->clear();
   vehicle->vel[0] = vehicle->vel[1] = vehicle->vel[2] = 0;
   vehicle->angVel[0] = vehicle->angVel[1] = vehicle->angVel[2] = 0;
   input->c.handbrake = 1;
@@ -569,6 +577,7 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro,
   hud->clearNotices();
   rules->strict = hasLesson_ && lesson_.kind == "exam";
   traffic->clear();
+  if (rail) rail->clear();
   nav->clear();
   targetIdx_ = 0;
   basicsStep_ = 0;
@@ -999,8 +1008,37 @@ void Game::stepDrive(double dt) {
   player.speed = v.speed;
   player.length = v.spec.length > 0 ? v.spec.length : 4.28;
   player.width = v.spec.width > 0 ? v.spec.width : 1.79;
-  // the trailer is in the way of the traffic like the truck itself
-  traffic->obstacles.clear();
+  signals->update(dt);
+  // trams and trains: they keep clear of the cars, the cars of them
+  if (rail) {
+    railOthers_.clear();
+    for (const TrafficCar& car : traffic->cars) railOthers_.push_back({car.x, 0, car.z});
+    RailPlayer rp;
+    rp.x = player.x;
+    rp.y = player.y;
+    rp.z = player.z;
+    rp.yaw = player.yaw;
+    rp.length = player.length;
+    rp.width = player.width;
+    rail->update(dt, rp, railOthers_);
+    // their cars are in the way of the traffic like any other vehicle …
+    railBoxes_.clear();
+    for (const RailVehicle& rv : rail->vehicles) {
+      for (const RailCar& rc : rv.cars) {
+        PlayerState box;
+        box.x = rc.x;
+        box.y = rc.y;
+        box.z = rc.z;
+        box.yaw = rc.yaw;
+        box.speed = rv.speed;
+        box.length = rv.consist->carLen;
+        box.width = rv.consist->width;
+        railBoxes_.push_back(box);
+      }
+    }
+  }
+  traffic->obstacles = railBoxes_;
+  // … and the trailer joins them
   if (trailer) {
     const double off = (TRAILER_OUTLINE.front - TRAILER_OUTLINE.rear) / 2;
     PlayerState t;
@@ -1013,7 +1051,6 @@ void Game::stepDrive(double dt) {
     t.width = TRAILER_OUTLINE.hw * 2;
     traffic->obstacles.push_back(t);
   }
-  signals->update(dt);
   std::vector<TrafficEvent> events;
   traffic->update(dt, player, events);
   for (const auto& ev : events) {
@@ -1029,6 +1066,26 @@ void Game::stepDrive(double dt) {
         v.applyImpulse(v.pos[0], v.pos[1], v.pos[2], -(dx / l) * vn * v.spec.mass * 1.2, 0,
                        -(dz / l) * vn * v.spec.mass * 1.2);
       audio.click(ClickKind::Crash);
+    }
+  }
+  // run into a tram (or hit by one): pushed clear – it does not give way
+  if (rail) {
+    RailPlayer rp;
+    rp.x = player.x;
+    rp.y = player.y;
+    rp.z = player.z;
+    rp.yaw = player.yaw;
+    rp.length = player.length;
+    rp.width = player.width;
+    if (const RailTraffic::Touch* tram = rail->touching(rp)) {
+      v.translate(tram->nx * std::min(0.4, tram->depth + 0.02), 0,
+                  tram->nz * std::min(0.4, tram->depth + 0.02));
+      double closing = (v.vel[0] - tram->vx) * tram->nx + (v.vel[2] - tram->vz) * tram->nz;
+      if (closing < 0) {
+        v.applyImpulse(v.pos[0], v.pos[1], v.pos[2], -tram->nx * closing * v.spec.mass * 1.15, 0,
+                       -tram->nz * closing * v.spec.mass * 1.15);
+        impact_ = std::max(impact_, -closing);
+      }
     }
   }
   // on its side or roof: that is the end of this drive – count it as a crash
@@ -1178,6 +1235,8 @@ void Game::boot(const QueryParams& q) {
   a.scene.addRef(&car.root);
   a.scene.addRef(&actors.group);
   a.scene.addRef(&signalHeads->group);
+  // trams and trains on the tracks around the map (0.7.0)
+  rail = std::make_unique<RailTraffic>(worldJson_.rails);
   // the practice yard of the truck lessons, laid over the map's open field
   yardScene = std::make_unique<YardScene>();
   a.scene.addRef(&yardScene->group);
@@ -1299,6 +1358,7 @@ void Game::boot(const QueryParams& q) {
   // ?map=1|aerial opens the full-screen map once the drive has started ("aerial":
   // close up, with aerial photographs)
   autoMap_ = q.get("map");
+  autoTram_ = q.get("tram") == "1";
   // (?touch and ?rv are read below, where the original reads them)
   // ?at=x,y[,yaw]: a test place, added in front of the others
   const std::string at = q.get("at");
@@ -1401,6 +1461,36 @@ void Game::frame(double now) {
         v.time = time_;
         v.data = {{"limit", "30"}, {"speed", "42"}};
         hud->toast(v, 3600);
+      }
+    }
+    // ?tram=1 puts a tram on the nearest track within 150 m
+    if (autoTram_ && time_ - startTime_ > 0.3) {
+      autoTram_ = false;
+      if (rail) {
+        int bestPath = -1;
+        double bestS = 0, bestD = 0;
+        bool any = false;
+        for (int dx : {-200, 0, 200}) {
+          for (int dz : {-200, 0, 200}) {
+            std::vector<double> list = rail->net.near(mpos_[0] + dx, mpos_[2] + dz);
+            for (size_t k = 0; k + 1 < list.size(); k += 2) {
+              double sx, sy, sz, tx, tz, cap;
+              rail->net.sample(static_cast<int>(list[k]), list[k + 1], sx, sy, sz, tx, tz, cap);
+              double d = std::hypot(sx - mpos_[0], sz - mpos_[2]);
+              if (!any || d < bestD) {
+                any = true;
+                bestD = d;
+                bestPath = static_cast<int>(list[k]);
+                bestS = list[k + 1];
+              }
+            }
+          }
+        }
+        if (any && bestD < 150) {
+          int way = rail->net.paths[static_cast<size_t>(bestPath)].way;
+          if (!rail->spawnAt(bestPath, bestS, way == 0 ? 1 : way))
+            rail->spawnAt(bestPath, bestS, way == 0 ? -1 : way);
+        }
       }
     }
     // ?map=1|aerial opens the full-screen map once the drive has started

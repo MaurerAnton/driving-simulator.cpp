@@ -263,8 +263,12 @@ struct WorldMetaJson {
 };
 
 enum RailKind : int {
-  RAIL_RAIL = 0,
-  RAIL_TRAM = 1,
+  /** city tram (low-floor, three sections) */
+  RAIL_TRAM = 0,
+  /** regional tram that also uses railway lines */
+  RAIL_LIGHT = 1,
+  /** regional train */
+  RAIL_TRAIN = 2,
 };
 
 /** A piece of track between two switches (or ends), as a path for the vehicles that run on it. */
