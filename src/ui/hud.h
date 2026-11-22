@@ -96,6 +96,9 @@ struct HudNode {
   std::string html;
   std::vector<std::unique_ptr<HudNode>> children;
   std::function<void()> click;
+  /** the finger went down on it / lifted (the on-screen pedals and held keys) */
+  std::function<void()> down;
+  std::function<void()> up;
   /** widget identity so the platform can find and update it */
   std::string id;
 
@@ -119,8 +122,19 @@ class HudHost {
   virtual void setVisible(const std::string& id, bool visible) = 0;
   /** Paint one widget's canvas (the mini map). */
   virtual void paint(const std::string& id, const Canvas2D& canvas) = 0;
+  /**
+   * The pointer moved over `id`, `fx`/`fy` across and down it (0…1): the
+   * steering bar and the pedals of the on-screen controls are driven by where
+   * the finger is, as the original's pointermove does.
+   */
+  virtual void moved(const std::string& id, double fx, double fy) { (void)id; (void)fx; (void)fy; }
   /** A transient message (a toast) was added. */
   virtual void toastAdded() {}
+  /**
+   * Where a finger moves over a widget (the page fills it in): the steering
+   * bar and the pedals of the on-screen controls follow it.
+   */
+  std::function<void(const std::string& id, double fx, double fy)> onMoved;
 };
 
 class FaultLog;
@@ -199,6 +213,12 @@ class Hud {
    */
   void setChoices(const std::vector<std::pair<std::string, std::string>>& items,
                   const std::function<void(const std::string&)>& pick);
+  /**
+   * The pointer moved over one of the on-screen controls (fx across, fy down,
+   * 0…1): the steering bar turns, the pedals are pressed as far as the finger
+   * has gone down them – as the original's pointermove does.
+   */
+  void moved(const std::string& id, double fx, double fy);
   void clearNotices() { notices_.clear(); }
   void update(const HudState& s, double now);
 

@@ -1145,6 +1145,11 @@ void Game::boot(const QueryParams& q) {
   car.root.visible = false;
 
   hud = std::make_unique<Hud>(host_, settings, *a.world);
+  // a finger moving over the on-screen controls reaches them (the page's host
+  // reports it; the HUD knows what each widget does)
+  host_.onMoved = [this](const std::string& id, double fx, double fy) {
+    if (hud) hud->moved(id, fx, fy);
+  };
   // the log of faults survives the session (the original: localStorage)
   faultLog_ = std::make_unique<FaultLog>(store_);
   path_ = std::make_unique<DrivenPath>(store_);

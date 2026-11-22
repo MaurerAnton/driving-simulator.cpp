@@ -76,7 +76,7 @@ void Input::onKey(const std::string& code, bool down, bool repeat, bool trusted)
     // the keyboard now
     if (trusted && code != "Escape") {
       mode = "keys";
-      touchActive_ = false;
+      touch.active = false;
     }
     if (code == "Escape") fire(Action::Pause);
     if (code == "F1") fire(Action::Help);
@@ -277,13 +277,13 @@ Controls Input::update(double dt, double speed, double selfAlign) {
     c.throttle = pad.throttle;
     c.brake = pad.brake;
     c.clutch = pad.clutch;
-  } else if (touchActive_ || platform_.touchActive()) {
+  } else if (touch.active || platform_.touchActive()) {
     c.device = "touch";
     double limit = lockFor(ANALOG_LATERAL, absSpeed);
-    const double steerIn = touchActive_ ? touchSteer_ : platform_.touchSteer();
+    const double steerIn = touch.active ? touch.steer : platform_.touchSteer();
     c.steer = approach(c.steer, steerIn * limit, dt * std::max(4.0 * limit, 0.05));
-    c.throttle = touchActive_ ? touchThrottle_ : platform_.touchThrottle();
-    c.brake = touchActive_ ? touchBrake_ : platform_.touchBrake();
+    c.throttle = touch.active ? touch.throttle : platform_.touchThrottle();
+    c.brake = touch.active ? touch.brake : platform_.touchBrake();
     c.clutch = 0;
   } else {
     c.device = "keyboard";

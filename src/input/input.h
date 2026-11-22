@@ -140,6 +140,7 @@ class Input {
    * Handle one key event (down = pressed). `repeat` mirrors
    * KeyboardEvent.repeat.  `trusted` is false for the keys the on-screen
    * buttons send (they must not switch the driver over to the keyboard).
+   * The page calls it for every KeyboardEvent (it is the only way in).
    */
   void onKey(const std::string& code, bool down, bool repeat, bool trusted = true);
 
@@ -148,11 +149,6 @@ class Input {
    * It follows the last real input, so a tablet with a keyboard works both ways.
    */
   std::string mode = "keys";
-  /** The on-screen controls are being used. */
-  void touched() {
-    mode = "touch";
-    touchActive_ = true;
-  }
   /** The camera was changed: look straight ahead again. */
   void resetLook(bool orbitIn) {
     orbit = orbitIn;
@@ -174,11 +170,19 @@ class Input {
     mode = "touch";
     onKey(code, down, false, /*trusted=*/false);
   }
-  /** On-screen controls, written by the HUD (as `input.touch` in the original). */
-  bool touchActive_ = false;
-  double touchSteer_ = 0;
-  double touchThrottle_ = 0;
-  double touchBrake_ = 0;
+  /**
+   * On-screen controls, written by the HUD (the original's `input.touch`):
+   * a finger on the steering bar or a pedal puts the driver back on touch.
+   */
+  struct Touch {
+    bool active = false;
+    double steer = 0, throttle = 0, brake = 0;
+  } touch;
+  /** the driver is on the screen (not on keys or a wheel) */
+  void touched() {
+    touch.active = true;
+    mode = "touch";
+  }
 
   /**
    * Sample all devices.  `speed` (m/s) scales the keyboard steering,

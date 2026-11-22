@@ -919,6 +919,21 @@ void Hud::setChoices(const std::vector<std::pair<std::string, std::string>>& ite
   if (!overlay_) host_.setRoot(hud_.get());
 }
 
+void Hud::moved(const std::string& id, double fx, double fy) {
+  if (!input_) return;
+  Input& in = *input_;
+  if (id == "touchSteer") {
+    in.touch.steer = std::max(-1.0, std::min(1.0, fx * 2 - 1));
+    in.touched();
+  } else if (id == "touchGas") {
+    in.touch.throttle = std::max(0.15, std::min(1.0, 1 - fy + 0.15));
+    in.touched();
+  } else if (id == "touchBrake") {
+    in.touch.brake = std::max(0.15, std::min(1.0, 1 - fy + 0.15));
+    in.touched();
+  }
+}
+
 void Hud::setHudVisible(bool v) { host_.setVisible("hud", v); }
 
 void Hud::toast(const Violation& v, double seconds) {
@@ -1171,22 +1186,34 @@ void Hud::attachInput(Input& input) {
   input_ = &input;
   auto touchRoot = node("div", "touch");
   touchRoot->id = "touch";
+  // The steering bar and the pedals are driven by where the finger is (the
+  // platform reports the position with the event); the buttons stand in for
+  // keys and are down while the finger is on them.
   auto steer = node("div", "steer");
   steer->id = "touchSteer";
   steer->add(node("i"));
+  steer->down = [&input]() { input.touched(); };
+  steer->up = [&input]() { input.touch.steer = 0; };
   touchRoot->add(std::move(steer));
-  auto pedal = [&](const char* cls, const char* id, const char* label) {
+  auto pedal = [&](const char* cls, const char* id, const char* label, double* into) {
     auto p = node("div", std::string("pedal ") + cls, label);
     p->id = id;
+    p->down = [&input, into]() {
+      *into = 1;
+      input.touched();
+    };
+    p->up = [into]() { *into = 0; };
     touchRoot->add(std::move(p));
   };
-  pedal("gas", "touchGas", t("tbGas").c_str());
-  pedal("brk", "touchBrake", t("tbBrake").c_str());
+  pedal("gas", "touchGas", t("tbGas").c_str(), &input.touch.throttle);
+  pedal("brk", "touchBrake", t("tbBrake").c_str(), &input.touch.brake);
   /** A button that stands in for a key: down while the finger is on it. */
   auto key = [&](const char* cls, const char* id, const char* label, const char* code,
                  const char* titleKey) {
     auto b = button(cls, label, [&input, code]() { input.press(code, true); });
     b->id = id;
+    b->down = [&input, code]() { input.press(code, true); };
+    b->up = [&input, code]() { input.press(code, false); };
     if (titleKey && *titleKey) b->html = t(titleKey);
     touchRoot->add(std::move(b));
   };
