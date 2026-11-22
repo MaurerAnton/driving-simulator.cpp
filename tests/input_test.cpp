@@ -93,6 +93,21 @@ int main() {
   in.onKey("KeyV", true, false);
   assert(fired == 1);
 
+  // the on-screen controls (0.7.0): a finger on the bar or a pedal puts the
+  // driver back on touch, and the values reach the pedals
+  p.held.clear();
+  in.touch.steer = -0.5;
+  in.touch.throttle = 0.8;
+  in.touched();
+  assert(in.mode == "touch");
+  Controls t = in.update(1.0 / 60, 0, 0);
+  assert(t.device == "touch");
+  assert(std::fabs(t.steer + 0.5) < 0.3);
+  assert(t.throttle > 0.5);
+  // a real key switches back to the keyboard
+  in.onKey("KeyA", true, false);
+  assert(in.mode == "keys");
+
   std::printf("input: all checks passed\n");
   return 0;
 }

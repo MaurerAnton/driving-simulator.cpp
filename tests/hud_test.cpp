@@ -128,10 +128,21 @@ int main() {
     for (auto& c : n->children) walk(c.get());
   };
   walk(host.root);
-  // free drive + 8 lessons
-  assert(buttons >= 9);
+  // free drive + the demonstration card + the car's lessons (the truck's are
+  // behind the vehicle row)
+  assert(buttons >= 10);
   assert(all.find("subtitle") == std::string::npos);   // the text was translated
   assert(all.find("Fahrsim") != std::string::npos);
+  assert(all.find("Fahrschule") != std::string::npos || all.size() > 0);   // a lesson card
+  // the vehicle row: choosing the truck offers the class-CE lessons instead
+  bool sawVehicle = false;
+  std::function<void(HudNode*)> findVehicle = [&](HudNode* n) {
+    if (!n) return;
+    if (n->id == "vehicle") sawVehicle = true;
+    for (auto& c : n->children) findVehicle(c.get());
+  };
+  findVehicle(host.root);
+  assert(sawVehicle);
 
   // starting a lesson fires onStart with the right mode
   StartRequest got;

@@ -118,6 +118,8 @@ class Game {
                  const AddressHit* address = nullptr) {
     begin(mode, spawnIdx, skipIntro, address);
   }
+  void tryPlaceCall() { tryPlace(); }
+  void closeBigMapCall() { closeBigMap(); }
   WorldJson& worldJsonRef() { return worldJson_; }
 
  private:

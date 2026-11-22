@@ -180,6 +180,13 @@ int main() {
   g.finishCall();
   assert(g.state == GameState::Result);
 
+  // the menu's demonstration card plans its drive (0.7.0): starting it puts
+  // the game in Placing, waiting for the ground to stand the car on
+  g.beginCall("demo", 0, true);
+  assert(g.state == GameState::Placing);
+  for (int i = 0; i < 30; i++) g.frame(i * (1.0 / 60.0));
+  assert(g.state == GameState::Placing);   // (no tiles here: it never stands down)
+
   std::printf("game: all checks passed (state=%d)\n", static_cast<int>(g.state));
   return 0;
 }
