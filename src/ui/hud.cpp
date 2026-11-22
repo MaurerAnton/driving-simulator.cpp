@@ -1054,6 +1054,7 @@ void Hud::update(const HudState& s, double now) {
       // lit while the handbrake is on; large and flashing when the car is driven against it
       host_.setClass("lampBrake",
                      std::string("lamp") + (s.handbrake ? " on" : "") + (s.handbrakeWarn ? " warn" : ""));
+      host_.setText("lampBrake", s.handbrake ? t("tbHandbrake") : "");
       host_.setVisible("lampBrake", true);
       host_.setClass("lampBelt", std::string("lamp") + (s.seatbelt ? "" : " on"));
     }
@@ -1081,6 +1082,8 @@ void Hud::update(const HudState& s, double now) {
     } else {
       // key reminder: while standing or crawling, out of the way once rolling
       const bool want = settings_.keyHints && std::fabs(s.speedKmh) < 12;
+      // (the key reminder is shown only while standing or crawling)
+      host_.setClass("keyhelp", std::string("keyhelp") + (want ? " show" : ""));
       host_.setVisible("keyhelp", want);
       // (the key reminder keeps clear of the strip)
       host_.setClass("hud", std::string("hud") + (showDash ? " dashon" : "") +
