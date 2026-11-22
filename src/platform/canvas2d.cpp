@@ -122,7 +122,41 @@ void Canvas2D::clear(uint32_t rgba) {
   }
 }
 
+void Canvas2D::setTransform(double a, double b, double c, double d, double e, double f) {
+  a_ = a; b_ = b; c_ = c; d_ = d; e_ = e; f_ = f;
+}
+
+void Canvas2D::translate(double tx, double ty) {
+  // the new origin lands where (tx, ty) lies now: M · T
+  e_ += a_ * tx + c_ * ty;
+  f_ += b_ * tx + d_ * ty;
+}
+
+void Canvas2D::scale(double sx, double sy) {
+  a_ *= sx; b_ *= sx;
+  c_ *= sy; d_ *= sy;
+}
+
+uint32_t Canvas2D::withAlpha(uint32_t rgba) const {
+  if (alpha_ >= 0.999) return rgba;
+  uint32_t a = static_cast<uint32_t>(((rgba >> 24) & 0xff) * alpha_);
+  return (rgba & 0x00ffffffu) | (a << 24);
+}
+
 void Canvas2D::fillRect(double x, double y, double w, double h, uint32_t rgba) {
+  // (the map draws in world coordinates: through the transform, as a quad)
+  if (a_ != 1 || b_ != 0 || c_ != 0 || d_ != 1) {
+    double x1 = x + w, y1 = y + h;
+    std::vector<std::pair<double, double>> quad = {{x, y}, {x1, y}, {x1, y1}, {x, y1}};
+    for (auto& q : quad) {
+      double ox, oy;
+      map(q.first, q.second, ox, oy);
+      q = {ox, oy};
+    }
+    fillPoly(quad, withAlpha(rgba));
+    return;
+  }
+  rgba = withAlpha(rgba);
   int x0 = static_cast<int>(std::floor(x)), y0 = static_cast<int>(std::floor(y));
   int x1 = static_cast<int>(std::ceil(x + w)), y1 = static_cast<int>(std::ceil(y + h));
   for (int yy = y0; yy < y1; yy++)
@@ -138,6 +172,14 @@ void Canvas2D::strokeRect(double x, double y, double w, double h, uint32_t rgba,
 }
 
 void Canvas2D::fillCircle(double cx, double cy, double r, uint32_t rgba) {
+  rgba = withAlpha(rgba);
+  double tx, ty;
+  map(cx, cy, tx, ty);
+  // (under a transform the radius grows with it – the map's pins are round
+  // in pixels, and this is only used with uniform scales)
+  r *= std::sqrt(std::fabs(a_ * d_ - b_ * c_));
+  cx = tx;
+  cy = ty;
   int y0 = static_cast<int>(std::floor(cy - r)), y1 = static_cast<int>(std::ceil(cy + r));
   for (int yy = y0; yy <= y1; yy++) {
     double dy = yy + 0.5 - cy;
@@ -149,6 +191,12 @@ void Canvas2D::fillCircle(double cx, double cy, double r, uint32_t rgba) {
 }
 
 void Canvas2D::strokeCircle(double cx, double cy, double r, uint32_t rgba, double lineWidth) {
+  rgba = withAlpha(rgba);
+  double tx, ty;
+  map(cx, cy, tx, ty);
+  r *= std::sqrt(std::fabs(a_ * d_ - b_ * c_));
+  cx = tx;
+  cy = ty;
   int steps = std::max(16, static_cast<int>(r * 4));
   for (int i = 0; i < steps; i++) {
     double a0 = (static_cast<double>(i) / steps) * 6.283185307179586;
@@ -197,6 +245,12 @@ void Canvas2D::fillPoly(const std::vector<std::pair<double, double>>& pts, uint3
 }
 
 void Canvas2D::fillText(const std::string& text, double x, double y, double size, uint32_t rgba) {
+  rgba = withAlpha(rgba);
+  double tx, ty;
+  map(x, y, tx, ty);
+  x = tx;
+  y = ty;
+  size *= std::sqrt(std::fabs(a_ * d_ - b_ * c_));
   double scale = std::max(1.0, size / 7.0);
   double advance = 6 * scale;
   double total = text.empty() ? 0 : text.size() * advance - scale;
@@ -215,6 +269,14 @@ void Canvas2D::fillText(const std::string& text, double x, double y, double size
     }
     cx += advance;
   }
+}
+
+void Canvas2D::strokeText(const std::string& text, double x, double y, double size, uint32_t rgba) {
+  // the outline is the same text drawn a pixel to every side
+  double dx = std::max(1.0, size / 10.0);
+  for (int oy = -1; oy <= 1; oy++)
+    for (int ox = -1; ox <= 1; ox++)
+      if (ox || oy) fillText(text, x + ox * dx, y + oy * dx, size, rgba);
 }
 
 void Canvas2D::fillGradientV(uint32_t top, uint32_t bottom) {
@@ -508,14 +570,41 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
 }
 
 void Canvas2D::drawImage(const Canvas2D& src, double x, double y) {
-  int x0 = static_cast<int>(x), y0 = static_cast<int>(y);
-  for (int yy = 0; yy < src.h_; yy++) {
-    for (int xx = 0; xx < src.w_; xx++) {
-      size_t si = (static_cast<size_t>(yy) * src.w_ + xx) * 4;
-      uint32_t rgba = (static_cast<uint32_t>(src.px_[si]) << 16) |
-                      (static_cast<uint32_t>(src.px_[si + 1]) << 8) | src.px_[si + 2];
-      if (src.px_[si + 3] == 0) continue;
-      blend(x0 + xx, y0 + yy, rgba | (static_cast<uint32_t>(src.px_[si + 3]) << 24));
+  rgbaDrawImage(src, x, y, src.w_, src.h_, src.w_, src.h_);
+}
+
+void Canvas2D::drawImage(const Canvas2D& src, double dx, double dy, int sw, int sh) {
+  rgbaDrawImage(src, dx, dy, sw, sh, sw, sh);
+}
+
+void Canvas2D::rgbaDrawImage(const Canvas2D& src, double dx, double dy, double dw, double dh,
+                             int sw, int sh) {
+  (void)dw;
+  (void)dh;
+  int x0 = static_cast<int>(dx), y0 = static_cast<int>(dy);
+  if (a_ == 1 && b_ == 0 && c_ == 0 && d_ == 1) {
+    for (int yy = 0; yy < sh; yy++) {
+      for (int xx = 0; xx < sw; xx++) {
+        size_t si = (static_cast<size_t>(yy) * src.w_ + xx) * 4;
+        uint32_t rgba = (static_cast<uint32_t>(src.px_[si]) << 16) |
+                        (static_cast<uint32_t>(src.px_[si + 1]) << 8) | src.px_[si + 2];
+        if (src.px_[si + 3] == 0) continue;
+        blend(x0 + xx, y0 + yy,
+              withAlpha(rgba | (static_cast<uint32_t>(src.px_[si + 3]) << 24)));
+      }
+    }
+    return;
+  }
+  // through the transform: nearest corner of each destination pixel
+  for (int yy = 0; yy < sh; yy++) {
+    for (int xx = 0; xx < sw; xx++) {
+      double ox, oy;
+      map(x0 + xx + 0.5, y0 + yy + 0.5, ox, oy);
+      blend(static_cast<int>(ox), static_cast<int>(oy),
+            withAlpha((static_cast<uint32_t>(src.px_[(static_cast<size_t>(yy) * src.w_ + xx) * 4]) << 16) |
+                      (static_cast<uint32_t>(src.px_[(static_cast<size_t>(yy) * src.w_ + xx) * 4 + 1]) << 8) |
+                      src.px_[(static_cast<size_t>(yy) * src.w_ + xx) * 4 + 2] |
+                      (static_cast<uint32_t>(src.px_[(static_cast<size_t>(yy) * src.w_ + xx) * 4 + 3]) << 24)));
     }
   }
 }
