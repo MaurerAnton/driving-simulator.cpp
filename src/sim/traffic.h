@@ -123,6 +123,8 @@ struct Lead {
 struct ForcedBrakeEvent {
   TrafficCar* car = nullptr;
   double decel = 0;
+  /** the car cut in right in front of us (rather than saw us coming from far away) */
+  bool cutIn = false;
 };
 struct CollisionEvent {
   TrafficCar* car = nullptr;

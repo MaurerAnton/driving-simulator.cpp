@@ -406,7 +406,13 @@ void Traffic::advanceCar(TrafficCar& car, double dt, const PlayerState& player,
   if (playerBrake && playerAcc < -2.6 && car.v > 2) {
     car.blockedByPlayer += dt;
     if (car.blockedByPlayer > 0.12) {
-      events.push_back(ForcedBrakeEvent{&car, -acc});
+      // (cutIn: how far the player's car was in the way – its first time gap,
+      // as the original reports it)
+      ForcedBrakeEvent ev;
+      ev.car = &car;
+      ev.decel = -acc;
+      ev.cutIn = car.playerFirstGap < 2.2;
+      events.push_back(ev);
       car.blockedByPlayer = -3;  // one report per incident
     }
   } else if (car.blockedByPlayer > 0) {

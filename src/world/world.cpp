@@ -398,9 +398,10 @@ World::World(const WorldJson& json) : json_(&json) {
     }
   }
 
-  banned_.reserve(json.banned.size());
-  for (const auto& b : json.banned)
-    banned_.push_back(std::to_string(b[0]) + ":" + std::to_string(b[1]) + ":" + std::to_string(b[2]));
+  for (const auto& b : json.banned) {
+    banned_[b[0]].push_back(b[1]);
+    banned_[b[0]].push_back(b[2]);
+  }
 }
 
 void World::finishEdge(Edge& e) {
@@ -432,9 +433,11 @@ void World::finishEdge(Edge& e) {
 }
 
 bool World::isBanned(int fromEdge, int viaNode, int toEdge) const {
-  std::string key = std::to_string(fromEdge) + ":" + std::to_string(viaNode) + ":" + std::to_string(toEdge);
-  for (const auto& b : banned_)
-    if (b == key) return true;
+  auto it = banned_.find(fromEdge);
+  if (it == banned_.end()) return false;
+  const std::vector<int>& list = it->second;
+  for (size_t i = 0; i + 1 < list.size(); i += 2)
+    if (list[i] == viaNode && list[i + 1] == toEdge) return true;
   return false;
 }
 

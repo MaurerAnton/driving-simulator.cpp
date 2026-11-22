@@ -71,6 +71,12 @@ struct PlayerSnapshot {
   /** impact speed of a collision with scenery in this step (0 = none) */
   double hitScenery = 0;
   double length = 4.3;
+  /**
+   * From the point given by x, z to the front bumper (m).  Half the length
+   * unless said otherwise – a truck is measured from the middle of its
+   * wheelbase, which is not the middle of its length.
+   */
+  double front = -1;   // < 0: half the length (as the original's optional field)
 };
 
 /** Points a severity is worth in the exam (hint 0, minor 1, major 3, fail 10). */
@@ -114,10 +120,17 @@ class RuleMonitor {
   void update(double dt, const PlayerSnapshot& p, const std::vector<TrafficEvent>& events);
 
  private:
+  /** an oncoming car braked hard for us at this junction (judged once it is known which way we went) */
+  bool hasOncoming_ = false;
+  Node* oncomingNode_ = nullptr;
+  double oncomingTime_ = 0;
+  void judgePriority(TrafficCar& car, const PlayerSnapshot& p, bool cutIn = true);
   SurfaceHit hit_;
   SurfaceHit frontHit_;
   /** where the driver was at the last step (a note has no position of its own) */
   double lastX_ = 0, lastZ_ = 0;
+  /** the truck's cap decided the limit of this road (its fault is truckSpeed) */
+  bool capped_ = false;
   std::map<std::string, double> cooldown_;
   Lane* lane_ = nullptr;
   double laneS_ = 0;
@@ -134,6 +147,8 @@ class RuleMonitor {
     double yaw = 0;
     bool signalRed = false;
     bool nowL = false, nowR = false;
+    /** the fastest the vehicle went while crossing (the truck's right turns are judged on it) */
+    double vMax = 0;
   };
   Entry* entry_ = nullptr;
   Entry entryStore_;
@@ -171,7 +186,6 @@ class RuleMonitor {
   int segIndex(const Edge& e, double s) const;
   void trackLane(Lane& lane, double s, double dt, const PlayerSnapshot& p, double fx, double fz);
   void judgeTurn(Edge& exitEdge, const PlayerSnapshot& p);
-  void judgePriority(TrafficCar& car, const PlayerSnapshot& p);
   /** Over the stop line on red: stopped just behind it, or driven on into the junction? */
   void judgeRedLine(const PlayerSnapshot& p);
   void checkCrossings(const Edge& edge, double s, int dir, const PlayerSnapshot& p);

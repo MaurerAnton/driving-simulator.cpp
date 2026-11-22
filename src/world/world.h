@@ -12,6 +12,7 @@
 #pragma once
 
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -198,7 +199,8 @@ class World {
   std::vector<CrossingJson> crossings_;        // constructor copies them from the JSON
   std::vector<Node> nodes_;
   std::vector<Edge> edges_;
-  std::vector<std::string> banned_;
+  /** forbidden turns: from edge → [via node, to edge, …] (few edges have any) */
+  std::map<int, std::vector<int>> banned_;
   Grid2<int> segGrid_{40};   // edge id * 4096 + segment index
   Grid2<Node*> nodeGrid_{40};
   std::vector<JunctionShape> shapes_;

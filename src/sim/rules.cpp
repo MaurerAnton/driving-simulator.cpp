@@ -118,6 +118,18 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
   lastX_ = p.x;
   lastZ_ = p.z;
   RuleContext& ctx = context;
+  capped_ = false;
+  if (yard) {
+    // On the practice yard there are no roads and no traffic: nothing here is judged.
+    ctx.limit = -1;
+    ctx.zone = 0;
+    ctx.urban = false;
+    ctx.roadName.clear();
+    ctx.junction.set = false;
+    ctx.onRoad = true;
+    ctx.wrongWay = false;
+    return;
+  }
   double fx = -std::sin(p.yaw);
   double fz = -std::cos(p.yaw);
   double kmh = std::fabs(p.speed) * 3.6;
@@ -173,6 +185,14 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
     // car parks, driveways and tracks have no signed limit: nothing to show
     bool unsignedRoad = edge->cls >= SERVICE && edge->zone == 0;
     ctx.limit = edge->zone == 7 ? 7 : (unsignedRoad ? -1 : limit);
+    // what the signs allow, but never more than a truck with trailer may drive there
+    if (truck && edge->zone != 7 && !unsignedRoad) {
+      int cap = edge->cls <= MOTORWAY_LINK ? 80 : ((edge->flags & EF_URBAN) ? 0 : 60);
+      if (cap > 0 && (ctx.limit == 0 || ctx.limit > cap)) {
+        ctx.limit = cap;
+        capped_ = true;
+      }
+    }
     ctx.zone = edge->zone;
     ctx.urban = (edge->flags & EF_URBAN) != 0;
     ctx.roadName = edge->name.empty() ? edge->ref : edge->name;
@@ -218,7 +238,7 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
         speedOver_ += dt;
         if (speedOver_ > 1.6) {
           Severity sev = over > 25 ? Severity::Fail : (over > 14 ? Severity::Major : Severity::Minor);
-          report(edge->zone == 7 ? "speedWalk" : "speed", sev, p,
+          report(edge->zone == 7 ? "speedWalk" : (capped_ ? "truckSpeed" : "speed"), sev, p,
                  {{"limit", std::to_string(lim)}, {"speed", std::to_string(std::lround(kmh))}},
                  sev == Severity::Minor ? 18 : 10);
         }
@@ -275,6 +295,8 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
 
   judgeRedLine(p);
 
+  if (entry_) entry_->vMax = std::max(entry_->vMax, std::fabs(p.speed));
+
   // --- leaving the junction: was the turn signalled? ---
   if (entry_ && edge && (hit.zone == 0 || near)) {
     Entry e = *entry_;
@@ -296,7 +318,7 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
       (void)pe;
       report("pedestrian", Severity::Fail, p, {}, 8);
     } else if (auto* fb = std::get_if<ForcedBrakeEvent>(&ev)) {
-      judgePriority(*fb->car, p);
+      judgePriority(*fb->car, p, fb->cutIn);
     }
   }
   if (p.hitScenery > 1.2)
@@ -354,7 +376,7 @@ void RuleMonitor::trackLane(Lane& lane, double s, double dt, const PlayerSnapsho
   RuleContext& ctx = context;
   // position of the front bumper along the lane
   double centre = lane.dir > 0 ? s - lane.s0 : lane.s0 - s;
-  double front = centre + p.length / 2;
+  double front = centre + (p.front >= 0 ? p.front : p.length / 2);
   if (&lane != lane_) {
     lane_ = &lane;
     prevLaneS_ = front;
@@ -418,6 +440,7 @@ void RuleMonitor::trackLane(Lane& lane, double s, double dt, const PlayerSnapsho
     entryStore_.lookedR = lookR_ > 0.2;
     entryStore_.yaw = p.yaw;
     entryStore_.signalRed = false;
+    entryStore_.vMax = std::fabs(p.speed);
     entry_ = &entryStore_;
     // roundabout: no indicator when entering (§ 8 (1a) StVO)
     if (node->ctrl == CTRL_ROUNDABOUT && (lane.edge->flags & EF_ROUNDABOUT) == 0 &&
@@ -486,6 +509,13 @@ void RuleMonitor::judgeTurn(Edge& exitEdge, const PlayerSnapshot& p) {
       break;
     }
   }
+  // an oncoming car had to brake while we crossed: that is on us if we were the one turning left
+  if (hasOncoming_) {
+    if (oncomingNode_ == node && time - oncomingTime_ < 25 && turn == TURN_LEFT)
+      report("leftTurnOncoming", Severity::Major, p, {}, 10);
+    hasOncoming_ = false;
+    oncomingNode_ = nullptr;
+  }
   indL_ = 0;
   indR_ = 0;
   bool ringIn = (e.arm->edge->flags & EF_ROUNDABOUT) != 0;
@@ -507,6 +537,10 @@ void RuleMonitor::judgeTurn(Edge& exitEdge, const PlayerSnapshot& p) {
       report(e.indicatorL > 0.8 ? "wrongIndicator" : "noIndicator", Severity::Minor, p,
              {{"dir", "right"}}, 6);
     if (!e.lookedR) report("noShoulderCheck", Severity::Hint, p, {{"dir", "right"}}, 6);
+    // a truck turns right at walking pace in town: cyclists and pedestrians beside it are hard to see
+    if (truck && context.urban && e.vMax * 3.6 > 12)
+      report("truckRightTurn", Severity::Minor, p,
+             {{"speed", std::to_string(std::lround(e.vMax * 3.6))}}, 6);
   } else if ((e.nowL && e.indicatorL > 2.5) || (e.nowR && e.indicatorR > 2.5)) {
     report("wrongIndicator", Severity::Hint, p, {{"dir", "none"}}, 10);
   }
@@ -515,7 +549,7 @@ void RuleMonitor::judgeTurn(Edge& exitEdge, const PlayerSnapshot& p) {
     report("turnBan", Severity::Major, p, {}, 6);
 }
 
-void RuleMonitor::judgePriority(TrafficCar& car, const PlayerSnapshot& p) {
+void RuleMonitor::judgePriority(TrafficCar& car, const PlayerSnapshot& p, bool cutIn) {
   Lane* lane = lane_;
   Entry* entry = entry_;
   Node* node = entry ? entry->node
@@ -523,8 +557,14 @@ void RuleMonitor::judgePriority(TrafficCar& car, const PlayerSnapshot& p) {
   Arm* myArm = entry ? entry->arm : (lane ? lane->armTo : nullptr);
   Arm* carArm = car.conn ? car.conn->from->armTo : (car.lane ? car.lane->armTo : nullptr);
   if (!node || !myArm || !carArm || carArm->node != node || carArm == myArm) {
-    // not a junction matter: pulled out or cut in right in front of someone
-    if (std::fabs(p.speed) > 1) report("cutOff", Severity::Minor, p, {}, 15);
+    // Not a matter of this junction: pulled out or cut in right in front of someone who travels
+    // the same way.  (A car coming from the side at a junction made of several nodes – a dual
+    // carriageway, a roundabout – brakes for whoever is in its way, whoever has the right of
+    // way there: that cannot be judged from here, and is not held against the driver.)
+    // (And a car that saw the driver ahead from far away was not cut up: its distance is its own business.)
+    double along = std::sin(car.yaw) * std::sin(p.yaw) + std::cos(car.yaw) * std::cos(p.yaw);
+    if (cutIn && std::fabs(p.speed) > 1 && along > 0.6)
+      report("cutOff", Severity::Minor, p, {}, 15);
     return;
   }
   if (entry && entry->signalRed) return;  // already recorded as a red-light offence
@@ -532,8 +572,19 @@ void RuleMonitor::judgePriority(TrafficCar& car, const PlayerSnapshot& p) {
     return a.role == ROLE_PRIORITY ? 3 : (a.role == ROLE_RBL ? 2
                                          : ((a.role == ROLE_YIELD || a.role == ROLE_STOP) ? 1 : 0));
   };
+  // § 9 (3), (4): whoever turns left lets oncoming traffic through – also those turning right.
+  // A car that turns left across our way and has to brake for us was the one to wait.
+  const Connector* theirConn = car.conn ? car.conn : car.next;
+  int theirTurn = theirConn ? theirConn->turn : TURN_STRAIGHT;
+  bool theyTurnLeft = theirTurn == TURN_LEFT || theirTurn == TURN_UTURN;
+  // Whether the driver is the one turning left is known when the car leaves the junction
+  // (judgeTurn): going straight on or turning right, it had the right of way over that car.
   if (node->ctrl == CTRL_SIGNALS && myArm->sg >= 0 && carArm->sg >= 0) {
-    if (myArm->sg == carArm->sg) report("leftTurnOncoming", Severity::Major, p, {}, 10);
+    if (myArm->sg == carArm->sg && !theyTurnLeft) {
+      hasOncoming_ = true;
+      oncomingNode_ = node;
+      oncomingTime_ = time;
+    }
     return;
   }
   int mine = rank(*myArm);
@@ -546,7 +597,11 @@ void RuleMonitor::judgePriority(TrafficCar& car, const PlayerSnapshot& p) {
   } else if (mine == theirs) {
     bool opposite = myArm->dx * carArm->dx + myArm->dz * carArm->dz < -0.64;
     if (opposite || myArm->role == ROLE_PRIORITY) {
-      report("leftTurnOncoming", Severity::Major, p, {}, 10);
+      if (!theyTurnLeft) {
+        hasOncoming_ = true;
+        oncomingNode_ = node;
+        oncomingTime_ = time;
+      }
     } else {
       // is the other one coming from our right?
       double rx = myArm->dz;

@@ -263,7 +263,7 @@ void Game::nextTask() {
 }
 
 void Game::endTasks() {
-  if (task_) input->c.lookZoom = 21;
+  if (task_ && input) input->c.lookZoom = 21;
   task_.reset();
   tasksLeft_.clear();
   if (yardScene) yardScene->hide();
@@ -907,6 +907,13 @@ void Game::boot(const QueryParams& q) {
   hud->loadAddresses = [this]() { return loadAddresses(); };
   hud->onTeleport = [this](const AddressHit& hit) { teleportTo(hit); };
   hud->onMap = [this]() { openBigMap(); };
+  hud->onFinish = [this]() {
+    // a free drive ends when the driver says so: the result, then the menu
+    if (state == GameState::Pause && !hasLesson_) finish();
+  };
+  // (the demonstration drive starts from the map's plan; its panel arrives
+  // with ui/bigmap)
+  hud->onDemo = [this]() { openBigMap(); };
   hud->attachInput(*input);
   rules->onViolation = [this](const Violation& v) {
     hud->toast(v);

@@ -9,6 +9,8 @@
 #pragma once
 
 #include <limits>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -78,11 +80,18 @@ struct Conflict {
   bool merge = false;
   /** this connector has to give way to `other` */
   bool yield = false;
+  bool operator==(const Conflict& o) const {
+    return other == o.other && sSelf == o.sSelf && sOther == o.sOther && merge == o.merge &&
+           yield == o.yield;
+  }
 };
 
 struct Sibling {
   Connector* other = nullptr;
   double until = 0, untilOther = 0;
+  bool operator==(const Sibling& o) const {
+    return other == o.other && until == o.until && untilOther == o.untilOther;
+  }
 };
 
 class LaneGraph {
@@ -98,6 +107,16 @@ class LaneGraph {
     std::vector<Lane*> back;
   };
   std::vector<EdgeLanes> edgeLanes;
+
+  /** Work out the conflicts of every junction now (tools and tests; the game leaves it to resolveNode). */
+  void resolveAll();
+  /**
+   * Compare the paths through a junction with each other: where do they cross,
+   * merge or share their way, and who yields?  Costs every pair of paths of
+   * the junction, so it runs once per junction, when one of its paths is
+   * first asked (the original: the JunctionPath getters).
+   */
+  void resolveNode(int nodeId);
 
   /** Lanes arriving at / leaving the node on an arm. */
   std::vector<Lane*> lanesInto(const Arm& arm);
@@ -116,9 +135,12 @@ class LaneGraph {
  private:
   void buildLanes();
   void buildConnectors();
-  void buildConflicts();
   void addConnector(Node& node, Lane& from, Lane& to, int turn);
   bool yields(const Connector& c1, const Connector& c2, bool merge) const;
+
+  /** the paths through each junction, and which junctions have their conflicts worked out */
+  std::map<int, std::vector<int>> pathsAt_;   // node id → connector ids
+  std::set<int> resolved_;
 };
 
 /** Position on a lane at distance d from its start. */

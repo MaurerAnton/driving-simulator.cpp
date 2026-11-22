@@ -174,7 +174,11 @@ LaneGraph::LaneGraph(World& world_) : world(world_) {
     totalConnectors += (group.fwd.size() + group.back.size()) * 8;
   connectors.reserve(totalConnectors);
   buildConnectors();
-  buildConflicts();
+  // The conflicts of a junction are worked out once, when one of its paths is
+  // first asked (the original's JunctionPath getters ask the graph).  Here the
+  // reads go straight to the Connector, so every junction is resolved up front
+  // – the same result, at the same moment the graph is built.
+  resolveAll();
 }
 
 PolySample lanePoint(const Lane& lane, double d, PolySample out) {
@@ -293,6 +297,7 @@ void LaneGraph::addConnector(Node& node, Lane& from, Lane& to, int turn) {
   }
   Connector c;
   c.id = static_cast<int>(connectors.size());
+  pathsAt_[node.id].push_back(c.id);
   c.node = &node;
   c.from = &from;
   c.to = &to;
@@ -414,11 +419,20 @@ bool LaneGraph::yields(const Connector& c1, const Connector& c2, bool merge) con
   return turning1 && !turning2;
 }
 
-void LaneGraph::buildConflicts() {
-  std::map<int, std::vector<Connector*>> byNode;
-  for (auto& c : connectors) byNode[c.node->id].push_back(&c);
-  for (auto& kv : byNode) {
-    auto& list = kv.second;
+void LaneGraph::resolveAll() {
+  for (const auto& kv : pathsAt_) resolveNode(kv.first);
+}
+
+void LaneGraph::resolveNode(int nodeId) {
+  if (resolved_.count(nodeId)) return;
+  resolved_.insert(nodeId);
+  auto it = pathsAt_.find(nodeId);
+  if (it == pathsAt_.end()) return;
+  std::vector<Connector*> list;
+  for (int id : it->second)
+    if (id >= 0 && id < static_cast<int>(connectors.size()))
+      list.push_back(&connectors[static_cast<size_t>(id)]);
+  {
     for (size_t i = 0; i < list.size(); i++) {
       for (size_t j = i + 1; j < list.size(); j++) {
         Connector& c1 = *list[i];
@@ -427,8 +441,11 @@ void LaneGraph::buildConflicts() {
           // diverging from one lane: no right-of-way question, but the paths share their first metres
           double u1 = divergence(c1.pl, c2.pl);
           double u2 = divergence(c2.pl, c1.pl);
-          c1.siblings.push_back({&c2, u1, u2});
-          c2.siblings.push_back({&c1, u2, u1});
+          if (std::find(c1.siblings.begin(), c1.siblings.end(), Sibling{&c2, u1, u2}) ==
+              c1.siblings.end()) {
+            c1.siblings.push_back({&c2, u1, u2});
+            c2.siblings.push_back({&c1, u2, u1});
+          }
           continue;
         }
         bool sameArm = c1.from->armTo == c2.from->armTo;
@@ -458,8 +475,12 @@ void LaneGraph::buildConflicts() {
         if (s1 < 0) continue;
         bool y12 = yields(c1, c2, merge);
         bool y21 = !y12 && yields(c2, c1, merge);
-        c1.conflicts.push_back({&c2, s1, s2, merge, y12});
-        c2.conflicts.push_back({&c1, s2, s1, merge, y21});
+        // (only the first ask fills them in: resolveNode may be called again)
+        if (std::find(c1.conflicts.begin(), c1.conflicts.end(), Conflict{&c2, s1, s2, merge, y12}) ==
+            c1.conflicts.end()) {
+          c1.conflicts.push_back({&c2, s1, s2, merge, y12});
+          c2.conflicts.push_back({&c1, s2, s1, merge, y21});
+        }
       }
     }
   }
