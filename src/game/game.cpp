@@ -1435,7 +1435,7 @@ void Game::frame(double now) {
     if (w > 0 && h > 0) {
       Canvas2D picture(w, h);
       bigMap->paint(picture);
-      host_.paint("bigmap", picture);
+      host_.paint("bigmapCanvas", picture);
     }
   }
   bool haveCar = vehicle != nullptr && modelVisible();
