@@ -21,7 +21,7 @@ namespace fs {
 
 class App {
  public:
-  explicit App(int canvasWidth, int canvasHeight);
+  App(int canvasWidth, int canvasHeight, double pixelRatio = 1);
   ~App();
 
   WebGLRenderer renderer;
@@ -34,6 +34,8 @@ class App {
   double pixelRatioCap = 1.5;
   /** fraction of the screen's pixels that is drawn (below 1: a softer picture that costs less) */
   double renderScale = 1;
+  /** the window's own pixel ratio (window.devicePixelRatio; 1 where there is none) */
+  double devicePixelRatio = 1;
 
   /** Build the road network and the tile manager from the parsed world. */
   void loadWorld(const WorldJson& json, TileSource& source);

@@ -18,8 +18,9 @@ namespace fs {
 
 App::~App() = default;
 
-App::App(int canvasWidth, int canvasHeight) {
+App::App(int canvasWidth, int canvasHeight, double pixelRatio) {
   baseUrl = "map/";
+  devicePixelRatio = pixelRatio;
   renderer.init(canvasWidth, canvasHeight);
   camera.fov = 60;
   camera.aspect = 1;
@@ -48,7 +49,7 @@ void App::loadWorld(const WorldJson& json, TileSource& source) {
 void App::resize(int canvasWidth, int canvasHeight) {
   int w = canvasWidth > 0 ? canvasWidth : 1;
   int h = canvasHeight > 0 ? canvasHeight : 1;
-  renderer.setPixelRatio(std::min(1.5, renderer.available() ? 1.0 : 1.0) * renderScale);
+  renderer.setPixelRatio(std::min(devicePixelRatio, pixelRatioCap) * renderScale);
   renderer.setSize(w, h, false);
   camera.aspect = static_cast<double>(w) / static_cast<double>(h);
   camera.updateProjectionMatrix();

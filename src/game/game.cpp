@@ -27,6 +27,15 @@ namespace fs {
 namespace {
 constexpr double PHYS_DT = 1.0 / 240.0;
 
+/** the pieces of a comma-separated query value ("a,b" → {"a", "b"}) */
+std::vector<std::string> split(const std::string& s, char sep) {
+  std::vector<std::string> out;
+  std::stringstream ss(s);
+  std::string one;
+  while (std::getline(ss, one, sep)) out.push_back(one);
+  return out;
+}
+
 /** the outlines of the vehicles for collisions with the scenery: circles along the axis
  *  (m from the model origin; - = front) */
 const double CAR_CIRCLES[3] = {-1.28, -0.05, 1.18};
@@ -60,9 +69,11 @@ struct RealityHostImpl : RealityHost {
 Game::~Game() = default;
 
 Game::Game(HudHost& host, Platform& platform, AudioBackend& audioBackend,
-           SignSource& signSource, TileSource& tileSource, int canvasWidth, int canvasHeight)
+           SignSource& signSource, TileSource& tileSource, int canvasWidth, int canvasHeight,
+           double pixelRatio, bool coarsePointer)
     : settings(loadSettings()),
-      app(canvasWidth, canvasHeight),
+      app(canvasWidth, canvasHeight, pixelRatio),
+      coarsePointer_(coarsePointer),
       audio(audioBackend),
       host_(host),
       signSource_(signSource),
@@ -1121,6 +1132,8 @@ void Game::boot(const QueryParams& q) {
   path_ = std::make_unique<DrivenPath>(store_);
   hud->faultLog = faultLog_.get();
   input = std::make_unique<Input>(platform_, settings);
+  // a touch screen starts the input in touch mode (matchMedia('(pointer: coarse)'))
+  if (coarsePointer_) input->mode = "touch";
   input->onAction([this](Action act) { onAction(act); });
   hud->onStart = [this](const StartRequest& r) {
     begin(r.mode, r.spawn, false, r.hasAddress ? &r.address : nullptr);
@@ -1183,6 +1196,24 @@ void Game::boot(const QueryParams& q) {
   // ?demo=x,z;x,z starts a demonstration drive to these places of the map once
   // the drive has started (0.7.0)
   autoDemo_ = q.get("demo");
+  // ?map=1|aerial opens the full-screen map once the drive has started ("aerial":
+  // close up, with aerial photographs)
+  autoMap_ = q.get("map");
+  // (?touch and ?rv are read below, where the original reads them)
+  // ?at=x,y[,yaw]: a test place, added in front of the others
+  const std::string at = q.get("at");
+  if (!at.empty()) {
+    std::vector<std::string> p = split(at, ',');
+    if (p.size() >= 2) {
+      SpawnJson sp;
+      sp.name = "Test";
+      sp.x = std::atof(p[0].c_str());
+      sp.z = std::atof(p[1].c_str());
+      sp.yaw = p.size() > 2 ? std::atof(p[2].c_str()) * PI / 180 : 0;
+      sp.kind = "street";
+      worldJson_.spawns.insert(worldJson_.spawns.begin(), sp);
+    }
+  }
   // ?reality=1|test opens the reality view once the drive has started ("test":
   // with a drawn panorama), ?rv=panoramax,kartaview switches services on
   autoReality_ = q.get("reality");

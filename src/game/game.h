@@ -70,7 +70,8 @@ struct QueryParams {
 class Game {
  public:
   Game(HudHost& host, Platform& platform, AudioBackend& audioBackend, SignSource& signSource,
-       TileSource& tileSource, int canvasWidth, int canvasHeight);
+       TileSource& tileSource, int canvasWidth, int canvasHeight,
+       double pixelRatio = 1, bool coarsePointer = false);
   ~Game();   // out of line: realityHost_ is an incomplete type in this header
 
   Settings settings;
@@ -131,6 +132,10 @@ class Game {
   TileSource& tileSource_;
  public:
   WorldJson worldJson_;   // handed in by the platform before boot()
+ private:
+  /** a touch screen: the input starts in touch mode (window.matchMedia('(pointer: coarse)')) */
+  bool coarsePointer_ = false;
+ public:
  private:
   std::unique_ptr<World> world_;
   double last_ = 0, time_ = 0, acc_ = 0;
@@ -194,6 +199,8 @@ class Game {
   /** the stops of a plan: started a moment after the car was put down */
   std::vector<SpawnJson> demoPending_;
   bool demoRunAuto_ = false;   // ?demo has run
+  /** ?map=1|aerial: open the full-screen map once the drive has started */
+  std::string autoMap_;
   /** where the full-screen map was opened from ("drive" | "pause") */
   std::string mapFrom_ = "drive";
   /** the stops of ?demo=x,z;x,z, run once the drive has started */
