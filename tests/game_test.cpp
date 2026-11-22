@@ -20,7 +20,7 @@ class TestHost : public HudHost {
   void setText(const std::string& id, const std::string& t) override { text[id] = t; }
   void setClass(const std::string&, const std::string&) override {}
   void setVisible(const std::string& id, bool v) override { visible[id] = v; }
-  void paint(const std::string&, const Canvas2D&) override {}
+  void paint(const std::string&, Canvas2D&) override {}
 };
 
 class TestPlatform : public Platform {

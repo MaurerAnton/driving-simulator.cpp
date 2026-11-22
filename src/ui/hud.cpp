@@ -1172,7 +1172,8 @@ void Hud::drawMap(const HudState& s) {
   double cx = W / 2, cy = W / 2 + 28;
   g.fillPoly({{cx, cy - 11}, {cx + 7, cy + 8}, {cx, cy + 4}, {cx - 7, cy + 8}},
              parseColor("#ffcc00"));
-  host_.paint("map", g);
+  // done: the platform paints the widget with what we drew
+  host_.paint("map", mapCanvas_);
 }
 
 /**

@@ -120,8 +120,12 @@ class HudHost {
   virtual void setClass(const std::string& id, const std::string& cls) = 0;
   /** Show or hide one widget. */
   virtual void setVisible(const std::string& id, bool visible) = 0;
-  /** Paint one widget's canvas (the mini map). */
-  virtual void paint(const std::string& id, const Canvas2D& canvas) = 0;
+  /**
+   * Paint one widget's canvas: `into` starts blank and is copied onto the
+   * widget when the call returns (the mini map, and the picture of the
+   * full-screen map while it is open).
+   */
+  virtual void paint(const std::string& id, Canvas2D& into) = 0;
   /**
    * The pointer moved over `id`, `fx`/`fy` across and down it (0…1): the
    * steering bar and the pedals of the on-screen controls are driven by where

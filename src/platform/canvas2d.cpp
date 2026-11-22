@@ -362,6 +362,13 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
   quality = std::max(1, std::min(100, quality));
   int sf = quality < 50 ? 5000 / quality : 200 - quality * 2;
   auto qtbl = [&](int v) { return std::min(255, (v * sf + 50) / 100); };
+  // the coefficients are divided by the SAME table the DQT carries, or the
+  // decoder would undo a different scale than was applied
+  int lumQ[64], chromaQ[64];
+  for (int i = 0; i < 64; i++) {
+    lumQ[i] = qtbl(kLumVal[i]);
+    chromaQ[i] = qtbl(kChromVal[i]);
+  }
 
   struct BitWriter {
     std::vector<uint8_t>& out;
@@ -468,11 +475,25 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
   };
   auto huff = [](int symbol, const uint8_t* counts, const uint8_t* values, int nvalues,
                  uint32_t& code, int& len) {
+    // the symbol names a VALUE; the codes are assigned to the symbols in the
+    // order their values are listed (DC values happen to be their index too,
+    // AC values are not: 0x00 EOB sits at position 3 in the standard table)
+    int want = -1;
+    for (int m = 0; m < nvalues; m++)
+      if (values[m] == symbol) {
+        want = m;
+        break;
+      }
+    if (want < 0) {
+      code = 0;
+      len = 0;
+      return;
+    }
     int codev = 0;
     int k = 0;
     for (int i = 0; i < 16; i++) {
       for (int j = 0; j < counts[i]; j++) {
-        if (k == symbol) {
+        if (k == want) {
           code = static_cast<uint32_t>(codev);
           len = i + 1;
           return;
@@ -482,8 +503,6 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
       }
       codev <<= 1;
     }
-    (void)values;
-    (void)nvalues;
     code = 0;
     len = 0;
   };
@@ -500,31 +519,43 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
             size_t o = (static_cast<size_t>(sy) * w_ + sx) * 4;
             double v;
             if (comp == 0) {
-              v = 0.299 * px_[o] + 0.587 * px_[o + 1] + 0.114 * px_[o + 2];
+              // luma: level-shifted to -128…127, as the standard says
+              v = 0.299 * px_[o] + 0.587 * px_[o + 1] + 0.114 * px_[o + 2] - 128;
             } else if (comp == 1) {
+              // chroma already straddles zero around 128: no further shift
               v = -0.168736 * px_[o] - 0.331264 * px_[o + 1] + 0.5 * px_[o + 2];
             } else {
               v = 0.5 * px_[o] - 0.418688 * px_[o + 1] - 0.081312 * px_[o + 2];
             }
-            blk[y * 8 + x] = v - 128;
+            blk[y * 8 + x] = v;
           }
         }
-        // FDCT (separable, the 8×8 cosine basis)
+        // FDCT (separable, the 8×8 cosine basis): kCos is laid out as
+        // [frequency][position] – the basis of frequency u at position x is
+        // kCos[u][x].  The coefficient at (v, u) is the transform of the row
+        // y=v along x → u and of the column x=u along y → v.
         double coef[64];
-        for (int u = 0; u < 8; u++) {
-          for (int v = 0; v < 8; v++) {
+        for (int v = 0; v < 8; v++) {
+          for (int u = 0; u < 8; u++) {
             double sum = 0;
             for (int x = 0; x < 8; x++)
               for (int y = 0; y < 8; y++)
-                sum += blk[y * 8 + x] * kCos[x][u] * kCos[y][v];
+                sum += blk[y * 8 + x] * kCos[u][x] * kCos[v][y];
             coef[v * 8 + u] = sum;
           }
         }
-        const int* qt = comp == 0 ? kLumQ : kChromQ;
+        const int* qt = comp == 0 ? lumQ : chromaQ;
         int zz[64];
-        for (int i = 0; i < 64; i++) {
-          int v = static_cast<int>(std::lround(coef[i] / qt[i]));
-          zz[kZigzag[i]] = v;
+        // kZigzag is the scan's own order (position → natural index), as the
+        // decoder reads it: the encoder must fill the scan in that order too
+        for (int pos = 0; pos < 64; pos++) {
+          int nat = kZigzag[pos];
+          int v = static_cast<int>(std::lround(coef[nat] / qt[nat]));
+          // the standard tables carry AC categories 1…10 only: keep the
+          // coefficient within the 10 bits the symbol can name
+          if (pos > 0) v = std::max(-1023, std::min(1023, v));
+          else v = std::max(-2047, std::min(2047, v));
+          zz[pos] = v;
         }
         // DC difference + AC run-length coding
         int dc = zz[0] - prev[comp];
@@ -534,7 +565,7 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
         while ((1 << cat) <= mag) cat++;
         uint32_t code;
         int len;
-        huff(cat, comp == 0 ? kLumDC : kChromDC, nullptr, 0, code, len);
+        huff(cat, comp == 0 ? kLumDC : kChromDC, comp == 0 ? kLumDCVal : kChromDCVal, 12, code, len);
         bw.put(code, len);
         if (cat > 0) bw.put(static_cast<uint32_t>(dc < 0 ? dc + (1 << cat) - 1 : dc), cat);
         int run = 0;
@@ -544,7 +575,7 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
             continue;
           }
           while (run > 15) {
-            huff(0xf0, comp == 0 ? kLumAC : kChromAC, nullptr, 0, code, len);
+            huff(0xf0, comp == 0 ? kLumAC : kChromAC, comp == 0 ? kLumACVal : kChromACVal, 162, code, len);
             bw.put(code, len);
             run -= 16;
           }
@@ -552,13 +583,13 @@ std::vector<uint8_t> Canvas2D::toJpeg(int quality) const {
           int acat = 0;
           while ((1 << acat) <= mag) acat++;
           int symbol = (run << 4) | acat;
-          huff(symbol, comp == 0 ? kLumAC : kChromAC, nullptr, 0, code, len);
+          huff(symbol, comp == 0 ? kLumAC : kChromAC, comp == 0 ? kLumACVal : kChromACVal, 162, code, len);
           bw.put(code, len);
           bw.put(static_cast<uint32_t>(zz[k] < 0 ? zz[k] + (1 << acat) - 1 : zz[k]), acat);
           run = 0;
         }
         if (run > 0) {
-          huff(0x00, comp == 0 ? kLumAC : kChromAC, nullptr, 0, code, len);
+          huff(0x00, comp == 0 ? kLumAC : kChromAC, comp == 0 ? kLumACVal : kChromACVal, 162, code, len);
           bw.put(code, len);
         }
       }
