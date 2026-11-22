@@ -1234,6 +1234,7 @@ void Game::boot(const QueryParams& q) {
   a.tiles->onTile([this](LoadedTile& t, bool l) { onTile(t, l); });
   a.scene.addRef(&car.root);
   a.scene.addRef(&actors.group);
+  a.scene.addRef(&railActors.group);
   a.scene.addRef(&signalHeads->group);
   // trams and trains on the tracks around the map (0.7.0)
   rail = std::make_unique<RailTraffic>(worldJson_.rails);
@@ -1561,6 +1562,7 @@ void Game::frame(double now) {
   signs->flush();
   signalHeads->update(*signals);
   actors.update(traffic->cars, traffic->peds, time_);
+  if (rail) railActors.update(rail->vehicles);
 
   if (state == GameState::Map) {
     // the map covers the window: nothing of the world needs drawing

@@ -33,6 +33,7 @@
 #include "render/car.h"
 #include "render/props.h"
 #include "render/signs.h"
+#include "render/trams.h"
 #include "render/tiles.h"
 #include "render/panorama.h"
 #include "sim/collision.h"
@@ -102,6 +103,8 @@ class Game {
   bool isTruck = false;
   /** the practice yard of the truck lessons, and the task that is being done on it */
   std::unique_ptr<YardScene> yardScene;
+  /** the trams and trains as seen from the road (0.7.0) */
+  RailActors railActors;
   std::unique_ptr<SignalRenderer> signalHeads;
   SceneryCollider collider;
   GameAudio audio;
