@@ -361,9 +361,8 @@ void Game::updateTask(double dt) {
   // list does not give the order away
   std::vector<std::string> choices;
   if (st.state == "run" && run.coupling.onFoot(run.state)) choices = run.coupling.choices();
-  static Rng choiceRng{0xced};
   for (const std::string& id : choices)
-    if (!task.order.count(id)) task.order[id] = choiceRng();
+    if (!task.order.count(id)) task.order[id] = (*task.rng)();
   std::stable_sort(choices.begin(), choices.end(), [&task](const std::string& a, const std::string& b) {
     return task.order[a] < task.order[b];
   });

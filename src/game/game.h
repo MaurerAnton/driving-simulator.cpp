@@ -149,8 +149,10 @@ class Game {
     YardTask run;
     bool laid = false;
     std::map<std::string, double> order;   // the choices are shown in a new order each time
+    /** the draws behind those orders: one stream per task run (as Math.random's is in the original) */
+    std::unique_ptr<class Rng> rng;
     bool second = false;
-    Task(const std::string& id) : run(id) {}
+    Task(const std::string& id) : run(id), rng(std::make_unique<Rng>(0xce00u + static_cast<uint32_t>(id.empty() ? 0 : id[0] * 31 + id.size()))) {}
   };
   std::unique_ptr<Task> task_;
   std::vector<std::string> tasksLeft_;
