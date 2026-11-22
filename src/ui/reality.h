@@ -83,6 +83,12 @@ class RealityPanel {
   /** Take over the player's own pictures (nothing is uploaded). */
   void importFiles(const std::vector<std::pair<std::string, std::vector<uint8_t>>>& files);
 
+  /**
+   * Called while the panel is open: the copy button says the plain word again
+   * a moment after it was pressed (the original's setTimeout).
+   */
+  void tick();
+
   /** For the automated check of the page: what is showing right now. */
   std::string debugInfo() const;
 
@@ -101,6 +107,10 @@ class RealityPanel {
   double radius_ = NEAR_RADIUS;
   std::string note_;
   double openedAt_ = 0;
+  /** the copy button said what happened (and says the plain word again a moment later) */
+  bool copied_ = false;
+  double copiedAt_ = 0;
+  HudNode* copyBtn_ = nullptr;
   int frames_ = 0;
   PanoramaView pano_;
 

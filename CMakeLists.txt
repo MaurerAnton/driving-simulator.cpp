@@ -36,22 +36,20 @@ if(FAHRSIM_WASM)
   target_compile_options(fahrsim PRIVATE -O2)
   # zlib in Emscripten's cache/sysroot (the headers the compiler itself uses,
   # not the source tree); libz links by name, emcc adds its library path.
-  execute_process(COMMAND emcc --show-ports
-                  OUTPUT_VARIABLE _em_ports OUTPUT_STRIP_TRAILING_WHITESPACE
-                  ERROR_QUIET)
+  # Emscripten keeps its headers in a cache sysroot; ask the compiler where.
   execute_process(COMMAND em++ -print-search-dirs
                   OUTPUT_VARIABLE _em_dirs OUTPUT_STRIP_TRAILING_WHITESPACE
                   ERROR_QUIET)
-  string(REPLACE "\n" ";" _em_dirs_list "${_em_dirs}")
-  set(_em_sysroot "")
-  foreach(_line IN LISTS _em_dirs_list)
-    if(_line MATCHES "^install: =(.*)")
-      set(_em_sysroot "${CMAKE_MATCH_1}")
-    endif()
-  endforeach()
+  string(REGEX MATCH "install: =[^\n]*" _em_install "${_em_dirs}")
+  string(REGEX REPLACE "^install: =" "" _em_sysroot "${_em_install}")
+  string(STRIP "${_em_sysroot}" _em_sysroot)
   if(NOT _em_sysroot AND DEFINED ENV{EMSDK})
-    set(_em_sysroot "$ENV{EMSDK}/upstream/emscripten/cache/sysroot")
+    file(GLOB _em_try "$ENV{EMSDK}/upstream/emscripten/cache/sysroot/include/zlib.h")
+    if(_em_try)
+      get_filename_component(_em_sysroot "$ENV{EMSDK}/upstream/emscripten/cache/sysroot" DIRECTORY)
+    endif()
   endif()
+  message(STATUS "Emscripten sysroot: '${_em_sysroot}'")
   if(_em_sysroot)
     target_include_directories(fahrsim PRIVATE "${_em_sysroot}/include")
   endif()

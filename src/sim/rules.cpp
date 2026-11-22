@@ -617,7 +617,7 @@ void RuleMonitor::checkCrossings(const Edge& edge, double s, int dir, const Play
     if (c.e != edge.id) continue;
     if (c.k != XING_ZEBRA && c.k != XING_SIGNAL) continue;
     // signed distance of the front bumper to the near edge of the crossing
-    double d = (c.s - s) * dir - c.w / 2 - p.length / 2;
+    double d = (c.s - s) * dir - c.w / 2 - (p.front >= 0 ? p.front : p.length / 2);
     auto it = crossingState_.find(&c);
     double prev = it == crossingState_.end() ? -1e300 : it->second;
     crossingState_[&c] = d;

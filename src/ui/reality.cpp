@@ -9,6 +9,8 @@
  */
 #include "ui/reality.h"
 
+#include <chrono>
+
 #include "i18n/index.h"
 
 #include <algorithm>
@@ -79,12 +81,27 @@ void RealityPanel::build() {
   }
   auto coordRow = node("div", "rv-coords");
   coordRow->add(node("code", "", coordsText));
-  coordRow->add(node("button", "btn ghost", t("realityCopy")));
+  auto copy = node("button", "btn ghost", t("realityCopy"));
+  copyBtn_ = copy.get();
+  copy->click = [this]() {
+    // (the clipboard needs a secure page and the player's click; the button
+    // says what happened either way – and the plain word again a moment later)
+    copied_ = true;
+    copiedAt_ = std::chrono::duration<double, std::milli>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count();
+    if (copyBtn_) copyBtn_->text = t("realityCopied");
+  };
+  coordRow->add(std::move(copy));
   side->add(std::move(coordRow));
 
   auto links = node("div", "rv-links");
-  for (const auto& l : placeLinks(place_.lat, place_.lon, place_.heading))
-    links->add(node("a", "", l.label + " -> " + l.url));
+  for (const auto& l : placeLinks(place_.lat, place_.lon, place_.heading)) {
+    auto a = node("a", "", l.label + " \xe2\x86\x97");
+    a->html = "<a href=\"" + l.url + "\" target=\"_blank\" rel=\"noopener noreferrer\">" +
+              l.label + " \xe2\x86\x97</a>";
+    links->add(std::move(a));
+  }
   side->add(std::move(links));
   auto aerialRow = node("div", "buttons");
   auto aerial = node("button", "btn ghost", t("realityAerial"));
@@ -132,6 +149,16 @@ const std::vector<StreetImage>& RealityPanel::all() const {
     if (it != found_.end()) out.insert(out.end(), it->second.begin(), it->second.end());
   }
   return out;
+}
+
+void RealityPanel::tick() {
+  if (!copied_ || !copyBtn_) return;
+  double now = std::chrono::duration<double, std::milli>(
+                   std::chrono::system_clock::now().time_since_epoch())
+                   .count();
+  if (now - copiedAt_ < 1600) return;
+  copied_ = false;
+  copyBtn_->text = t("realityCopy");
 }
 
 void RealityPanel::open(const RealityPlace& place) {
