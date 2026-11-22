@@ -178,6 +178,7 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   }
   if (spawn >= 0 && spawn < static_cast<int>(spawns.size()))
     selSpawn->text = std::to_string(spawn);
+  // (the platform shows the option the select's text names)
   rowSpawn->add(node("label", "", t("startPoint")));
   rowSpawn->add(std::move(selSpawn));
   // … or anywhere: street and house number
@@ -207,11 +208,15 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   selVeh->add(node("option", "", t("vehCar")));
   selVeh->add(node("option", "", t("vehTruck")));
   selVeh->text = truck ? "1" : "0";
-  selVeh->click = [this, spawns]() {
-    settings_.vehicle = settings_.vehicle == VehicleKind::Truck ? VehicleKind::Car : VehicleKind::Truck;
-    saveSettings(settings_);
-    showMenu(spawns, 0);
-  };
+  for (int i = 0; i < 2; i++) {
+    HudNode* op = selVeh->children[static_cast<size_t>(i)].get();
+    op->click = [this, spawns, selVehPtr = selVeh.get(), i]() {
+      settings_.vehicle = i == 1 ? VehicleKind::Truck : VehicleKind::Car;
+      saveSettings(settings_);
+      selVehPtr->text = std::to_string(i);
+      showMenu(spawns, spawn_chose_);
+    };
+  }
   rowVeh->add(node("label", "", t("vehicle")));
   rowVeh->add(std::move(selVeh));
   auto rowTr = node("div", "row");
@@ -224,6 +229,19 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   selTr->add(node("option", "", t("trAssist")));
   selTr->add(node("option", "", t("trManual")));
   selTr->add(node("option", "", t("trAutomatic")));
+  selTr->text = settings_.transmission == Transmission::Assist
+                    ? "0"
+                    : (settings_.transmission == Transmission::Manual ? "1" : "2");
+  for (int i = 0; i < 3; i++) {
+    HudNode* op = selTr->children[static_cast<size_t>(i)].get();
+    op->click = [this, spawns, selTrPtr = selTr.get(), i]() {
+      selTrPtr->text = std::to_string(i);
+      settings_.transmission = i == 0 ? Transmission::Assist
+                                      : (i == 1 ? Transmission::Manual : Transmission::Automatic);
+      saveSettings(settings_);
+      showMenu(spawns, spawn_chose_);
+    };
+  }
   rowTr->add(node("label", "", t("transmission")));
   rowTr->add(std::move(selTr));
   opts->add(std::move(rowSpawn));
@@ -237,11 +255,11 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   auto cards = node("div", "cards");
   auto card = [&](const std::string& title, const std::string& desc, const std::string& mode) {
     auto c = button("card", "<b>" + title + "</b><small>" + desc + "</small>",
-                    [this, mode, spawn]() {
+                    [this, mode]() {
                       if (!onStart) return;
                       StartRequest r;
                       r.mode = mode;
-                      r.spawn = spawn;
+                      r.spawn = spawn_chose_;
                       r.address = pickedAddress_;
                       r.hasAddress = hasPickedAddress_;
                       onStart(r);
