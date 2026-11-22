@@ -165,6 +165,8 @@ class Input {
    */
   Controls update(double dt, double speed, double selfAlign);
 
+  /** how far the camera may be pulled back (the game sets it per vehicle) */
+  double zoomMax = 18;
  private:
   Platform& platform_;
   Settings settings_;
@@ -192,7 +194,6 @@ class Input {
   double wheelbase = 2.63;
   double maxWheelAngle = 0.576;
   /** how far the outside camera can be moved away (m) – more for a truck with a trailer */
-  double zoomMax = 18;
 
   void fire(Action a);
   /** Looking around with the mouse or a finger; the stops depend on the mode. */

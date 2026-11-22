@@ -49,6 +49,13 @@ class SceneryCollider {
   void remove(const std::string& key);
 
   /**
+   * The shape of the vehicle the scenery is checked against: circle centres
+   * along its axis (model frame, metres from the wheelbase centre) and their
+   * radius.  A car carries three, a truck with its trailer four (0.7.0).
+   */
+  void setShape(const double* offsets, int count, double radius);
+
+  /**
    * Push the car out of anything it penetrates and take the velocity into
    * the obstacle away.  Returns the largest impact speed (m/s) of this call.
    */
@@ -59,8 +66,9 @@ class SceneryCollider {
   std::map<int64_t, std::vector<Prim>> grid_;
   std::map<std::string, std::vector<Prim>> byTile_;
   /** circle centres along the car axis (model frame, metres from the wheelbase centre; - = front) */
-  static constexpr double offsets_[3] = {-1.28, -0.05, 1.18};
-  static constexpr double radius_ = 0.93;
+  double offsets_[4] = {-1.28, -0.05, 1.18, 0};
+  int circleCount_ = 3;
+  double radius_ = 0.93;
 
   static int64_t key(int ix, int iz);
   void insert(std::vector<Prim>& tile, const Prim& p);

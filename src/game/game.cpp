@@ -10,6 +10,9 @@
 #include "game/game.h"
 
 #include "geo/utm.h"
+#include "render/truck.h"
+#include "sim/vehicle/spec.h"
+#include "render/yard.h"
 
 #include <algorithm>
 #include <chrono>
@@ -20,6 +23,11 @@ namespace fs {
 
 namespace {
 constexpr double PHYS_DT = 1.0 / 240.0;
+
+/** the outlines of the vehicles for collisions with the scenery: circles along the axis
+ *  (m from the model origin; - = front) */
+const double CAR_CIRCLES[3] = {-1.28, -0.05, 1.18};
+const double TRUCK_CIRCLES[4] = {-2.5, -0.6, 1.3, 3.2};
 }  // namespace
 
 /**
@@ -181,26 +189,202 @@ void Game::applySettings() {
   const Settings& s = settings;
   App& a = app;
   Quality q = s.quality;
-  a.pixelRatioCap = q == Quality::Low ? 1 : (q == Quality::Medium ? 1.5 : 2);
-  a.tiles->viewRadius = q == Quality::Low ? 850 : (q == Quality::Medium ? 1250 : 1700);
+  // Low: for weak devices – a softer picture (70 % of the pixels per side),
+  // no shadows, a short view.  Medium: sharp, shadows around the car.
+  // High: every pixel of the screen, the longest view, all trees.
+  a.pixelRatioCap = q == Quality::Low ? 1 : (q == Quality::Medium ? 1.5 : 3);
+  a.tiles->viewRadius = q == Quality::Low ? 700 : (q == Quality::Medium ? 1250 : 2000);
   a.sky.fog->near = a.tiles->viewRadius * 0.3;
   a.sky.fog->far = a.tiles->viewRadius * 1.05;
-  props.density = q == Quality::Low ? 0.45 : (q == Quality::Medium ? 0.8 : 1);
+  props.density = q == Quality::Low ? 0.35 : (q == Quality::Medium ? 0.8 : 1);
   a.resize(0, 0);
   audio.setVolume(s.volume);
   if (traffic) traffic->targetCount = static_cast<int>(std::lround(s.traffic * 34));
+  // the cabin seen through from the driver's seat (0.7.0)
+  (void)s.cabinOpacity;
+}
+
+// ------------------------------------------------- class CE: truck and trailer
+
+/** The vehicle the player sits in: the car or the truck (0.7.0). */
+Group& Game::modelRoot() { return isTruck && truck ? truck->root : car.root; }
+
+bool Game::modelVisible() const {
+  if (isTruck && truck) return truck->root.visible;
+  return car.root.visible;
+}
+
+void Game::showModel(bool on) {
+  car.root.visible = on && !isTruck;
+  if (truck) {
+    truck->root.visible = on && isTruck;
+    truck->trailer.visible = on && isTruck;
+  }
+}
+
+/** A place on a road wide enough to start with a combination of 16 m, near a start point. */
+SpawnJson Game::truckSpot(const SpawnJson& nearSpot) {
+  if (!mainLanes_) mainLanes_ = std::make_unique<std::set<int>>(mainNetwork(*app.world, *lanes));
+  auto wide = [](const Edge& e) {
+    return (e.cls == PRIMARY || e.cls == SECONDARY || e.cls == TERTIARY) &&
+           e.len - e.cutA - e.cutB > 60;
+  };
+  SpawnJson spot = findRoadSpot(*app.world, *lanes, nearSpot.x, nearSpot.z, "", 900, mainLanes_.get(),
+                                wide, 20);
+  if (spot.name.empty() && spot.kind.empty() && spot.x == 0 && spot.z == 0) return nearSpot;
+  spot.name = nearSpot.name;
+  return spot;
+}
+
+/** The next task on the practice yard: lay it out and stand the combination at its start. */
+void Game::nextTask() {
+  if (tasksLeft_.empty()) return;
+  const std::string id = tasksLeft_.front();
+  tasksLeft_.erase(tasksLeft_.begin());
+  task_ = std::make_unique<Task>(id);
+  Pose start = yardFrame_.poseToWorld(task_->run.layout.start);
+  spawn_.name.clear();
+  spawn_.x = start.x;
+  spawn_.z = start.z;
+  spawn_.yaw = start.yaw;
+  spawn_.kind = "street";
+  hasSpawn_ = true;
+  rules->yard = true;
+  // the yard is asphalt while the lesson runs, whatever grows on the field
+  const TaskLayout& layout = task_->run.layout;
+  ground->paved = [this, layout](double x, double z) {
+    auto uw = yardFrame_.toLocal(x, z);
+    return offArea(layout, uw[0], uw[1], 1.2) == 0;
+  };
+  taskSub_.clear();
+  lessonLine_.clear();
+  // reversing is watched from high above, coupling from close by
+  input->c.lookZoom = id == "couple" ? 17 : 34;
+}
+
+void Game::endTasks() {
+  if (task_) input->c.lookZoom = 21;
+  task_.reset();
+  tasksLeft_.clear();
+  if (yardScene) yardScene->hide();
+  if (ground) ground->paved = nullptr;
+  if (rules) rules->yard = false;
+  if (hud) hud->setChoices({}, [](const std::string&) {});
+}
+
+/** Put the vehicle somewhere else in the middle of a lesson (the next task, the road after the yard). */
+void Game::placeAgain() {
+  traffic->clear();
+  vehicle->vel[0] = vehicle->vel[1] = vehicle->vel[2] = 0;
+  vehicle->angVel[0] = vehicle->angVel[1] = vehicle->angVel[2] = 0;
+  input->c.handbrake = 1;
+  if (path_) path_->breakLine();
+  keepClock_ = true;
+  state = GameState::Placing;
+  showModel(false);
+  hud->showLoading(t("loadingTiles"));
+}
+
+void Game::taskDone(bool ok) {
+  audio.click(ClickKind::Chime);
+  hud->setChoices({}, [](const std::string&) {});
+  if (!ok) {
+    taskFailed_ = true;
+    finish();
+    return;
+  }
+  if (!tasksLeft_.empty()) {
+    nextTask();
+    placeAgain();
+    return;
+  }
+  endTasks();
+  if (hasLesson_ && !lesson_.targets.empty() && hasRoadSpawn_) {
+    // the tasks are done: now the drive in traffic
+    spawn_ = truckSpot(roadSpawn_);
+    placeAgain();
+    return;
+  }
+  finish();
+}
+
+/** Judge the task on the yard and say what is to be done. */
+void Game::updateTask(double dt) {
+  if (!task_ || !trailer) return;
+  Task& task = *task_;
+  YardTask& run = task.run;
+  const std::string& lang = settings.lang;
+  bool handbrake = input->c.handbrake > 0.5;
+  // (ground that was not loaded when the yard was laid out: once more, now and then)
+  if (!task.laid && std::fabs(time_ - laidTry_) > 0.7) {
+    laidTry_ = time_;
+    task.laid = yardScene && yardScene->show(
+                                 yardFrame_, run.layout,
+                                 [this](double x, double z) { return app.tiles->heightAt(x, z); });
+  }
+  if (run.id != "couple") {
+    ManoeuvreStatus st = run.manoeuvre(dt, yardFrame_, *vehicle, *trailer, handbrake);
+    // a basic manoeuvre that went wrong may be repeated once – as in the test
+    for (const std::string& f : st.faults)
+      rules->note(f, (f == "ceLine" || !task.second) ? Severity::Major : Severity::Fail);
+    lessonLine_ = fs::tr("ce.do." + run.id, lang);
+    taskSub_ = fs::tr("ce.corrections", lang,
+                      {{"n", std::to_string(st.corrections)},
+                       {"max", std::to_string(MAX_CORRECTIONS)}});
+    if (!std::isnan(st.gap) && st.gap < 15)
+      taskSub_ += " · " +
+                  fs::tr("ce.gap", lang,
+                         {{"d", formatUnit(std::max(0.0, st.gap), "meter", lang, 1)}});
+    if (st.state == "failed" && !task.second) {
+      tasksLeft_.insert(tasksLeft_.begin(), run.id);
+      nextTask();
+      if (task_) task_->second = true;
+      placeAgain();
+      hud->message(fs::tr("ce.again", lang));
+    } else if (st.state != "run") {
+      taskDone(st.state == "done");
+    }
+    return;
+  }
+  CouplingStatus st = run.couple(dt, *vehicle, *trailer, handbrake);
+  if (run.bumped) rules->note("ceFast", Severity::Major);
+  for (const std::string& f : st.faults) rules->note(f, Severity::Major);
+  if (st.couple) audio.click(ClickKind::Chime);
+  // what can be done on foot now – in an order of its own each time, so that the
+  // list does not give the order away
+  std::vector<std::string> choices;
+  if (st.state == "run" && run.coupling.onFoot(run.state)) choices = run.coupling.choices();
+  static Rng choiceRng{0xced};
+  for (const std::string& id : choices)
+    if (!task.order.count(id)) task.order[id] = choiceRng();
+  std::stable_sort(choices.begin(), choices.end(), [&task](const std::string& a, const std::string& b) {
+    return task.order[a] < task.order[b];
+  });
+  std::vector<std::pair<std::string, std::string>> items;
+  for (const std::string& id : choices) items.push_back({id, fs::tr("ce.step." + id, lang)});
+  hud->setChoices(items, [this](const std::string& id) {
+    if (!task_ || !trailer) return;
+    CouplingProcedure& proc = task_->run.coupling;
+    std::string fault = proc.act(id, task_->run.state);
+    if (!fault.empty()) rules->note(fault, Severity::Major, {}, 0.5);
+    else audio.click(ClickKind::Chime);
+  });
+  lessonLine_ = !st.todo.empty() ? fs::tr("ce.do." + st.todo, lang)
+               : !choices.empty() ? fs::tr("ce.onFoot", lang)
+                                   : fs::tr("ce.do.uPark", lang);
+  taskSub_ = std::to_string(task.run.coupling.done.size()) + " / " +
+             std::to_string(COUPLING_STEPS.size());
+  if (st.state == "done") taskDone(true);
 }
 
 void Game::toMenu() {
   state = GameState::Menu;
+  endTasks();
+  showModel(false);
   if (input) input->enabled = false;
   hud->setHudVisible(false);
   audio.suspend();
-  int last = 0;
-  if (hasSpawn_)
-    for (size_t i = 0; i < worldJson_.spawns.size(); i++)
-      if (worldJson_.spawns[i].name == spawn_.name) last = static_cast<int>(i);
-  hud->showMenu(worldJson_.spawns, last);
+  hud->showMenu(worldJson_.spawns, 0);
   if (!hasSpawn_ && !worldJson_.spawns.empty()) {
     // show the town behind the menu
     const SpawnJson& sp = worldJson_.spawns[0];
@@ -240,16 +424,48 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro,
   hud->canTeleport = !hasLesson_;
   // a free drive (and every mode but a lesson) can be ended by the driver
   hud->canFinish = !hasLesson_;
+  keepClock_ = false;
+  path_->breakLine();
   // the camera a drive starts with: behind the car, or at the driver's eyes
   cameraMode = settings.view == View::Cockpit ? CameraMode::Cockpit : CameraMode::Chase;
   input->resetLook(cameraMode == CameraMode::Chase);
-  const VehicleSpec& spec = settings.transmission == Transmission::Automatic
+  // the car, or the truck with its trailer (class CE)
+  isTruck = hasLesson_ && !lesson_.vehicle.empty() ? lesson_.vehicle == "truck"
+                                                   : settings.vehicle == VehicleKind::Truck;
+  const VehicleSpec& base = settings.transmission == Transmission::Automatic
                                 ? compactCarAutomatic()
                                 : (settings.transmission == Transmission::Assist
                                        ? compactCarAutoclutch()
                                        : compactCar());
+  const VehicleSpec& spec = isTruck ? TRUCK : withPower(base, settings.power);
   vehicle = std::make_unique<Vehicle>(spec, *ground);
+  input->setSteering(spec.wheelBase, spec.maxWheelAngle);
   input->setAutomatic(spec.transmission == "automatic");
+  if (isTruck && !truck) {
+    truck = std::make_unique<PlayerTruck>();
+    app.scene.addRef(&truck->root);
+    app.scene.addRef(&truck->trailer);
+    truck->setCabinOpacity(settings.cabinOpacity);
+  }
+  trailer = isTruck ? std::make_unique<Trailer>(TANDEM_TRAILER, *ground) : nullptr;
+  hud->gearboxAutomatic = isTruck;
+  endTasks();
+  // the camera stands further back for 16 m of vehicle
+  input->c.lookZoom = isTruck ? 21 : 7;
+  input->zoomMax = isTruck ? 45 : 18;
+  rules->truck = isTruck;
+  // the scenery collision follows the vehicle: three circles for the car, four for the truck
+  collider.setShape(isTruck ? TRUCK_CIRCLES : CAR_CIRCLES, isTruck ? 4 : 3,
+                    isTruck ? 1.25 : 0.93);
+  taskFailed_ = false;
+  roadSpawn_ = spawn_;
+  hasRoadSpawn_ = hasSpawn_;
+  tasksLeft_.clear();
+  if (isTruck && hasYard_ && hasLesson_ && !lesson_.tasks.empty())
+    tasksLeft_ = lesson_.tasks;
+  taskCount_ = static_cast<int>(tasksLeft_.size());
+  if (!tasksLeft_.empty()) nextTask();
+  else if (isTruck && !address) spawn_ = truckSpot(spawn_);
   Controls& c = input->c;
   c.handbrake = 1;
   c.ignition = true;
@@ -270,7 +486,7 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro,
   failT_ = -1;
   homeEdge_ = nullptr;
   state = GameState::Placing;
-  car.root.visible = false;
+  showModel(false);
   hud->showLoading(t("loadingTiles"));
 }
 
@@ -279,11 +495,21 @@ void Game::tryPlace() {
   double ty = app.tiles->heightAt(sp.x, sp.z);
   if (std::isnan(ty) || !app.tiles->settled()) return;
   double y = world_->surfaceAt(sp.x, sp.z, ty + 3, hit_) ? hit_.y : ty;
+  // the practice yard is laid out over the field as soon as the ground under it is there
+  if (task_ && !task_->laid && yardScene)
+    task_->laid = yardScene->show(
+        yardFrame_, task_->run.layout,
+        [this](double x, double z) { return app.tiles->heightAt(x, z); });
   vehicle->teleport(sp.x, y + 0.02, sp.z, sp.yaw);
+  if (trailer) trailer->coupleBehind(*vehicle);
   lastGood_ = {sp.x, y, sp.z, sp.yaw, 0};
-  car.root.visible = true;
-  startOdo_ = vehicle->odometer;
-  startTime_ = time_;
+  camSnap_ = true;
+  showModel(true);
+  if (!keepClock_) {
+    startOdo_ = vehicle->odometer;
+    startTime_ = time_;
+  }
+  keepClock_ = false;
   resume();
 }
 
@@ -300,19 +526,22 @@ void Game::pause() {
   state = GameState::Pause;
   input->enabled = false;
   audio.suspend();
+  if (path_) path_->save();
   hud->showPause();
 }
 
 void Game::finish() {
   bool exam = hasLesson_ && lesson_.kind == "exam";
-  bool failed = rules->failed() || rules->points() >= 10;
+  bool failed = rules->failed() || rules->points() >= 10 || taskFailed_;
+  bool judged = taskCount_ > 0;
+  endTasks();
   state = GameState::Result;
   input->enabled = false;
   audio.suspend();
   hud->setHudVisible(false);
   ResultSummary r;
   r.title = hasLesson_ ? lessonTitle(lesson_.id, settings.lang) : t("free");
-  r.exam = exam;
+  r.exam = exam || judged;
   r.passed = !failed;
   r.log = rules->log;
   r.points = rules->points();
@@ -349,12 +578,25 @@ void Game::openBigMap() {
   // as soon as src/ui/bigmap is ported)
 }
 
+void Game::closeBigMap() {
+  if (state != GameState::Map) return;
+  // (with the big map not ported yet there is nothing to close; the state
+  // never lingers in Map)
+  resume();
+}
+
 void Game::onAction(Action a) {
   if (a == Action::Pause) {
     if (state == GameState::Drive) pause();
     else if (state == GameState::Pause) resume();
+  } else if (a == Action::Pause && state == GameState::Map) {
+    closeBigMap();
   } else if (a == Action::View && state == GameState::Drive) {
     cameraMode = cameraMode == CameraMode::Cockpit ? CameraMode::Chase : CameraMode::Cockpit;
+    input->resetLook(cameraMode == CameraMode::Chase);
+    // the next drive begins with the camera the player chose
+    settings.view = cameraMode == CameraMode::Cockpit ? View::Cockpit : View::Chase;
+    saveSettings(settings);
   } else if (a == Action::Reset && state == GameState::Drive) {
     resetToRoad();
   } else if (a == Action::Help) {
@@ -363,14 +605,16 @@ void Game::onAction(Action a) {
       input->enabled = false;
       hud->showControls([this]() { resume(); });
     }
-  } else if (a == Action::Map && state == GameState::Drive && !hasLesson_) {
-    finish();
+  } else if (a == Action::Map) {
+    if (state == GameState::Map) closeBigMap();
+    else openBigMap();
   }
 }
 
 void Game::resetToRoad() {
   const GoodSpot& g = lastGood_;
   vehicle->teleport(g.x, g.y + 0.05, g.z, g.yaw);
+  if (trailer && trailer->coupled) trailer->coupleBehind(*vehicle);
   input->c.handbrake = 1;
 }
 
@@ -402,6 +646,16 @@ void Game::stepDrive(double dt) {
   d.gear = c.gear;
   d.ignition = c.ignition;
   d.starter = c.starter;
+  // Speed limiter: a key or a pedal on the screen is all or nothing, which makes it hard to hold
+  // 30 or 50 km/h.  With the limiter the throttle eases off just below the current limit – the
+  // driver still has to brake when the limit drops.
+  const int lim = rules ? rules->context.limit : -1;
+  if (settings.limiter && lim > 0 && c.gear != -1 &&
+      (c.device == "keyboard" || c.device == "touch"))
+    d.throttle = std::min(d.throttle, std::max(0.0, (lim - 0.5 - v.speed * 3.6) / 4));
+  // a truck is governed at 90 km/h
+  if (isTruck && v.speed * 3.6 > 85)
+    d.throttle = std::min(d.throttle, std::max(0.0, (89.5 - v.speed * 3.6) / 4));
   if (autoDrive_ > 0) {
     // test hook: drive off by itself
     d.ignition = true;
@@ -416,12 +670,14 @@ void Game::stepDrive(double dt) {
   bool stalled = false, grind = false;
   while (acc_ >= PHYS_DT) {
     v.step(PHYS_DT, d);
+    if (trailer) trailer->step(PHYS_DT, v, d);
     acc_ -= PHYS_DT;
     if (v.stalledEvent) stalled = true;
     if (v.gearGrind) grind = true;
     double hit = collider.resolve(v);
     if (hit > impact_) impact_ = hit;
   }
+  if (path_) path_->add(v.pos[0], v.pos[2]);
   // a refused gear change: crunch, then the lever springs back
   if (grind) {
     if (grindT_ <= 0) audio.click(ClickKind::Grind);
@@ -437,14 +693,31 @@ void Game::stepDrive(double dt) {
   }
 
   v.getModelPosition(mpos_);
+  // (the traffic wants the middle of the vehicle's length; a truck is measured
+  // from the middle of its wheelbase)
+  double mid = isTruck ? (TRUCK_OUTLINE.rear - TRUCK_OUTLINE.front) / 2 : 0;
   PlayerState player;
-  player.x = mpos_[0];
+  player.x = mpos_[0] + std::sin(v.yaw) * mid;
   player.y = mpos_[1];
-  player.z = mpos_[2];
+  player.z = mpos_[2] + std::cos(v.yaw) * mid;
   player.yaw = v.yaw;
   player.speed = v.speed;
-  player.length = 4.28;
-  player.width = 1.79;
+  player.length = v.spec.length > 0 ? v.spec.length : 4.28;
+  player.width = v.spec.width > 0 ? v.spec.width : 1.79;
+  // the trailer is in the way of the traffic like the truck itself
+  traffic->obstacles.clear();
+  if (trailer) {
+    const double off = (TRAILER_OUTLINE.front - TRAILER_OUTLINE.rear) / 2;
+    PlayerState t;
+    t.x = trailer->x - std::sin(trailer->yaw) * off;
+    t.y = trailer->y;
+    t.z = trailer->z - std::cos(trailer->yaw) * off;
+    t.yaw = trailer->yaw;
+    t.speed = trailer->coupled ? trailer->speed : 0;
+    t.length = TRAILER_OUTLINE.front + TRAILER_OUTLINE.rear;
+    t.width = TRAILER_OUTLINE.hw * 2;
+    traffic->obstacles.push_back(t);
+  }
   signals->update(dt);
   std::vector<TrafficEvent> events;
   traffic->update(dt, player, events);
@@ -494,10 +767,11 @@ void Game::stepDrive(double dt) {
   snap.handbrake = c.handbrake;
   snap.stalled = stalled;
   snap.hitScenery = impact;
-  snap.length = 4.28;
+  snap.length = v.spec.length > 0 ? v.spec.length : 4.28;
   rules->update(dt, snap, events);
   rememberGoodSpot(player);
-  updateLesson(dt, player);
+  if (task_) updateTask(dt);
+  else updateLesson(dt, player);
   if (failT_ > 0 && time_ > failT_) finish();
 }
 
@@ -603,6 +877,11 @@ void Game::boot(const QueryParams& q) {
   a.scene.addRef(&car.root);
   a.scene.addRef(&actors.group);
   a.scene.addRef(&signalHeads->group);
+  // the practice yard of the truck lessons, laid over the map's open field
+  yardScene = std::make_unique<YardScene>();
+  a.scene.addRef(&yardScene->group);
+  hasYard_ = worldJson_.hasYard;
+  if (hasYard_) yardFrame_ = YardFrame(worldJson_.yard);
   car.root.visible = false;
 
   hud = std::make_unique<Hud>(host_, settings, *a.world);
@@ -631,6 +910,20 @@ void Game::boot(const QueryParams& q) {
   hud->attachInput(*input);
   rules->onViolation = [this](const Violation& v) {
     hud->toast(v);
+    if (faultLog_) {
+      FaultEntry f;
+      f.t = std::chrono::duration<double, std::milli>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count();
+      f.id = v.id;
+      f.severity = v.severity;
+      f.data = v.data;
+      f.street = rules->context.roadName;
+      f.mode = hasLesson_ ? lesson_.id : "free";
+      f.x = static_cast<int>(std::lround(v.x));
+      f.z = static_cast<int>(std::lround(v.z));
+      faultLog_->add(f);
+    }
     audio.click(ClickKind::Chime);
     if (v.severity == Severity::Fail && hasLesson_ && lesson_.kind == "exam" && failT_ < 0)
       failT_ = time_ + 2.5;
@@ -645,6 +938,10 @@ void Game::boot(const QueryParams& q) {
     settings.mirrors = qm == "off" ? Mirrors::Off
                                    : (qm == "alternate" ? Mirrors::Alternate : Mirrors::Full);
   if (!q.get("traffic").empty()) settings.traffic = std::atof(q.get("traffic").c_str());
+  // ?vehicle=truck|car chooses the vehicle for this visit
+  const std::string qv = q.get("vehicle");
+  if (qv == "truck") settings.vehicle = VehicleKind::Truck;
+  else if (qv == "car") settings.vehicle = VehicleKind::Car;
   // ?reality=1|test opens the reality view once the drive has started ("test":
   // with a drawn panorama), ?rv=panoramax,kartaview switches services on
   autoReality_ = q.get("reality");
@@ -666,6 +963,8 @@ void Game::boot(const QueryParams& q) {
   if (view == "chase") cameraMode = CameraMode::Chase;
   else if (view == "cockpit") cameraMode = CameraMode::Cockpit;
   else if (view == "free") cameraMode = CameraMode::Free;
+  else cameraMode = settings.view == View::Cockpit ? CameraMode::Cockpit : CameraMode::Chase;
+  input->resetLook(cameraMode == CameraMode::Chase);
   autoDrive_ = std::atof(q.get("auto").c_str());
 
   std::string start = q.get("start");
@@ -691,7 +990,10 @@ void Game::boot(const QueryParams& q) {
 }
 
 void Game::frame(double now) {
-  double dt = std::min(0.1, (now - last_) / 1000.0);
+  // (never backwards: the time stamp of a frame that was held up by a long task
+  // can lie before the moment the clock was last read, and a clock running
+  // backwards freezes everything timed)
+  double dt = std::min(0.1, std::max(0.0, (now - last_) / 1000.0));
   last_ = now;
   time_ += dt;
   frames_++;
@@ -731,13 +1033,17 @@ void Game::frame(double now) {
     }
   }
 
-  bool haveCar = vehicle != nullptr && car.root.visible;
+  bool haveCar = vehicle != nullptr && modelVisible();
   if (haveCar) {
     Vehicle& v = *vehicle;
     v.getModelPosition(mpos_);
-    car.root.position.set(mpos_[0], mpos_[1], mpos_[2]);
-    car.root.quaternion.set(v.quat[0], v.quat[1], v.quat[2], v.quat[3]);
-    car.root.updateMatrixWorld(true);
+    Object3D& model = modelRoot();
+    model.position.set(mpos_[0], mpos_[1], mpos_[2]);
+    model.quaternion.set(v.quat[0], v.quat[1], v.quat[2], v.quat[3]);
+    model.updateMatrixWorld(true);
+    if (truck && trailer && isTruck)
+      truck->setTrailer(trailer->x, trailer->y, trailer->z, trailer->yaw, trailer->pitch,
+                        trailer->wheelSpin, trailer->coupled);
     tiles->update(mpos_[0], mpos_[2]);
     props.update(mpos_[0], mpos_[2]);
     updateVisuals(dt);
@@ -769,7 +1075,7 @@ void Game::frame(double now) {
       (void)far;
       (void)mirrorTurn_;
     }
-    a.render(car.root.position);
+    a.render(modelRoot().position);
   } else {
     a.render(free_.pos);
   }
@@ -804,12 +1110,13 @@ void Game::updateVisuals(double dt) {
     s.wheelY[i] = wheelY_[i];
   }
   s.clutch = v.clutchPedal;
-  s.brake = c.brake;
-  s.throttle = c.throttle;
+  s.brake = driver_.brake;
+  s.throttle = driver_.throttle;
   s.handbrakeLever = c.handbrake;
-  s.braking = c.brake > 0.03;
+  s.braking = driver_.brake > 0.03;
   s.reversing = v.gear == -1;
-  car.update(s, dt, time_);
+  if (isTruck && truck) truck->update(s, dt, time_);
+  else car.update(s, dt, time_);
 
   // sound
   double skid = 0, rough = 1;
@@ -851,7 +1158,7 @@ void Game::updateVisuals(double dt) {
     // § 9 StVO: get in lane in good time – the route goes on from a particular lane
     if (h.lane != 0)
       navText += " – " + fs::tr(h.lane < 0 ? "laneLeft" : "laneRight", lang);
-  } else if (hasLesson_ && lesson_.kind == "basics") {
+  } else if ((hasLesson_ && lesson_.kind == "basics") || task_) {
     navText = lessonLine_;   // the steps of the basics lesson, as in the original
   }
 
@@ -894,9 +1201,16 @@ void Game::updateVisuals(double dt) {
   else
     gearText = v.gear == -1 ? "R" : (v.gear == 0 ? "N" : std::to_string(v.gear));
 
+  // driving against the handbrake: the lamp flashes and a chime sounds (once per attempt)
+  bool hbWarn = c.handbrake > 0.5 && v.engineRunning && (c.throttle > 0.1 || std::fabs(kmh) > 3);
+  if (hbWarn && !hbWarned_) audio.click(ClickKind::Chime);
+  hbWarned_ = hbWarn;
+
   HudState hs;
   hs.speedKmh = kmh;
   hs.rpm = v.rpm;
+  // (the bar is full a little above the limiter: 7000 for the car as before)
+  hs.rpmMax = v.spec.limiterRpm * 1.077;
   hs.gear = gearText;
   hs.limit = ctx.limit;
   hs.zone = ctx.zone;
@@ -906,16 +1220,19 @@ void Game::updateVisuals(double dt) {
   hs.junction.ctrl = ctx.junction.ctrl;
   hs.junction.signal = ctx.junction.signal;
   hs.navText = navText;
-  hs.navSub = hasLesson_ && lesson_.kind != "basics" ? "" : ctx.roadName;
+  hs.navSub = task_ ? taskSub_
+             : (hasLesson_ && lesson_.kind != "basics" ? lessonLine_ : ctx.roadName);
   hs.navArrow = h.arrow;
   hs.navActive = hasLesson_ && h.dist >= 0 && h.what != "navFollow" && h.what != "routeDone";
   hs.tip = tip;
   hs.tipAction = tipAction;
-  hs.showDash = cameraMode != CameraMode::Cockpit;
+  // (the truck's instruments stand far away at the foot of its windscreen: the strip stays)
+  hs.showDash = cameraMode != CameraMode::Cockpit || isTruck;
   hs.indicator = c.indicator;
   hs.hazard = c.hazard;
   hs.blinkOn = s.blinkOn;
   hs.handbrake = c.handbrake > 0.5;
+  hs.handbrakeWarn = hbWarn;
   hs.seatbelt = c.seatbelt;
   hs.engineOn = v.engineRunning;
   hs.lights = c.lowBeam;
@@ -948,7 +1265,7 @@ void Game::speak(const std::string& what, double dist, const std::string& text) 
 
 void Game::updateCamera(double dt) {
   Camera& cam = app.camera;
-  Object3D& carRoot = car.root;
+  Object3D& carRoot = modelRoot();
   Vehicle& v = *vehicle;
   Controls& c = input->c;
   // the eye is always needed for the mirrors

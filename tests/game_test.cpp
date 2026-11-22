@@ -150,10 +150,10 @@ int main() {
   // the settings are applied: quality drives the draw radius
   g.settings.quality = Quality::Low;
   g.applySettingsCall();
-  assert(std::fabs(g.app.tiles->viewRadius - 850) < 1e-9);
+  assert(std::fabs(g.app.tiles->viewRadius - 700) < 1e-9);
   g.settings.quality = Quality::High;
   g.applySettingsCall();
-  assert(std::fabs(g.app.tiles->viewRadius - 1700) < 1e-9);
+  assert(std::fabs(g.app.tiles->viewRadius - 2000) < 1e-9);
 
   // debugInfo reports the state without crashing
   std::string info = g.debugInfo();

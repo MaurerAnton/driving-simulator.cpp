@@ -42,9 +42,11 @@ struct Box : Pose {
  */
 class YardFrame {
  public:
+  /** an empty yard (before the map's field is known) */
+  YardFrame() : yard{} {}
   explicit YardFrame(const YardJson& yardIn);
 
-  const YardJson yard;
+  YardJson yard;
 
   std::array<double, 2> toWorld(double u, double w) const {
     return {yard.x + u * cos_ - w * sin_, yard.z + u * sin_ + w * cos_};

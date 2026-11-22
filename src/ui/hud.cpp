@@ -121,22 +121,63 @@ void Hud::showError(const std::string& text) {
 }
 
 void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
-  hasPickedAddress_ = false;   // a new menu starts without an address picked
   auto o = node("div", "overlay");
   auto p = node("div", "panel");
   // the language first: whoever cannot read the page must be able to find it
-  p->add(languagePicker([this, spawns, lastSpawn]() { showMenu(spawns, lastSpawn); }));
+  p->add(languagePicker([this, spawns]() { showMenu(spawns, 0); }));
   p->add(node("h1", "", "Fahrsim <span>Baunatal</span>"));
   p->add(node("p", "", t("subtitle")));
 
+  // where the last drive began – also after the page was closed
+  const Settings::StartPlace& last = settings_.lastStart;
   int spawn = std::min(lastSpawn, std::max(0, static_cast<int>(spawns.size()) - 1));
+  if (last.spawn < static_cast<int>(spawns.size())) spawn = last.spawn;
+  hasPickedAddress_ = false;
+  if (last.hasAddress) {
+    hasPickedAddress_ = true;
+    pickedAddress_.label = last.label;
+    pickedAddress_.street = last.street;
+    pickedAddress_.x = last.x;
+    pickedAddress_.z = last.z;
+    pickedAddress_.exact = last.exact;
+  }
+  spawn_chose_ = spawn;
+  rememberNow_ = nullptr;
+  auto remember = [this]() {
+    Settings::StartPlace& l = settings_.lastStart;
+    l.spawn = spawn_chose_;
+    if (hasPickedAddress_) {
+      l.hasAddress = true;
+      l.label = pickedAddress_.label;
+      l.street = pickedAddress_.street;
+      l.x = pickedAddress_.x;
+      l.z = pickedAddress_.z;
+      l.exact = pickedAddress_.exact;
+    } else {
+      l.hasAddress = false;
+    }
+    saveSettings(settings_);
+  };
+  rememberNow_ = remember;
 
   auto opts = node("div");
   auto rowSpawn = node("div", "row");
   auto selSpawn = node("select");
   selSpawn->id = "spawn";
-  for (size_t i = 0; i < spawns.size(); i++)
-    selSpawn->add(node("option", "", spawns[i].name));
+  std::vector<int> spawnIdxOf(spawns.size());
+  for (size_t i = 0; i < spawns.size(); i++) {
+    spawnIdxOf[i] = static_cast<int>(i);
+    auto op = node("option", "", spawns[i].name);
+    op->id = "spawn:" + std::to_string(i);
+    op->click = [this, i]() {
+      spawn_chose_ = static_cast<int>(i);
+      hasPickedAddress_ = false;
+      if (rememberNow_) rememberNow_();
+    };
+    selSpawn->add(std::move(op));
+  }
+  if (spawn >= 0 && spawn < static_cast<int>(spawns.size()))
+    selSpawn->text = std::to_string(spawn);
   rowSpawn->add(node("label", "", t("startPoint")));
   rowSpawn->add(std::move(selSpawn));
   // … or anywhere: street and house number
@@ -146,7 +187,11 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
       t("realityLoading"),
       t("addressNone"),
       [this]() { return loadAddresses ? loadAddresses() : nullptr; },
-      [this](const AddressHit& hit) { pickedAddress_ = hit; hasPickedAddress_ = true; },
+      [this](const AddressHit& hit) {
+        pickedAddress_ = hit;
+        hasPickedAddress_ = true;
+        if (rememberNow_) rememberNow_();
+      },
   }));
   {
     HudNode* pickRoot = menuPicker_->node.get();
@@ -154,6 +199,21 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
     rowAddr->children.push_back(std::move(menuPicker_->node));
     (void)pickRoot;
   }
+  // a car, or the truck with its trailer (class CE) – each with lessons of its own
+  const bool truck = settings_.vehicle == VehicleKind::Truck;
+  auto rowVeh = node("div", "row");
+  auto selVeh = node("select");
+  selVeh->id = "vehicle";
+  selVeh->add(node("option", "", t("vehCar")));
+  selVeh->add(node("option", "", t("vehTruck")));
+  selVeh->text = truck ? "1" : "0";
+  selVeh->click = [this, spawns]() {
+    settings_.vehicle = settings_.vehicle == VehicleKind::Truck ? VehicleKind::Car : VehicleKind::Truck;
+    saveSettings(settings_);
+    showMenu(spawns, 0);
+  };
+  rowVeh->add(node("label", "", t("vehicle")));
+  rowVeh->add(std::move(selVeh));
   auto rowTr = node("div", "row");
   auto selTr = node("select");
   selTr->id = "transmission";
@@ -168,7 +228,9 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
   rowTr->add(std::move(selTr));
   opts->add(std::move(rowSpawn));
   opts->add(std::move(rowAddr));
-  opts->add(std::move(rowTr));
+  opts->add(std::move(rowVeh));
+  // (the truck has an automated gearbox, as nearly all of them today)
+  if (!truck) opts->add(std::move(rowTr));
   p->add(std::move(opts));
 
   p->add(node("h2", "", t("start")));
@@ -187,9 +249,31 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawns, int lastSpawn) {
     cards->add(std::move(c));
   };
   card(t("free"), t("freeDesc"), "free");
-  for (const auto& l : lessons())
+  card(t("demo"), t("demoDesc"), "demo");
+  // the lessons of the chosen vehicle: the practice yard first, the test last
+  auto rank = [](const std::string& kind) {
+    return kind == "yard" ? 0 : (kind == "exam" ? 2 : 1);
+  };
+  std::vector<LessonDef> ls;
+  for (const auto& l : lessons()) {
+    const std::string veh = l.vehicle.empty()
+                                ? (truck ? "truck" : "car")
+                                : l.vehicle;
+    if (veh != (truck ? "truck" : "car")) continue;
+    if (l.kind == "yard" && !world_.json().hasYard) continue;
+    ls.push_back(l);
+  }
+  std::stable_sort(ls.begin(), ls.end(), [&](const LessonDef& a, const LessonDef& b) {
+    return rank(a.kind) < rank(b.kind);
+  });
+  // (the lessons on the road were written for the car: what is different with the
+  // truck is said first)
+  const std::string note = truck ? t("lesson.truckNote") + " " : "";
+  for (const auto& l : ls)
     card(lessonTitle(l.id, settings_.lang),
-         l.kind == "exam" ? t("examDesc") : lessonIntro(l.id, settings_.lang), l.id);
+         l.id == "exam" ? t("examDesc")
+                        : (l.kind == "route" ? note : "") + lessonIntro(l.id, settings_.lang),
+         l.id);
   p->add(std::move(cards));
 
   auto b = node("div", "buttons");
@@ -258,6 +342,25 @@ void Hud::showSettings(const std::function<void()>& back) {
                                           : (v == "manual" ? Transmission::Manual
                                                            : Transmission::Automatic);
          });
+  // the car
+  {
+    std::vector<std::pair<std::string, std::string>> powers;
+    for (int ps : ENGINE_POWERS) {
+      char buf[64];
+      std::snprintf(buf, sizeof buf, "%d PS (%d kW)", ps, static_cast<int>(ps * 0.7355));
+      powers.push_back({std::to_string(ps), buf});
+    }
+    select(t("enginePower"), std::to_string(s.power), powers,
+           [&s](const std::string& v) { s.power = std::atoi(v.c_str()); });
+  }
+  p->add(node("p", "note", t("settingsNextDrive")));
+  check(t("limiter"), s.limiter, [&s](bool v) { s.limiter = v; });
+  // the picture
+  select(t("startView"), s.view == View::Cockpit ? "cockpit" : "chase",
+         {{"chase", t("viewChase")}, {"cockpit", t("viewCockpit")}},
+         [&s](const std::string& v) { s.view = v == "cockpit" ? View::Cockpit : View::Chase; });
+  range(t("cabinOpacity"), (s.cabinOpacity - 0.2) / 0.8,
+        [&s](double v) { s.cabinOpacity = 0.2 + 0.8 * v; });
   select(t("quality"),
          s.quality == Quality::Low ? "low" : (s.quality == Quality::Medium ? "medium" : "high"),
          {{"low", t("qLow")}, {"medium", t("qMedium")}, {"high", t("qHigh")}},
@@ -283,6 +386,8 @@ void Hud::showSettings(const std::function<void()>& back) {
   check(t("hudRules"), s.hudRules, [&s](bool v) { s.hudRules = v; });
   check(t("hudGear"), s.hudGear, [&s](bool v) { s.hudGear = v; });
   check(t("voice"), s.voice, [&s](bool v) { s.voice = v; });
+  // settings live in the browser's storage; say so if this browser keeps none
+  if (!saveSettings(s)) p->add(node("p", "note warn", t("settingsNotSaved")));
 
   auto b = node("div", "buttons");
   b->add(button("btn", t("back"), back));
@@ -304,13 +409,14 @@ void Hud::showControls(const std::function<void()>& back) {
       {{"Enter", "/", "KeyI"}, "ctl.engine"},
       {{"KeyZ", "KeyC", "/", "KeyX"}, "ctl.indicators"},
       {{"KeyJ", "KeyK"}, "ctl.look"},
+      {{"KeyU"}, "ctl.lookBack"},
       {{"KeyB"}, "ctl.belt"},
       {{"KeyL", "/", "KeyO"}, "ctl.lights"},
       {{"KeyH"}, "ctl.horn"},
       {{"KeyV"}, "ctl.camera"},
       {{"KeyT"}, "ctl.reset"},
       {{"KeyF"}, "ctl.reality"},
-      {{"KeyM"}, "ctl.endDrive"},
+      {{"KeyM"}, "ctl.map"},
       {{"Escape"}, "ctl.pause"},
       {{"F1"}, "ctl.help"},
   };
@@ -665,11 +771,29 @@ std::unique_ptr<HudNode> Hud::buildHud() {
   rpm->add(std::move(dashRpm));
   auto indR = node("span", "ind", "R");
   indR->id = "indR";
+  // warning lamps as in an instrument cluster: parking brake and seat belt
+  auto lampBrake = node("span", "lamp",
+                        "<svg viewBox=\"0 0 34 24\" aria-hidden=\"true\"><circle cx=\"17\" "
+                        "cy=\"12\" r=\"7.6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\"/>"
+                        "<path d=\"M6 4.2a11.5 11.5 0 0 0 0 15.6M28 4.2a11.5 11.5 0 0 1 0 15.6\" "
+                        "fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>"
+                        "<text x=\"17\" y=\"16\" text-anchor=\"middle\" font-size=\"10.5\" font-weight=\"800\" "
+                        "font-family=\"sans-serif\" fill=\"currentColor\">P</text></svg>");
+  lampBrake->id = "lampBrake";
+  auto lampBelt = node("span", "lamp",
+                       "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"5\" "
+                       "r=\"3.2\" fill=\"currentColor\"/><path d=\"M6 22v-6.5a6 6 0 0 1 12 0V22\" "
+                       "fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.3\"/>"
+                       "<path d=\"M7.2 11.2 17 21\" stroke=\"currentColor\" stroke-width=\"2.3\" "
+                       "stroke-linecap=\"round\"/></svg>");
+  lampBelt->id = "lampBelt";
   dash->add(std::move(indL));
+  dash->add(std::move(lampBrake));
   dash->add(std::move(dashV));
   dash->add(node("span", "u", "km/h"));
   dash->add(std::move(dashG));
   dash->add(std::move(rpm));
+  dash->add(std::move(lampBelt));
   dash->add(std::move(indR));
 
   auto tip = node("div", "tip");
@@ -688,12 +812,29 @@ std::unique_ptr<HudNode> Hud::buildHud() {
   map->click = [this]() {
     if (onReality) onReality();
   };
+  // … and a corner of it opens the whole map
+  auto expand = node("button", "expand",
+                     "<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path fill=\"none\" "
+                     "stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" "
+                     "stroke-linejoin=\"round\" d=\"M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7\"/></svg>");
+  expand->id = "expand";
+  expand->click = [this]() {
+    if (onMap) onMap();
+  };
+  map->add(std::move(expand));
   auto score = node("div", "score");
   score->id = "score";
   auto keysBox = node("div", "keyhelp");
   keysBox->id = "keyhelp";
 
-  h->add(std::move(navBox));
+  // the upper left corner: the street-name block and, under it, things to choose from while standing
+  auto side = node("div", "side");
+  auto choiceBox = node("div", "choices");
+  choiceBox->id = "choices";
+  choiceBox_ = choiceBox.get();
+  side->add(std::move(navBox));
+  side->add(std::move(choiceBox));
+  h->add(std::move(side));
   h->add(std::move(assist));
   h->add(std::move(dash));
   h->add(std::move(tip));
@@ -725,6 +866,39 @@ int Hud::fitRoundel(const std::string& text) const {
   if (widest <= 8) return 9;
   if (widest <= 9) return 8;
   return 7;
+}
+
+/**
+ * Things to choose from while the vehicle stands (class CE: what is done on
+ * foot around truck and trailer; the street-name block above says what is
+ * asked).  An empty list takes the panel away.
+ * May be called every frame: the panel is rebuilt only when the list changes.
+ */
+void Hud::setChoices(const std::vector<std::pair<std::string, std::string>>& items,
+                     const std::function<void(const std::string&)>& pick) {
+  choicePick_ = pick;
+  std::string key;
+  for (const auto& it : items) {
+    if (!key.empty()) key += ",";
+    key += it.first;
+  }
+  if (items.size()) key = settings_.lang + "|" + key;
+  if (key == choiceKey_) return;
+  choiceKey_ = key;
+  if (!choiceBox_) return;
+  choiceBox_->children.clear();
+  host_.setVisible("choices", !items.empty());
+  for (const auto& it : items) {
+    auto b = node("button");
+    b->text = it.second;
+    std::string id = it.first;
+    b->click = [this, id]() {
+      if (choicePick_) choicePick_(id);
+    };
+    choiceBox_->add(std::move(b));
+  }
+  // the panel's children changed: the host rebuilds its copy of the tree
+  if (!overlay_) host_.setRoot(hud_.get());
 }
 
 void Hud::setHudVisible(bool v) { host_.setVisible("hud", v); }
@@ -856,9 +1030,14 @@ void Hud::update(const HudState& s, double now) {
       host_.setText("dashV", std::to_string(std::lround(std::fabs(s.speedKmh))));
       host_.setText("dashG", s.gear);
       host_.setText("dashRpm",
-                    std::to_string(std::min(100.0, (s.rpm / 7000.0) * 100.0)) + "%");
+                    std::to_string(std::min(100.0, (s.rpm / (s.rpmMax > 0 ? s.rpmMax : 7000.0)) * 100.0)) + "%");
       host_.setClass("indL", s.blinkOn && (s.hazard || s.indicator < 0) ? "ind on" : "ind");
       host_.setClass("indR", s.blinkOn && (s.hazard || s.indicator > 0) ? "ind on" : "ind");
+      // lit while the handbrake is on; large and flashing when the car is driven against it
+      host_.setClass("lampBrake",
+                     std::string("lamp") + (s.handbrake ? " on" : "") + (s.handbrakeWarn ? " warn" : ""));
+      host_.setVisible("lampBrake", true);
+      host_.setClass("lampBelt", std::string("lamp") + (s.seatbelt ? "" : " on"));
     }
 
     host_.setVisible("tip", !s.tip.empty());
@@ -885,10 +1064,16 @@ void Hud::update(const HudState& s, double now) {
       // key reminder: while standing or crawling, out of the way once rolling
       const bool want = settings_.keyHints && std::fabs(s.speedKmh) < 12;
       host_.setVisible("keyhelp", want);
-      const std::string key = settings_.lang + ":" +
-                              (settings_.transmission == Transmission::Automatic ? "automatic"
-                               : settings_.transmission == Transmission::Manual   ? "manual"
-                                                                                 : "assist");
+      // (the key reminder keeps clear of the strip)
+      host_.setClass("hud", std::string("hud") + (showDash ? " dashon" : "") +
+                                (mode_ == "touch" ? " touchmode" : ""));
+      const std::string trn =
+          gearboxAutomatic
+              ? "automatic"
+              : (settings_.transmission == Transmission::Automatic ? "automatic"
+                 : settings_.transmission == Transmission::Manual   ? "manual"
+                                                                    : "assist");
+      const std::string key = settings_.lang + ":" + trn;
       if (want && key != keysFor_) {
         keysFor_ = key;
         host_.setText("keyhelp", keyReminder());
@@ -1015,6 +1200,8 @@ void Hud::attachInput(Input& input) {
   item("mbLookLeft", "tbLookLeft", "KeyJ", "mbLookLeft");
   item("mbLookRight", "tbLookRight", "KeyK", "mbLookRight");
   item("mbCamera", "tbCamera", "KeyV", "mbCamera");
+  item("mbLookBack", "tbLookBack", "KeyU", "mbLookBack");
+  item("mbMap", "mapTitle", "KeyM", "mbMap");
   item("mbReset", "tbReset", "KeyT", "mbReset");
   auto menu = button("mb", t("tbMenu"), [this]() {
     moreVisible_ = false;
@@ -1094,9 +1281,11 @@ std::string Hud::keyReminder() const {
                   const std::string& sep = " ") {
     return "<span>" + keycaps(codes, sep) + " " + t(textKey) + "</span>";
   };
-  const std::string trn = settings_.transmission == Transmission::Automatic
+  const std::string trn = gearboxAutomatic
                               ? "automatic"
-                              : (settings_.transmission == Transmission::Manual ? "manual" : "assist");
+                              : (settings_.transmission == Transmission::Automatic
+                                     ? "automatic"
+                                     : (settings_.transmission == Transmission::Manual ? "manual" : "assist"));
   std::vector<std::string> parts;
   if (trn == "automatic") {
     parts.push_back(item("kr.selector", {"KeyE", "KeyQ"}));
@@ -1114,6 +1303,8 @@ std::string Hud::keyReminder() const {
   parts.push_back(item("kr.startEngine", {"Enter"}));
   parts.push_back(item("kr.indicators", {"KeyZ", "KeyC"}));
   parts.push_back(item("kr.shoulder", {"KeyJ", "KeyK"}));
+  parts.push_back(item("kr.camera", {"KeyV"}));
+  parts.push_back(item("kr.map", {"KeyM"}));
   parts.push_back(item("kr.allKeys", {"F1"}));
   std::string out;
   for (const std::string& x : parts) out += x;

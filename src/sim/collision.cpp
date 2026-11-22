@@ -114,10 +114,16 @@ void SceneryCollider::remove(const std::string& key) {
   byTile_.erase(it);
 }
 
+void SceneryCollider::setShape(const double* offsets, int count, double radius) {
+  circleCount_ = std::min(4, std::max(1, count));
+  for (int i = 0; i < circleCount_; i++) offsets_[i] = offsets[i];
+  radius_ = radius;
+}
+
 double SceneryCollider::resolve(Vehicle& v) {
   double impact = 0;
   double R = radius_;
-  for (int c = 0; c < 3; c++) {
+  for (int c = 0; c < circleCount_; c++) {
     // circle centre in the world, at centre-of-mass height
     // offsets are measured from the wheelbase centre in the model frame
     double world[3];

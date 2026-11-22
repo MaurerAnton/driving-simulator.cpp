@@ -104,7 +104,10 @@ Settings defaultSettings();
 /** Read the persisted settings (falling back to defaults, as the JS does). */
 Settings loadSettings();
 
-/** Persist the settings (best effort, like the JS try/catch). */
-void saveSettings(const Settings& s);
+/**
+ * Persist the settings (best effort, like the JS try/catch).
+ * Returns false when this browser keeps nothing (private window, storage off).
+ */
+bool saveSettings(const Settings& s);
 
 }  // namespace fs

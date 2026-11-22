@@ -76,10 +76,11 @@ Settings loadSettings() {
   return merge(g_saved);
 }
 
-void saveSettings(const Settings& s) {
+bool saveSettings(const Settings& s) {
   // false: this browser keeps nothing (private window, storage switched off)
   g_saved = s;
   g_hasSaved = true;
+  return true;
 }
 
 }  // namespace fs

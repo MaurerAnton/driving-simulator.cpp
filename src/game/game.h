@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -21,8 +22,11 @@
 #include "game/app.h"
 #include "i18n/index.h"
 #include "game/nav.h"
+#include "game/ce.h"
 #include "game/faultlog.h"
 #include "game/track.h"
+#include "game/yardtask.h"
+#include "sim/trailer.h"
 #include "game/settings.h"
 #include "input/input.h"
 #include "render/actors.h"
@@ -46,10 +50,12 @@ namespace fs {
 
 struct RealityHostImpl;   // defined in game.cpp
 
-enum class GameState { Loading, Menu, Intro, Placing, Drive, Pause, Reality, Result };
+enum class GameState { Loading, Menu, Intro, Placing, Drive, Pause, Reality, Map, Result };
 enum class CameraMode { Cockpit, Chase, Free, Dev };
 
 /** Everything the platform hands the game at boot. */
+class YardScene;
+
 struct QueryParams {
   std::map<std::string, std::string> values;
 
@@ -82,6 +88,12 @@ class Game {
   std::unique_ptr<SignRenderer> signs;
   PlayerCar car;
   TrafficRenderer actors;
+  /** the truck of the class-CE lessons with its trailer (built when it is first driven) */
+  std::unique_ptr<class PlayerTruck> truck;
+  std::unique_ptr<Trailer> trailer;
+  bool isTruck = false;
+  /** the practice yard of the truck lessons, and the task that is being done on it */
+  std::unique_ptr<YardScene> yardScene;
   std::unique_ptr<SignalRenderer> signalHeads;
   SceneryCollider collider;
   GameAudio audio;
@@ -128,6 +140,32 @@ class Game {
   bool hasLesson_ = false;
   /** the line the lesson shows under the street name ("2 · Vorfahrt … · 1/3") */
   std::string lessonLine_;
+  /** what stands under the street name while a yard task runs (0.7.0) */
+  std::string taskSub_;
+  /** the practice yard of this lesson (built from the map's yard field) */
+  bool hasYard_ = false;
+  YardFrame yardFrame_;
+  struct Task {
+    YardTask run;
+    bool laid = false;
+    std::map<std::string, double> order;   // the choices are shown in a new order each time
+    bool second = false;
+    Task(const std::string& id) : run(id) {}
+  };
+  std::unique_ptr<Task> task_;
+  std::vector<std::string> tasksLeft_;
+  int taskCount_ = 0;
+  bool taskFailed_ = false;
+  double laidTry_ = 0;
+  /** where the drive in traffic begins once the tasks on the yard are done */
+  bool hasRoadSpawn_ = false;
+  SpawnJson roadSpawn_;
+  /** the vehicle is driven against the handbrake (the lamp flashes) */
+  bool hbWarned_ = false;
+  /** the camera jumps to the new place (after being put somewhere mid-drive) */
+  bool camSnap_ = false;
+  /** the start point changed in the menu: remember it (0.7.0) */
+  bool keepClock_ = false;
   int targetIdx_ = 0;
   Edge* homeEdge_ = nullptr;
   std::set<Edge*> visited_;
@@ -185,7 +223,22 @@ class Game {
   void openReality();
   /** the full-screen map of the town (0.7.0; drawn when ui/bigmap is ported) */
   void openBigMap();
+  void closeBigMap();
   void closeReality();
+  /** The vehicle the player sits in: the car or the truck (0.7.0). */
+  Group& modelRoot();
+  bool modelVisible() const;
+  void showModel(bool on);
+  /** A place on a road wide enough to start with a combination of 16 m, near a start point. */
+  SpawnJson truckSpot(const SpawnJson& near);
+  /** The next task on the practice yard: lay it out and stand the combination at its start. */
+  void nextTask();
+  void endTasks();
+  /** Put the vehicle somewhere else in the middle of a lesson (the next task, the road after the yard). */
+  void placeAgain();
+  void taskDone(bool ok);
+  /** Judge the task on the yard and say what is to be done. */
+  void updateTask(double dt);
   void tryPlace();
   void resume();
   void pause();

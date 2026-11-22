@@ -33,6 +33,8 @@ struct AddressPicker;   // defined in ui/addresspicker.h (kept out: it needs Hud
 struct HudState {
   double speedKmh = 0;
   double rpm = 0;
+  /** engine speed at which the bar is full (a truck's diesel turns a third as fast as a car's engine) */
+  double rpmMax = 7000;
   std::string gear = "N";
   /** km/h; 0 = no limit; -1 = unknown/off-road */
   int limit = -1;
@@ -57,6 +59,8 @@ struct HudState {
   bool hazard = false;
   bool blinkOn = false;
   bool handbrake = false;
+  /** the car is being driven against the handbrake */
+  bool handbrakeWarn = false;
   bool seatbelt = false;
   bool engineOn = false;
   bool lights = false;
@@ -143,6 +147,12 @@ class Hud {
   std::function<AddressIndex*()> loadAddresses;
   /** free drive: the pause menu offers to jump to an address */
   bool canTeleport = false;
+  /**
+   * The gearbox of the vehicle that is being driven, where it is not the one
+   * of the settings: the truck's is automatic, and so is the car's on a
+   * demonstration drive.  (The key reminder goes by it.)
+   */
+  bool gearboxAutomatic = false;
   /** a free drive can be ended by the driver (the pause menu: "End drive") */
   bool canFinish = false;
   /** the simulator can drive for demonstration (off in lessons and tests) */
@@ -179,6 +189,14 @@ class Hud {
   /** A fault or hint of the rule monitor: shown in the block of the street name. */
   void toast(const Violation& v, double seconds = -1);
   void message(const std::string& title, const std::string& sub = "");
+  /**
+   * Things to choose from while the vehicle stands (class CE: what is done on
+   * foot around truck and trailer; the street-name block above says what is
+   * asked).  An empty list takes the panel away.
+   * May be called every frame: the panel is rebuilt only when the list changes.
+   */
+  void setChoices(const std::vector<std::pair<std::string, std::string>>& items,
+                  const std::function<void(const std::string&)>& pick);
   void clearNotices() { notices_.clear(); }
   void update(const HudState& s, double now);
 
@@ -209,6 +227,12 @@ class Hud {
    */
   NoticeBoard notices_;
   const Notice* noticeShown_ = nullptr;
+  /** the panel under the street-name block with the choices (0.7.0) */
+  HudNode* choiceBox_ = nullptr;
+  std::string choiceKey_;
+  std::function<void(const std::string&)> choicePick_;
+  /** an instruction of several lines is set smaller than a street name */
+  bool navLong_ = false;
   std::string mode_ = "keys";
   Input* input_ = nullptr;
   /** the "⋯" sheet of the on-screen controls is open */
@@ -226,6 +250,10 @@ class Hud {
   /** the address the picker chose (carried into the StartRequest) */
   AddressHit pickedAddress_;
   bool hasPickedAddress_ = false;
+  /** what to do when the start point changes (remember it in the settings) */
+  std::function<void()> rememberNow_;
+  /** the start point chosen in the menu (the settings remember it) */
+  int spawn_chose_ = 0;
 
   void setOverlay(std::unique_ptr<HudNode> node);
   std::unique_ptr<HudNode> buildHud();
