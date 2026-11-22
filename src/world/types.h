@@ -262,6 +262,25 @@ struct WorldMetaJson {
   std::vector<std::string> attribution;
 };
 
+enum RailKind : int {
+  RAIL_RAIL = 0,
+  RAIL_TRAM = 1,
+};
+
+/** A piece of track between two switches (or ends), as a path for the vehicles that run on it. */
+struct RailJson {
+  /** RAIL */
+  int k = 0;
+  /** top of the rail along the middle of the track: x, y, z, … a point every few metres */
+  std::vector<double> p;
+  /** the pieces that join at the start and at the end: index * 2 + (0: their start is here, 1: their end) */
+  std::vector<int> a;
+  std::vector<int> b;
+  /** stops: metres from the start */
+  std::vector<double> st;
+  bool hasSt = false;
+};
+
 /** A level, open rectangle of the map: its middle, its size, and whether its long side runs east-west (0) or north-south (1). */
 struct YardJson {
   double x = 0, z = 0;
@@ -285,6 +304,8 @@ struct WorldJson {
   /** the open field the practice yard of the truck lessons is laid on (0.7.0) */
   bool hasYard = false;
   YardJson yard;
+  /** tram and railway tracks as paths (maps built before trams ran have none) */
+  std::vector<RailJson> rails;
 };
 
 }  // namespace fs

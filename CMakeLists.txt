@@ -34,6 +34,9 @@ if(FAHRSIM_WASM)
   add_executable(fahrsim ${FAHRSIM_APP_SOURCE} ${FAHRSIM_SOURCES})
   target_include_directories(fahrsim PRIVATE ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim PRIVATE -O2)
+  # zlib ships with Emscripten's sysroot; gzip is inflated by the platform
+  find_package(ZLIB REQUIRED)
+  target_link_libraries(fahrsim PRIVATE ZLIB::ZLIB)
   set_target_properties(fahrsim PROPERTIES OUTPUT_NAME "fahrsim" SUFFIX ".js")
   target_link_options(fahrsim PRIVATE
     "SHELL:-s WASM=1"
@@ -58,6 +61,9 @@ else()
   add_library(fahrsim_core STATIC ${FAHRSIM_SOURCES})
   target_include_directories(fahrsim_core PUBLIC ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim_core PRIVATE -O1 -Wall -Wextra)
+  # zlib: gzip is inflated by the platform (world/addresses arrive compressed)
+  find_package(ZLIB REQUIRED)
+  target_link_libraries(fahrsim_core PUBLIC ZLIB::ZLIB)
   target_link_libraries(fahrsim PRIVATE fahrsim_core)
 
   file(GLOB FAHRSIM_TESTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp")

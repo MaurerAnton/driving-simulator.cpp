@@ -12,6 +12,8 @@
  */
 #pragma once
 
+#include <cstdint>
+
 #include <functional>
 #include <string>
 #include <vector>
@@ -97,6 +99,25 @@ class Platform {
   }
   /** Window width in CSS pixels (a finger travels less than a mouse). */
   virtual double innerWidth() const { return 1280; }
+
+  // -- where the page comes in (the browser answers; tests answer themselves) --
+
+  /**
+   * The world JSON of this visit (`map/world.json`): written by the platform
+   * before Game::boot runs, as the original fetches it before `new Game(...)`.
+   */
+  virtual bool worldJson(std::string& out) {
+    (void)out;
+    return false;
+  }
+  /**
+   * `map/addresses.json` (the list of house numbers), gzipped or plain;
+   * false when it is not there.  Asked the first time somebody searches.
+   */
+  virtual bool addressList(std::vector<uint8_t>& out) {
+    (void)out;
+    return false;
+  }
 };
 
 class Input {

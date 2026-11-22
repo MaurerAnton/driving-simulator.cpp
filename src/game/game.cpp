@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include "geo/utm.h"
+#include "platform/gunzip.h"
 #include "render/truck.h"
 #include "sim/autodriver.h"
 #include "sim/vehicle/spec.h"
@@ -90,9 +91,22 @@ std::string Game::t(const std::string& key) const {
 AddressIndex* Game::loadAddresses() {
   if (addressAsked_) return addressIndex_.get();
   addressAsked_ = true;
-  // the original fetches `map/addresses.json` here; the fetch layer lives in
-  // the platform, so the same code runs in the browser and in tests
-  addressIndex_.reset();   // no backend yet: nothing to search (see README)
+  // the original fetches `map/addresses.json` here; the platform fetches it
+  // (gzip in the browser, bytes in a test)
+  std::vector<uint8_t> raw;
+  if (platform_.addressList(raw)) {
+    // gzip in the browser; the bytes of a test are the document itself
+    std::string text(raw.begin(), raw.end());
+    if (raw.size() > 2 && raw[0] == 0x1f && raw[1] == 0x8b) {
+      std::string plain;
+      if (gunzip(raw, plain)) text = plain;
+    }
+    AddressJson aj;
+    if (parseAddressJson(text, aj)) addressIndex_ = std::make_unique<AddressIndex>(aj);
+    else addressIndex_.reset();
+  } else {
+    addressIndex_.reset();
+  }
   return addressIndex_.get();
 }
 
@@ -1100,6 +1114,10 @@ void Game::boot(const QueryParams& q) {
   // original fetches the file) – unknown or refused: English
   if (!loadLang(settings.lang)) settings.lang = "en";
   // the world JSON comes from the platform (the original fetches world.json)
+  {
+    std::string raw;
+    if (platform_.worldJson(raw) && parseWorldJson(raw, worldJson_)) {}
+  }
   a.loadWorld(worldJson_, tileSource_);
   lanes = std::make_unique<LaneGraph>(*a.world);
   signals = std::make_unique<SignalSystem>(a.world->signals());

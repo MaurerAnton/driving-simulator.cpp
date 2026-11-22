@@ -214,4 +214,11 @@ bool pointNearKerb(double x, double z, const JunctionCorner& c);
 /** Flag test helper (the JS `hasFlag`). */
 inline bool hasFlag(const Edge& e, int flag) { return (e.flags & flag) != 0; }
 
+
+/**
+ * Read `map/world.json` (the document of this visit).  False when it is not
+ * that document – the caller keeps what it has (as a failed fetch does).
+ */
+bool parseWorldJson(const std::string& text, WorldJson& out);
+
 }  // namespace fs
