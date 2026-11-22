@@ -80,10 +80,17 @@ void TileManager::update(double x, double z) {
   }
 }
 
+void TileManager::arrived(const std::string& key) {
+  if (loading_.count(key)) load(key);
+}
+
 void TileManager::load(const std::string& key) {
   loading_.insert(key);
   std::vector<uint8_t> buf;
-  if (!source_.read(key, buf)) {
+  bool fetching = false;
+  if (!source_.read(key, buf, &fetching)) {
+    // on its way: stay in loading_ until the source says it has arrived
+    if (fetching) return;
     failed_.insert(key);
     loading_.erase(key);
     return;

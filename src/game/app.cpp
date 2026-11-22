@@ -79,6 +79,12 @@ void App::setShadows(int mapSize, double reach) {
   sun.shadow.radius = 1.6;
 }
 
+void App::setCanvasSize(int canvasWidth, int canvasHeight) {
+  renderer.setSize(canvasWidth, canvasHeight, false);
+  camera.aspect = static_cast<double>(canvasWidth) / static_cast<double>(canvasHeight);
+  camera.updateProjectionMatrix();
+}
+
 void App::render(const Vector3& focus) {
   sky.follow(camera, focus);
   renderer.render(scene, camera);

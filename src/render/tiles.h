@@ -43,8 +43,12 @@ struct LoadedTile {
 class TileSource {
  public:
   virtual ~TileSource() = default;
-  /** Read `map/tiles/<key>.fsb`, inflated.  False when it does not exist. */
-  virtual bool read(const std::string& key, std::vector<uint8_t>& out) = 0;
+  /**
+   * Read `map/tiles/<key>.fsb`, inflated.  False when it does not exist –
+   * or when it is on its way and `fetching` says so (the page fetches in the
+   * background and calls TileManager::arrived when the bytes are in).
+   */
+  virtual bool read(const std::string& key, std::vector<uint8_t>& out, bool* fetching = nullptr) = 0;
 };
 
 /** Notified when a tile is loaded (true) or unloaded (false). */
@@ -65,6 +69,11 @@ class TileManager : public TerrainSource {
   int maxConcurrent = 3;
 
   void onTile(const TileListener& l) { listeners_.push_back(l); }
+  /**
+   * A tile the source was fetching has arrived: read it again (the page calls
+   * this when its background fetch answers).
+   */
+  void arrived(const std::string& key);
   /** True when every tile wanted for the current position has arrived. */
   bool settled() const { return loading_.empty() && wantCount_ == 0; }
 

@@ -65,7 +65,7 @@ class TestSigns : public SignSource {
 /** A world with no tiles: the terrain source reports NaN everywhere. */
 class NoTiles : public TileSource {
  public:
-  bool read(const std::string&, std::vector<uint8_t>&) override { return false; }
+  bool read(const std::string&, std::vector<uint8_t>&, bool*) override { return false; }
 };
 
 WorldJson makeNet() {

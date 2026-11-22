@@ -18,7 +18,7 @@ class MemSource : public TileSource {
  public:
   std::map<std::string, std::vector<uint8_t>> files;
 
-  bool read(const std::string& key, std::vector<uint8_t>& out) override {
+  bool read(const std::string& key, std::vector<uint8_t>& out, bool*) override {
     auto it = files.find(key);
     if (it == files.end()) return false;
     out = it->second;

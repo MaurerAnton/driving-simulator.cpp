@@ -40,6 +40,8 @@ class App {
   /** Build the road network and the tile manager from the parsed world. */
   void loadWorld(const WorldJson& json, TileSource& source);
   void resize(int canvasWidth, int canvasHeight);
+  /** The window changed size: draw the same view in the new rectangle. */
+  void setCanvasSize(int canvasWidth, int canvasHeight);
   /**
    * Shadows of the sun around the car: `mapSize` pixels square (0 = none)
    * for a box reaching `reach` metres from the car to every side.
