@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include "geo/utm.h"
+#include "reality/testpano.h"
 #include "platform/gunzip.h"
 #include "render/truck.h"
 #include "sim/autodriver.h"
@@ -1324,6 +1325,29 @@ void Game::frame(double now) {
         v.time = time_;
         v.data = {{"limit", "30"}, {"speed", "42"}};
         hud->toast(v, 3600);
+      }
+    }
+    // ?map=1|aerial opens the full-screen map once the drive has started
+    if (!autoMap_.empty() && time_ - startTime_ > 0.3) {
+      std::string mode;
+      mode.swap(autoMap_);
+      if (mode == "aerial") settings.reality.aerial = true;
+      openBigMap();
+      if (mode == "aerial" && reality_) {
+        // a close-up of where the car is, with the photographs under it
+        settings.reality.aerial = true;
+      }
+    }
+    // ?reality=1|test opens the reality view once the drive has started
+    if (!autoReality_.empty() && time_ - startTime_ > 0.3) {
+      std::string mode;
+      mode.swap(autoReality_);
+      openReality();
+      if (mode == "test" && reality_) {
+        // drawn as if taken looking north-east, a few metres from the car
+        std::pair<double, double> ll = worldToLatLon(mpos_[0], mpos_[2]);
+        TestPanorama p = makeTestPanorama(ll.first + 0.00004, ll.second, 45);
+        reality_->importFiles({{p.name, p.jpeg}});
       }
     }
   }
