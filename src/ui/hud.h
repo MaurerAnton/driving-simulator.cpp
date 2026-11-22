@@ -141,6 +141,8 @@ class Hud {
   std::function<void(const AddressHit&)> onTeleport;
   /** the full-screen map (the pause menu) */
   std::function<void()> onMap;
+  /** the full-screen map is open: it shows its panel now (0.7.0) */
+  std::function<void()> onMapOpened;
   /** let the simulator drive and watch it (the pause menu) */
   std::function<void()> onDemo;
   /** fetches the address list when somebody first types an address */

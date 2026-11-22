@@ -55,6 +55,8 @@ enum class CameraMode { Cockpit, Chase, Free, Dev };
 
 /** Everything the platform hands the game at boot. */
 class YardScene;
+class AutoDriver;
+using AutoRemark = std::string;
 
 struct QueryParams {
   std::map<std::string, std::string> values;
@@ -168,6 +170,39 @@ class Game {
   bool camSnap_ = false;
   /** the start point changed in the menu: remember it (0.7.0) */
   bool keepClock_ = false;
+  /**
+   * A demonstration drive: the car drives by itself, by the rules, to the
+   * places the player chose – to watch how the way there is driven.
+   */
+  struct Demo {
+    std::vector<SpawnJson> stops;
+    int index = 0;
+    std::unique_ptr<AutoDriver> driver;
+    bool active = true;
+    double look = 0;
+    AutoRemark remark;
+    double takeT = 0, lost = 0;
+  };
+  std::unique_ptr<Demo> demo_;
+  /** open the map for planning such a drive as soon as the car stands (start "demo" of the menu) */
+  bool planDemo_ = false;
+  double demoHead_ = 0;
+  /** the lanes the route uses: driving to a private address is allowed along it */
+  std::set<Edge*> allowedLanes_;
+  /** when a demonstration drive is to be started from a planned route (a moment after placing) */
+  double autoRunAt_ = -1;
+  /** the stops of a plan: started a moment after the car was put down */
+  std::vector<SpawnJson> demoPending_;
+  bool demoRunAuto_ = false;   // ?demo has run
+  /** where the full-screen map was opened from ("drive" | "pause") */
+  std::string mapFrom_ = "drive";
+  /** the stops of ?demo=x,z;x,z, run once the drive has started */
+  std::string autoDemo_;
+  void startDemo(const std::vector<SpawnJson>& stops);
+  /** The drive is over: the car has arrived, the player takes it over, or there is no way to go on. */
+  void endDemo(const std::string& why);   // "arrived" | "taken" | "lost"
+  /** Where the demonstration drive is heading: the route to the next of its places. */
+  void updateDemo(double dt, const PlayerState& p);
   int targetIdx_ = 0;
   Edge* homeEdge_ = nullptr;
   std::set<Edge*> visited_;

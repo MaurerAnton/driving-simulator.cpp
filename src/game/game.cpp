@@ -9,8 +9,11 @@
  */
 #include "game/game.h"
 
+#include <sstream>
+
 #include "geo/utm.h"
 #include "render/truck.h"
+#include "sim/autodriver.h"
 #include "sim/vehicle/spec.h"
 #include "render/yard.h"
 
@@ -290,6 +293,28 @@ void Game::placeAgain() {
   state = GameState::Placing;
   showModel(false);
   hud->showLoading(t("loadingTiles"));
+  // ?demo=x,z;x,z: a demonstration drive to these places of the map
+  if (!autoDemo_.empty() && !demoRunAuto_) {
+    demoRunAuto_ = true;
+    std::vector<SpawnJson> stops;
+    std::stringstream ss(autoDemo_);
+    std::string one;
+    while (std::getline(ss, one, ';')) {
+      size_t comma = one.find(',');
+      if (comma == std::string::npos) continue;
+      SpawnJson sp;
+      sp.x = std::atof(one.substr(0, comma).c_str());
+      sp.z = std::atof(one.substr(comma + 1).c_str());
+      sp.kind = "street";
+      stops.push_back(sp);
+    }
+    if (!stops.empty()) startDemo(stops);
+  }
+  // the menu's demonstration card: plan the drive as soon as the car stands
+  if (planDemo_ && state == GameState::Drive) {
+    planDemo_ = false;
+    openBigMap();
+  }
 }
 
 void Game::taskDone(bool ok) {
@@ -385,6 +410,7 @@ void Game::updateTask(double dt) {
 
 void Game::toMenu() {
   state = GameState::Menu;
+  demo_.reset();
   endTasks();
   showModel(false);
   if (input) input->enabled = false;
@@ -430,6 +456,8 @@ void Game::begin(const std::string& mode, int spawnIdx, bool skipIntro,
   hud->canTeleport = !hasLesson_;
   // a free drive (and every mode but a lesson) can be ended by the driver
   hud->canFinish = !hasLesson_;
+  demo_.reset();
+  planDemo_ = mode == "demo";
   keepClock_ = false;
   path_->breakLine();
   // the camera a drive starts with: behind the car, or at the driver's eyes
@@ -517,6 +545,38 @@ void Game::tryPlace() {
   }
   keepClock_ = false;
   resume();
+  // ?demo=x,z;x,z: a demonstration drive to these places of the map
+  if (!autoDemo_.empty() && !demoRunAuto_) {
+    demoRunAuto_ = true;
+    std::vector<SpawnJson> stops;
+    std::stringstream ss(autoDemo_);
+    std::string one;
+    while (std::getline(ss, one, ';')) {
+      size_t comma = one.find(',');
+      if (comma == std::string::npos) continue;
+      SpawnJson sp;
+      sp.x = std::atof(one.substr(0, comma).c_str());
+      sp.z = std::atof(one.substr(comma + 1).c_str());
+      sp.kind = "street";
+      stops.push_back(sp);
+    }
+    if (!stops.empty()) startDemo(stops);
+  }
+  // the menu's demonstration card: plan the drive as soon as the car stands
+  if (planDemo_ && state == GameState::Drive) {
+    planDemo_ = false;
+    openBigMap();
+  }
+  // (a drive planned from the map stands for a moment first, so that the
+  // camera and the physics have settled)
+  if (autoRunAt_ >= 0 && time_ >= autoRunAt_) {
+    autoRunAt_ = -1;
+    if (demoPending_.size()) {
+      std::vector<SpawnJson> stops;
+      stops.swap(demoPending_);
+      startDemo(stops);
+    }
+  }
 }
 
 void Game::resume() {
@@ -538,6 +598,7 @@ void Game::pause() {
 
 void Game::finish() {
   if (path_) path_->save();
+  demo_.reset();   // (the original: this.demo = null – no drive runs over the result)
   bool exam = hasLesson_ && lesson_.kind == "exam";
   bool failed = rules->failed() || rules->points() >= 10 || taskFailed_;
   bool judged = taskCount_ > 0;
@@ -581,15 +642,24 @@ void Game::rememberDrive(const ResultSummary& r) {
 }
 
 void Game::openBigMap() {
+  if (state != GameState::Drive && state != GameState::Pause) return;
+  mapFrom_ = state == GameState::Pause ? "pause" : "drive";
   // (0.7.0: the full-screen map; the buttons and the path to it are in place
   // as soon as src/ui/bigmap is ported)
+  state = GameState::Map;
+  hud->setHudVisible(false);
+  if (hud->onMapOpened) hud->onMapOpened();
 }
 
 void Game::closeBigMap() {
   if (state != GameState::Map) return;
-  // (with the big map not ported yet there is nothing to close; the state
-  // never lingers in Map)
-  resume();
+  if (mapFrom_ == "pause") {
+    state = GameState::Pause;
+    hud->setHudVisible(true);
+    hud->showPause();
+  } else {
+    resume();
+  }
 }
 
 void Game::onAction(Action a) {
@@ -618,10 +688,129 @@ void Game::onAction(Action a) {
   }
 }
 
+// -------------------------------------------------- demonstration drives (0.7.0)
+
+void Game::startDemo(const std::vector<SpawnJson>& stops) {
+  if (hasLesson_ || stops.empty() ||
+      (state != GameState::Map && state != GameState::Drive && state != GameState::Pause))
+    return;
+  if (state == GameState::Map) {
+    // the plan closes first; the drive starts a moment later, when the car stands again
+    demoPending_ = stops;
+    autoRunAt_ = -1;
+    closeBigMap();
+    placeAgain();
+    return;
+  } else if (state == GameState::Pause) {
+    resume();
+  }
+  // the driver has no hand for a gear lever: the car gets the automatic gearbox for it
+  if (vehicle && vehicle->spec.transmission != "automatic") {
+    Vehicle& old = *vehicle;
+    old.getModelPosition(mpos_);
+    const VehicleSpec& spec = withPower(compactCarAutomatic(), settings.power);
+    auto fresh = std::make_unique<Vehicle>(spec, *ground);
+    fresh->teleport(mpos_[0], mpos_[1] + 0.02, mpos_[2], old.yaw);
+    fresh->odometer = old.odometer;
+    vehicle = std::move(fresh);
+    input->setSteering(spec.wheelBase, spec.maxWheelAngle);
+    input->setAutomatic(true);
+    hud->gearboxAutomatic = true;
+  }
+  Vehicle& v = *vehicle;
+  v.resetDrivetrain(true);
+  Controls& c = input->c;
+  c.seatbelt = true;
+  c.ignition = true;
+  c.handbrake = 0;
+  c.gear = 1;
+  c.indicator = 0;
+  c.hazard = false;
+  nav->clear();
+  AutoDriverOptions o;
+  o.spec = &v.spec;
+  o.front = isTruck ? TRUCK_OUTLINE.front
+                    : (v.spec.length > 0 ? v.spec.length / 2 : 4.28 / 2);
+  o.truck = isTruck;
+  demo_ = std::make_unique<Demo>();
+  demo_->stops = stops;
+  demo_->driver = std::make_unique<AutoDriver>(*app.world, *signals, *rules, traffic.get(), o);
+  hud->clearNotices();
+}
+
+void Game::endDemo(const std::string& why) {
+  if (!demo_) return;
+  demo_.reset();
+  nav->clear();
+  hud->routeLanes.clear();
+  rules->allowed = nullptr;
+  Controls& c = input->c;
+  c.indicator = 0;
+  const std::string& lang = settings.lang;
+  if (why == "arrived") {
+    c.handbrake = 1;
+    audio.click(ClickKind::Chime);
+    hud->message(fs::tr("demoArrived", lang));
+  } else if (why == "lost") {
+    c.handbrake = 1;
+    hud->message(fs::tr("demoNoRoute", lang));
+  } else {
+    hud->message(fs::tr("demoTaken", lang), fs::tr("demoTakenSub", lang));
+  }
+}
+
+/** Where the demonstration drive is heading: the route to the next of its places. */
+void Game::updateDemo(double dt, const PlayerState& p) {
+  Demo& demo = *demo_;
+  Lane* lane = currentLane();
+  if (!lane) {
+    // not on a road of the network (a yard, a field): there is no way from here
+    demo.lost += dt;
+    if (demo.lost > 4 && !nav->goal) endDemo("lost");
+    return;
+  }
+  bool last = demo.index >= static_cast<int>(demo.stops.size()) - 1;
+  if (!nav->goal) {
+    const SpawnJson& stop = demo.stops[static_cast<size_t>(demo.index)];
+    SurfaceHit h;
+    Edge* goal = app.world->nearestRoad(stop.x, stop.z, 60, 0, h) ? h.edge : nullptr;
+    if (!goal || !nav->setGoal(goal, lane)) {
+      // no way there from here (yet): try again shortly, then give up
+      nav->clear();
+      demo.lost += dt;
+      if (demo.lost > 3) endDemo("lost");
+      return;
+    }
+    demo.lost = 0;
+    demo.driver->hasHalt = last;
+    if (last) {
+      demo.driver->haltX = stop.x;
+      demo.driver->haltZ = stop.z;
+    }
+    hud->routeLanes = nav->routeLanes;
+  }
+  const std::string& lang = settings.lang;
+  NavHint& h = nav->update(dt, lane, laneFront(), p.x, p.z);
+  if (hud->routeLanes != nav->routeLanes) {
+    hud->routeLanes = nav->routeLanes;
+    allowedLanes_.clear();
+    for (Lane* l : nav->routeLanes) allowedLanes_.insert(l->edge);
+    rules->allowed = &allowedLanes_;
+  }
+  if (h.done && !last) {
+    demo.index++;
+    nav->clear();
+    audio.click(ClickKind::Chime);
+    hud->message(fs::tr("demoStop", lang,
+                        {{"n", std::to_string(demo.index)}}));
+  }
+}
+
 void Game::resetToRoad() {
   const GoodSpot& g = lastGood_;
   vehicle->teleport(g.x, g.y + 0.05, g.z, g.yaw);
   if (trailer && trailer->coupled) trailer->coupleBehind(*vehicle);
+  if (demo_ && demo_->driver) demo_->driver->reset();
   input->c.handbrake = 1;
 }
 
@@ -663,6 +852,39 @@ void Game::stepDrive(double dt) {
   // a truck is governed at 90 km/h
   if (isTruck && v.speed * 3.6 > 85)
     d.throttle = std::min(d.throttle, std::max(0.0, (89.5 - v.speed * 3.6) / 4));
+  if (demo_ && demo_->active) {
+    // Whoever touches a pedal or the steering takes the car over (held for a
+    // moment: a wheel that is not quite centred, or a thumb resting on the
+    // screen, is no decision).
+    demo_->takeT = (c.throttle > 0.2 || c.brake > 0.2 || std::fabs(c.steer) > 0.35 ||
+                    c.handbrake > 0.5)
+                       ? demo_->takeT + dt
+                       : 0;
+    if (demo_->takeT > 0.18) {
+      endDemo("taken");
+    } else {
+      v.getModelPosition(mpos_);
+      AutoCommand cmd = demo_->driver->step(std::max(dt, 1e-3), v, mpos_, nav->route);
+      // (until the way is known the car stands: no lane under it yet, or no route found yet)
+      bool ready = nav->goal != nullptr;
+      d.steer = ready ? cmd.steer : 0;
+      d.throttle = ready ? cmd.throttle : 0;
+      d.brake = ready ? cmd.brake : 0.5;
+      d.clutch = 0;
+      d.handbrake = 0;
+      d.gear = 1;
+      d.ignition = true;
+      d.starter = !v.engineRunning;
+      c.gear = 1;
+      c.indicator = static_cast<int>(cmd.indicator);
+      demo_->look = cmd.look;
+      demo_->remark = cmd.remark;
+      if (cmd.arrived) {
+        d.brake = 1;
+        endDemo("arrived");
+      }
+    }
+  }
   if (autoDrive_ > 0) {
     // test hook: drive off by itself
     d.ignition = true;
@@ -769,7 +991,8 @@ void Game::stepDrive(double dt) {
   snap.speed = v.speed;
   snap.indicator = c.indicator;
   snap.hazard = c.hazard;
-  snap.lookYaw = c.lookYaw;
+  // (on a demonstration drive it is the driver who looks over the shoulder)
+  snap.lookYaw = (demo_ && demo_->active) ? demo_->look : c.lookYaw;
   snap.seatbelt = c.seatbelt;
   snap.handbrake = c.handbrake;
   snap.stalled = stalled;
@@ -778,6 +1001,7 @@ void Game::stepDrive(double dt) {
   rules->update(dt, snap, events);
   rememberGoodSpot(player);
   if (task_) updateTask(dt);
+  else if (demo_) updateDemo(dt, player);
   else updateLesson(dt, player);
   if (failT_ > 0 && time_ > failT_) finish();
 }
@@ -956,6 +1180,9 @@ void Game::boot(const QueryParams& q) {
   const std::string qv = q.get("vehicle");
   if (qv == "truck") settings.vehicle = VehicleKind::Truck;
   else if (qv == "car") settings.vehicle = VehicleKind::Car;
+  // ?demo=x,z;x,z starts a demonstration drive to these places of the map once
+  // the drive has started (0.7.0)
+  autoDemo_ = q.get("demo");
   // ?reality=1|test opens the reality view once the drive has started ("test":
   // with a drawn panorama), ?rv=panoramax,kartaview switches services on
   autoReality_ = q.get("reality");
@@ -1235,7 +1462,12 @@ void Game::updateVisuals(double dt) {
   hs.junction.signal = ctx.junction.signal;
   hs.navText = navText;
   hs.navSub = task_ ? taskSub_
-             : (hasLesson_ && lesson_.kind != "basics" ? lessonLine_ : ctx.roadName);
+             : (demo_ ? (demo_->remark.empty()
+                             ? fs::tr("demoRunning", settings.lang,
+                                      {{"n", std::to_string(demo_->index + 1)},
+                                       {"max", std::to_string(demo_->stops.size())}})
+                             : fs::tr("demo." + demo_->remark, settings.lang))
+              : (hasLesson_ && lesson_.kind != "basics" ? lessonLine_ : ctx.roadName));
   hs.navArrow = h.arrow;
   hs.navActive = hasLesson_ && h.dist >= 0 && h.what != "navFollow" && h.what != "routeDone";
   hs.tip = tip;
@@ -1258,7 +1490,11 @@ void Game::updateVisuals(double dt) {
   hs.x = mpos_[0];
   hs.z = mpos_[2];
   hs.yaw = v.yaw;
-  if (navText.empty() && !hasLesson_) {
+  if (demo_) {
+    // a demonstration drive: where it goes, and under it what the driver is doing just now and why
+    if (navText.empty())
+      hs.navText = ctx.roadName.empty() ? fs::tr("demo", settings.lang) : ctx.roadName;
+  } else if (navText.empty() && !hasLesson_) {
     const std::string& lang = settings.lang;
     hs.navText = ctx.roadName.empty() ? fs::tr("free", lang) : ctx.roadName;
     hs.navSub = fs::tr(inputMode_ == "touch" ? "navSubTouch" : "navSubKeys", lang);
@@ -1293,7 +1529,10 @@ void Game::updateCamera(double dt) {
     cam.fov = 60;
     cam.position.copy(eyeWorld_);
     // looking over the shoulder also moves the head a little towards that side
-    tmpQ_.setFromEuler(Euler(c.lookPitch, c.lookYaw, 0, Euler::YXZ));
+    // (on a demonstration drive the head turns as the driver looks over the shoulder)
+    double want = (demo_ && demo_->active) ? demo_->look * 0.8 : 0;
+    demoHead_ += std::max(-dt * 5.0, std::min(dt * 5.0, want - demoHead_));
+    tmpQ_.setFromEuler(Euler(c.lookPitch, c.lookYaw + demoHead_, 0, Euler::YXZ));
     cam.quaternion.copy(carRoot.quaternion);
     cam.quaternion.multiply(tmpQ_);
   } else if (cameraMode == CameraMode::Chase) {
