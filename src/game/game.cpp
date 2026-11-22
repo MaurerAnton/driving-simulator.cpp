@@ -537,6 +537,7 @@ void Game::pause() {
 }
 
 void Game::finish() {
+  if (path_) path_->save();
   bool exam = hasLesson_ && lesson_.kind == "exam";
   bool failed = rules->failed() || rules->points() >= 10 || taskFailed_;
   bool judged = taskCount_ > 0;
