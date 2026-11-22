@@ -50,7 +50,7 @@ file it comes from.
 | 0.4.0   | `578e397`       | 12,847 | 17,555 | 1.37 |
 | 0.5.0   | `1c08919`       | 13,710 | 19,221 | 1.40 |
 | 0.6.0   | `408014b`       | 22,817 | 28,893 | 1.27 |
-| 0.7.0   | `ff37c5d`       | 32,933 | 34,397 | 1.04 |
+| 0.7.0   | `ff37c5d`       | 32,933 | 37,124 | 1.13 |
 | 0.8.0   | `3420ad0`       | 37,418 | — | — |
 | 0.9.0   | `9d37870`       | 37,452 | — | — |
 | 1.0.0   | `v1.0.0`        | 42,762 | — | — |
@@ -79,7 +79,8 @@ and the tests "pass" without checking anything). 15 checks are skipped with
 their reason in `CMakeLists.txt`: 14 that already fail on the original commit
 with asserts enabled (they date from the first translation, before the
 assertions were ever executed) and `i18n_test`, whose regenerated 0.7.0 texts
-await review; the rest – including `hud_test` – run green.
+await review; the rest – including `hud_test` and the class-CE `ce_test` –
+run green.
 
 `i18n_test` is the original's `tests/i18n` + `npm run i18n:check` in one:
 every language is complete (same keys, placeholders and `[[key]]` tokens),
