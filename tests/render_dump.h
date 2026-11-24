@@ -121,7 +121,7 @@ inline bool isMesh(const Object3D& o) { return o.type == ObjectType::Mesh || o.t
 inline void tree(const std::string& name, Object3D& top) {
   out("tree", word(name));
   const std::function<void(Object3D&, int)> visit = [&visit](Object3D& o, int depth) {
-    out("o", depth, typeName(o), o.name, P3(o.position), PQ(o.quaternion), xyz(o.scale), o.visible, o.renderOrder, o.castShadow, o.receiveShadow, o.frustumCulled,
+    out("o", depth, typeName(o), word(o.name), P3(o.position), PQ(o.quaternion), xyz(o.scale), o.visible, o.renderOrder, o.castShadow, o.receiveShadow, o.frustumCulled,
         static_cast<int>(o.children.size()));
     if (isMesh(o)) {
       Mesh& mesh = static_cast<Mesh&>(o);
@@ -160,6 +160,19 @@ inline void pose(const std::string& name, Object3D& top) {
     for (const ObjectPtr& c : o.children) visit(*c, depth + 1);
   };
   visit(top, 0);
+}
+
+/**
+ * Compare what was printed with the original's lines (the file) – and, when FS_DUMP_TO names a file, write
+ * what the port printed there (to look at the two side by side: tools/diff/compare.py).
+ */
+inline int against(const char* file, double rtol) {
+  const int bad = dump::against(file, rtol);
+  if (const char* to = std::getenv("FS_DUMP_TO")) {
+    std::ofstream f(to);
+    for (const std::string& line : dump::lines()) f << line << '\n';
+  }
+  return bad;
 }
 
 }  // namespace fs::rdump

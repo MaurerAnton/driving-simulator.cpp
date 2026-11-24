@@ -101,6 +101,56 @@ int main(int argc, char** argv) {
     p.opaque = false;
   });
   add("line", MaterialType::Line, [](ShaderParams& p) { p.fog = true; });
+  // the vehicles and the traffic lights (src/render/car, mirrors, navscreen, actors): their materials as the renderer asks for them –
+  // on the screen (fog, tone mapping, the sun and the sky's light, shadows), and in a mirror's picture (linear numbers, no tone mapping)
+  for (const bool mirror : {false, true}) {
+    const std::string in = mirror ? " in a mirror" : "";
+    const auto seen = [mirror](ShaderParams& p) {
+      p.fog = true;
+      p.toneMapping = !mirror;
+      p.srgbOutput = !mirror;
+      if (p.type == MaterialType::Lambert || p.type == MaterialType::Phong) {
+        p.shadowMap = true;
+        p.numDirLightShadows = 1;
+      }
+    };
+    add("cars: paint, rims, glass (phong)" + in, MaterialType::Phong, seen);
+    add("cars: glass one sees through, the cabin seen through (phong, transparent)" + in, MaterialType::Phong, [seen](ShaderParams& p) {
+      seen(p);
+      p.opaque = false;
+    });
+    add("cars: trim, tyres, the cabin (lambert)" + in, MaterialType::Lambert, seen);
+    add("cars: the cabin seen through, the lettering (lambert, transparent)" + in, MaterialType::Lambert, [seen](ShaderParams& p) {
+      seen(p);
+      p.opaque = false;
+    });
+    add("cars: lamps (basic)" + in, MaterialType::Basic, seen);
+    add("cars: number plate, roof sign (basic, a picture)" + in, MaterialType::Basic, [seen](ShaderParams& p) {
+      seen(p);
+      p.map = true;
+    });
+    add("cars: instruments, displays (basic, a picture, not tone mapped)" + in, MaterialType::Basic, [seen](ShaderParams& p) {
+      seen(p);
+      p.map = true;
+      p.toneMapping = false;
+    });
+    add("cars: the depth of the cabin seen through (basic, transparent)" + in, MaterialType::Basic, [seen](ShaderParams& p) {
+      seen(p);
+      p.opaque = false;
+    });
+    add("signals: housings (lambert, instanced)" + in, MaterialType::Lambert, [seen](ShaderParams& p) {
+      seen(p);
+      p.instancing = true;
+    });
+    add("signals: lamps (basic, instanced, a colour each)" + in, MaterialType::Basic, [seen](ShaderParams& p) {
+      seen(p);
+      p.instancing = p.instancingColor = true;
+    });
+  }
+  add("cars: a mirror's glass (basic, the mirror's picture, no fog)", MaterialType::Basic, [](ShaderParams& p) {
+    p.map = true;
+    p.toneMapping = true;
+  });
   for (const char* g : {"ground", "paint", "terrain", "building", "buildingPlain"})
     add(std::string("game: ") + g, MaterialType::Lambert, [g](ShaderParams& p) {
       p.fog = p.shadowMap = p.toneMapping = true;
