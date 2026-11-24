@@ -582,7 +582,7 @@ addToLibrary({
   // ---------------------------------------------------------------------------
   // plat.h: files, the store, the clock, the address, the device
   // ---------------------------------------------------------------------------
-  fsp_fetch__deps: ['$FSD'],
+  fsp_fetch__deps: ['$FSD', 'free'],
   fsp_fetch: function (id, urlPtr, methodPtr, headersPtr, bodyPtr, bodyLen, cachePtr, wantProgress) {
     const init = { method: FSD.str(methodPtr) };
     const cache = FSD.str(cachePtr);
@@ -597,11 +597,13 @@ addToLibrary({
       }
     }
     if (bodyLen > 0) init.body = HEAPU8.slice(bodyPtr, bodyPtr + bodyLen);
-    const deliver = (status, bytes) => {
+    const deliver = (status, bytes, type) => {
       const n = bytes ? bytes.length : 0;
       const ptr = _fsp_fetch_room(id, n);
       if (n) HEAPU8.set(bytes, ptr);
-      _fsp_fetch_done(id, status);
+      const t = FSD.out(type || '');
+      _fsp_fetch_done(id, status, t);
+      _free(t);
     };
     fetch(FSD.str(urlPtr), init)
       .then(async (res) => {
@@ -623,10 +625,10 @@ addToLibrary({
             all.set(p, at);
             at += p.length;
           }
-          deliver(res.status, all);
-        } else deliver(res.status, new Uint8Array(await res.arrayBuffer()));
+          deliver(res.status, all, res.headers.get('content-type'));
+        } else deliver(res.status, new Uint8Array(await res.arrayBuffer()), res.headers.get('content-type'));
       })
-      .catch(() => deliver(0, null));
+      .catch(() => deliver(0, null, ''));
   },
   /** which: 0 localStorage, 1 sessionStorage; returns 0 when there is nothing under the key */
   fsp_storage_get__deps: ['$FSD'],

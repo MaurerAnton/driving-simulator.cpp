@@ -52,6 +52,8 @@ struct Response {
   /** the HTTP status; 0: there was no answer at all (no connection, refused) */
   int status = 0;
   Bytes body;
+  /** the Content-Type header ('' when the server sent none) */
+  std::string contentType;
   bool ok() const { return status >= 200 && status < 300; }
   std::string text() const { return std::string(body.begin(), body.end()); }
 };

@@ -182,12 +182,13 @@ EMSCRIPTEN_KEEPALIVE void fsp_fetch_progress(int id, double got, double total) {
   if (it != fs::plat::fetches().end() && it->second.progress) it->second.progress(got, total);
 }
 
-EMSCRIPTEN_KEEPALIVE void fsp_fetch_done(int id, int status) {
+EMSCRIPTEN_KEEPALIVE void fsp_fetch_done(int id, int status, const char* contentType) {
   auto it = fs::plat::fetches().find(id);
   if (it == fs::plat::fetches().end()) return;
   fs::Resolver<fs::plat::Response> r = it->second.resolver;
   fs::plat::Response res = std::move(it->second.response);
   res.status = status;
+  if (contentType) res.contentType = contentType;
   fs::plat::fetches().erase(it);
   r.resolve(std::move(res));
 }
