@@ -107,6 +107,9 @@ int main(int argc, char** argv) {
       p.numDirLightShadows = 1;
       p.map = !std::strcmp(g, "terrain");
     }, g);
+  // (tools/glsl/scene.mjs) the bare back of the sign plates: unlit, cut out by the atlas; the far ground: its colours, both sides
+  add("game: signBack", MaterialType::Basic, [](ShaderParams& p) { p.map = p.alphaTest = p.fog = p.toneMapping = true; }, "signBack");
+  add("game: far", MaterialType::Lambert, [](ShaderParams& p) { p.vertexColors = p.doubleSided = p.fog = p.toneMapping = true; }, "far");
 
   int failed = 0;
   auto link = [&](const std::string& name, const std::string& vs, const std::string& fsrc) {
