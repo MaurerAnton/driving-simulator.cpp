@@ -68,6 +68,9 @@ struct Uniforms {
   bool fog = true;
 };
 
+/** The uniform values of a material kind (diffuse, shininess, …). */
+Uniforms uniformsFor(MaterialKind kind);
+
 /** Stable program cache key, as the JS customProgramCacheKey does. */
 std::string programCacheKeyFor(MaterialKind kind);
 /** The sign plates' back side uses its own program (bare metal over the atlas). */

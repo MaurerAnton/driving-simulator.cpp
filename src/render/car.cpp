@@ -187,8 +187,16 @@ CarExterior::CarExterior(uint32_t color, const CarExteriorOptions& opts) {
   solids.push_back(body.get());
   group.add(std::unique_ptr<Object3D>(body.release()));
 
+  // the glass colour follows the material (three.js MAT.glassDark, or the
+  // pale see-through one with its low opacity: vertex colour + alpha)
+  tint(shell.glass, opts.seeThroughGlass ? Color(0.62, 0.75, 0.82) : Color(0.047, 0.078, 0.094));
   auto glassMesh = std::make_unique<Mesh>(shell.glass, MaterialKind::Struct);
   glassMesh->renderOrder = 5;
+  if (opts.seeThroughGlass) {
+    // three.js: transparent: true, opacity: 0.16, depthWrite: false
+    glassMesh->opacity = 0.16;
+    glassMesh->depthWrite = false;
+  }
   group.add(std::unique_ptr<Object3D>(glassMesh.release()));
 
   tint(shell.trim, 0x2a2d31);

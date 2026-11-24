@@ -10,6 +10,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -82,7 +83,12 @@ class BufferGeometry {
   std::shared_ptr<BufferAttribute> index;  // optional triangle indices
   std::string name;
 
-  BufferGeometry() = default;
+  /** named attributes the shader binds by name (amat, astyle, auvd) */
+  std::map<std::string, std::shared_ptr<BufferAttribute>> named_;
+  /** identity for the renderer's buffer cache (a fresh geometry, a fresh id) */
+  unsigned long long id = 0;
+
+  BufferGeometry();
 
   void setAttribute(const std::string& n, std::shared_ptr<BufferAttribute> a) {
     if (n == "position") position = std::move(a);
@@ -90,6 +96,9 @@ class BufferGeometry {
     else if (n == "uv") uv = std::move(a);
     else if (n == "color") color = std::move(a);
     else if (n == "index") index = std::move(a);
+    // named attributes the renderer binds by their GLSL name (amat, astyle, auvd)
+    else if (a) named_[n] = std::move(a);
+    else named_.erase(n);
   }
 
   std::shared_ptr<BufferAttribute> getAttribute(const std::string& n) const {
@@ -98,7 +107,8 @@ class BufferGeometry {
     if (n == "uv") return uv;
     if (n == "color") return color;
     if (n == "index") return index;
-    return nullptr;
+    auto it = named_.find(n);
+    return it == named_.end() ? nullptr : it->second;
   }
 
   void deleteAttribute(const std::string& n) {
@@ -107,7 +117,11 @@ class BufferGeometry {
     else if (n == "uv") uv.reset();
     else if (n == "color") color.reset();
     else if (n == "index") index.reset();
+    else named_.erase(n);
   }
+
+  /** The named attributes (amat, astyle, auvd, …), for the renderer's bind. */
+  const std::map<std::string, std::shared_ptr<BufferAttribute>>& named() const { return named_; }
 
   /** Drop the triangle index and expand to per-vertex data (three.js toNonIndexed). */
   std::shared_ptr<BufferGeometry> toNonIndexed() const;

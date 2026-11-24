@@ -87,6 +87,7 @@ void App::setCanvasSize(int canvasWidth, int canvasHeight) {
 
 void App::render(const Vector3& focus) {
   sky.follow(camera, focus);
+  renderer.setSkyUniforms(sky.uZenith, sky.uHorizon, sky.uSunColor);
   renderer.render(scene, camera);
 }
 

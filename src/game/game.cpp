@@ -206,6 +206,11 @@ void Game::closeReality() {
 
 void Game::onTile(LoadedTile& tile, bool loaded) {
   if (loaded) {
+    // the terrain's ground-cover texture (three.js: the DataTexture the
+    // terrain material samples; uploaded when the tile arrives)
+    if (!tile.coverTex.empty())
+      app.renderer.uploadTexture("cover:" + tile.key, tile.coverTex.data(), tile.coverTexN,
+                                 tile.coverTexN, true);
     props.add(tile);
     signs->add(tile);
     std::vector<double> discs;
@@ -1564,7 +1569,7 @@ void Game::frame(double now) {
     a.camera.updateProjectionMatrix();
     signals->update(dt);
   }
-  signs->flush();
+  signs->flush(a.renderer);
   signalHeads->update(*signals);
   actors.update(traffic->cars, traffic->peds, time_);
   if (rail) railActors.update(rail->vehicles);

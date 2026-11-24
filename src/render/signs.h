@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "engine/scene.h"
+#include "engine/webgl.h"
 #include "platform/canvas2d.h"
 #include "render/tiles.h"
 #include "world/tilefmt.h"
@@ -49,8 +50,11 @@ class SignRenderer {
 
   /** Load the graphics (the platform reads signs.json / manifest.json). */
   void init();
-  /** Call once per frame: re-upload the atlas after new signs were drawn. */
-  void flush();
+  /**
+   * Call once per frame: after new signs were drawn, the atlas goes to the
+   * renderer's texture (three.js: texture.needsUpdate = true).
+   */
+  void flush(class WebGLRenderer& renderer);
 
   void add(LoadedTile& tile);
   void remove(const std::string& key);

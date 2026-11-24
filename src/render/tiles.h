@@ -36,6 +36,9 @@ struct LoadedTile {
   std::vector<double> heights;
   /** ground-cover raster (coverN × coverN) */
   std::vector<uint8_t> cover;
+  /** the cover as RGBA texels for the terrain's texture (empty = none) */
+  std::vector<uint8_t> coverTex;
+  int coverTexN = 0;
   UnpackedTile data;
 };
 

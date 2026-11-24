@@ -139,11 +139,21 @@ class Mesh : public Object3D {
   Mesh(GeometryPtr g, MaterialKind k) : geometry(std::move(g)), kind(k) {}
   GeometryPtr geometry;
   MaterialKind kind = MaterialKind::Struct;
-  /** a second material for the second geometry group (sign plates use one) */
-  MaterialKind kind2 = MaterialKind::Struct;
+  /**
+   * the index count of the first geometry group (three.js addGroup): the
+   * range [0, groupSplit) draws with `kind`, the rest with `kind2`.  -1 =
+   * one group, the whole index with `kind`.
+   */
+  int groupSplit = -1;
+  /** the texture the program samples as `map` (sign atlas; "" = none) */
+  std::string texture;
   /** instanced draws (three.js InstancedMesh): one matrix per instance */
   std::vector<Matrix4> instances;
   std::vector<Color> instanceColors;
+  /** three.js material.opacity (1 = opaque; below 1 the mesh blends) */
+  double opacity = 1;
+  /** three.js material.depthWrite (the glass does not write depth) */
+  bool depthWrite = true;
   bool castShadow = false;
   bool receiveShadow = false;
 };
@@ -164,7 +174,11 @@ class LOD : public Object3D {
   };
   std::vector<Level> levels;
 
-  void addLevel(Object3D* object, double distance) { levels.push_back({object, distance}); }
+  void addLevel(Object3D* object, double distance) {
+    levels.push_back({object, distance});
+    // three.js LOD.addLevel: the level objects live in the LOD's children
+    if (object) add(std::unique_ptr<Object3D>(object));
+  }
   /** The level to draw from `distance` metres away (nullptr when empty). */
   Object3D* pick(double distance) const {
     if (levels.empty()) return nullptr;

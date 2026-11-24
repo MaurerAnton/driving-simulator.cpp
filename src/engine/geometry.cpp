@@ -18,6 +18,16 @@ namespace fs {
 // BufferGeometry
 // ---------------------------------------------------------------------------
 
+namespace {
+/** One id per geometry: the renderer's buffer cache keys on it. */
+unsigned long long nextGeometryId() {
+  static unsigned long long n = 0;
+  return ++n;
+}
+}  // namespace
+
+BufferGeometry::BufferGeometry() : id(nextGeometryId()) {}
+
 std::shared_ptr<BufferGeometry> BufferGeometry::toNonIndexed() const {
   auto g = std::make_shared<BufferGeometry>();
   if (!index || !position) return g;

@@ -49,8 +49,10 @@ SignRenderer::SignRenderer(const std::string& baseUrl, SignSource& source)
 
 void SignRenderer::init() { source_.load(baseUrl_); }
 
-void SignRenderer::flush() {
-  if (dirty_) dirty_ = false;  // the atlas lives on the canvas; nothing to upload
+void SignRenderer::flush(WebGLRenderer& renderer) {
+  if (!dirty_) return;
+  dirty_ = false;
+  renderer.uploadTexture("signs", canvas_.pixels().data(), canvas_.width(), canvas_.height());
 }
 
 double SignRenderer::aspectOf(const std::string& code) const {
@@ -309,7 +311,10 @@ void SignRenderer::add(LoadedTile& tile) {
   g->computeVertexNormals();
 
   auto plates = std::make_unique<Mesh>(g, MaterialKind::Struct);
-  plates->kind2 = MaterialKind::SignBack;  // the back is drawn in bare metal
+  // three.js addGroup(0, idx.length, 0) + addGroup(idx.length, idxBack.length, 1):
+  // the front face draws with the atlas, the back as bare metal (SignBack)
+  plates->groupSplit = static_cast<int>(idx.size());
+  plates->texture = "signs";  // the atlas the face samples (SignRenderer::flush)
   plates->position.set(cx, tile.header.yBase, cz);
   plates->updateMatrix();
   plates->matrixAutoUpdate = false;

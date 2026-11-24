@@ -180,6 +180,22 @@ std::unique_ptr<LoadedTile> TileManager::build(const std::string& key, UnpackedT
   auto norAttr = std::make_shared<BufferAttribute>(nor, 3);
   auto uvAttr = std::make_shared<BufferAttribute>(uv, 2);
 
+  // the ground-cover raster as a texture (three.js DataTexture in tiles.ts):
+  // one texel per cover cell, its class colour, alpha 0 (no edge section —
+  // the plain filtered texture, exactly what the original draws without one)
+  std::vector<uint8_t> coverTex;
+  int cn = h.coverN;
+  if (cn > 0 && !out->cover.empty()) {
+    coverTex.resize(static_cast<size_t>(cn) * cn * 4);
+    for (size_t i = 0; i < out->cover.size() && i < static_cast<size_t>(cn) * cn; i++) {
+      uint32_t c = coverRgb(out->cover[i]);
+      coverTex[i * 4] = static_cast<uint8_t>((c >> 16) & 0xff);
+      coverTex[i * 4 + 1] = static_cast<uint8_t>((c >> 8) & 0xff);
+      coverTex[i * 4 + 2] = static_cast<uint8_t>(c & 0xff);
+      coverTex[i * 4 + 3] = 0;
+    }
+  }
+
   auto indexFor = [&](int stride) -> std::shared_ptr<BufferAttribute> {
     int m = (n - 1) / stride;
     std::vector<double> idx;
@@ -225,6 +241,7 @@ std::unique_ptr<LoadedTile> TileManager::build(const std::string& key, UnpackedT
     auto mesh = std::make_unique<Mesh>(g, kindTerrain_);
     mesh->receiveShadow = true;
     mesh->matrixAutoUpdate = false;
+    if (!coverTex.empty()) mesh->texture = "cover:" + key;
     lod->addLevel(mesh.release(), dists[li]);
   }
   lod->position.set(h.cx, h.yBase, h.cz);
@@ -287,6 +304,8 @@ std::unique_ptr<LoadedTile> TileManager::build(const std::string& key, UnpackedT
     bldg->receiveShadow = true;
   }
 
+  out->coverTex = std::move(coverTex);
+  out->coverTexN = cn;
   out->group->matrixAutoUpdate = false;
   return out;
 }

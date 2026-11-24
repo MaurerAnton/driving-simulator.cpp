@@ -201,17 +201,27 @@ uniform mat4 projectionMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat3 normalMatrix;
 uniform vec3 cameraPosition;
+varying float vFogDepth;
 )GLSL";
 
 const char* const VS_MAIN = R"GLSL(
 void main() {
   vec3 transformed = position;
   vec3 objectNormal = normal;
+  vec4 vColor = vec4(1.0);
+#ifdef USE_COLOR
+  vColor.rgb *= color;
+#endif
+#ifdef USE_INSTANCING_COLOR
+  vColor.rgb *= instanceColor.rgb;
+#endif
 )GLSL";
 
 const char* const VS_TAIL = R"GLSL(
   vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
   gl_Position = projectionMatrix * mvPosition;
+  // three.js fog_vertex: the depth the fragment fog reads
+  vFogDepth = -mvPosition.z;
 }
 )GLSL";
 
@@ -219,12 +229,13 @@ const char* const FS_HEAD = R"GLSL(
 precision highp float;
 uniform mat4 viewMatrix;
 uniform vec3 cameraPosition;
-uniform vec3 diffuse;
+uniform vec4 diffuse;
 uniform vec3 ambient;
 uniform vec3 emissive;
 uniform vec3 fogColor;
 uniform float fogNear;
 uniform float fogFar;
+varying float vFogDepth;
 uniform vec3 uSunDir;
 uniform vec3 uSunCol;
 uniform float uSunInt;
@@ -241,37 +252,66 @@ uniform vec2 uTexel;
 const char* const FS_TAIL = R"GLSL(
 void main() {
   vec3 outgoingLight = vec3(0.0);
-  vec4 diffuseColor = vec4(diffuse, 1.0);
+  vec4 diffuseColor = diffuse;
 )GLSL";
 
 const char* const FS_END = R"GLSL(
   // three.js fog: mix towards the fog colour with distance
-  float fogDepth = gl_FragCoord.z / gl_FragCoord.w;
-  float fogFactor = smoothstep(fogNear, fogFar, fogDepth);
+  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
   outgoingLight = mix(outgoingLight, fogColor, fogFactor);
   gl_FragColor = vec4(outgoingLight, diffuseColor.a);
 }
+)GLSL";
+
+/**
+ * three.js color_fragment: the vertex colour (car paint, lamps, bridges,
+ * trams…) multiplies the diffuse colour, and the sign atlas multiplies it
+ * where the plate face samples the map — the same order as the original's
+ * <map_fragment> <color_fragment> pair.
+ */
+const char* const COLOR_FS = R"GLSL(
+#ifdef USE_MAP
+  diffuseColor *= texture2D(map, uv);
+  if (diffuseColor.a < 0.45) discard;   // three.js alphatest_fragment
+#endif
+#ifdef USE_COLOR
+  diffuseColor *= vColor;
+#endif
 )GLSL";
 
 }  // namespace
 
 std::string vertexShaderFor(MaterialKind kind) {
   std::string s = VS_HEAD;
+  if (kind == MaterialKind::Sky) {
+    // three.js sky.ts: the dome draws at the far plane, its direction in vDir
+    s += "varying vec3 vDir;\n";
+    s += R"GLSL(
+void main() {
+  vDir = normalize(position);
+  vec4 p = modelViewMatrix * vec4(position, 0.0);
+  gl_Position = projectionMatrix * vec4(p.xyz, 1.0);
+  gl_Position.z = gl_Position.w; // at the far plane
+}
+)GLSL";
+    return s;
+  }
   if (kind == MaterialKind::Ground || kind == MaterialKind::Paint) {
     s += "attribute float amat;\nflat varying float vFsMat;\n";
   }
   if (kind == MaterialKind::Building) {
     s += "attribute vec4 astyle;\nattribute vec4 auvd;\nflat varying vec4 vFsStyle;\nvarying vec4 vFsUvd;\n";
   }
-  if (kind != MaterialKind::Sky) s += WORLDPOS_VS_HEAD;
-  if (kind != MaterialKind::Sky) s += "varying vec3 vNormal;\n";
+  s += WORLDPOS_VS_HEAD;
+  s += "varying vec3 vNormal;\n";
+  // three.js color_pars_vertex: the vertex colours (car paint, lamps, trams,
+  // bridges) and the per-instance colours of the props
+  s += "attribute vec3 color;\nattribute vec3 instanceColor;\nvarying vec4 vColor;\n";
   s += VS_MAIN;
   if (kind == MaterialKind::Ground || kind == MaterialKind::Paint) s += "  vFsMat = amat;\n";
   if (kind == MaterialKind::Building) s += "  vFsStyle = astyle;\n  vFsUvd = auvd * 0.02;\n";
-  if (kind != MaterialKind::Sky) {
-    s += WORLDPOS_VS_BODY;
-    s += "  vNormal = normalMatrix * objectNormal;\n";
-  }
+  s += WORLDPOS_VS_BODY;
+  s += "  vNormal = normalMatrix * objectNormal;\n";
   s += VS_TAIL;
   return s;
 }
@@ -283,6 +323,7 @@ std::string fragmentShaderFor(MaterialKind kind) {
     s = R"GLSL(
 precision highp float;
 varying vec3 vDir;
+varying float vFogDepth;
 uniform vec3 uSunDir;
 uniform vec3 uZenith;
 uniform vec3 uHorizon;
@@ -307,6 +348,9 @@ void main() {
     s += "flat varying float vFsMat;\n";
   if (kind == MaterialKind::Building)
     s += "flat varying vec4 vFsStyle;\nvarying vec4 vFsUvd;\n";
+  // three.js USE_COLOR / USE_COLOR_ALPHA: the vertex colours (and the sign
+  // atlas, where the plate face samples the map) reach diffuseColor
+  s += "varying vec4 vColor;\n";
   s += NOISE_GLSL;
   if (kind == MaterialKind::Ground || kind == MaterialKind::Paint) s += GROUND_GLSL;
   if (kind == MaterialKind::Building) s += FACADE_GLSL;
@@ -326,6 +370,9 @@ void main() {
   switch (kind) {
     case MaterialKind::SignBack:
     case MaterialKind::Struct:
+      // three.js <map_fragment> <color_fragment>: the sign atlas where the
+      // plate face samples it, the vertex colours everywhere
+      s += COLOR_FS;
       // the plate's back: the atlas silhouette in bare metal (the original
       // overrides `diffuseColor.rgb` after <map_fragment>)
       s += "  diffuseColor.rgb = vec3(0.30, 0.32, 0.33);\n";
@@ -333,10 +380,14 @@ void main() {
       break;
     case MaterialKind::Ground:
     case MaterialKind::Paint:
+      s += COLOR_FS;
       s += "  diffuseColor.rgb = fsGround(vFsMat, vFsWorld, distance(vFsWorld, cameraPosition));\n";
       s += lambert();
       break;
     case MaterialKind::Terrain: {
+      // three.js <map_fragment>: the ground-cover texture (its edge alpha
+      // sharpens the classes where the cells are bigger than a pixel)
+      s += COLOR_FS;
       s += "  {\n";
       s += "    float d = distance(vFsWorld, cameraPosition);\n";
       s += "    float fine = 1.0 - smoothstep(8.0, 50.0, d);\n";
