@@ -123,7 +123,9 @@ void cache() {
       asked.emplace_back(url, r);
       return r.task();
     };
-    const std::vector<AerialTile> tiles = aerialTiles(0, 528000, 5678000, 528000 + 102.4 * 4, 5678000 + 102.4 * 3);
+    // (a rectangle of 4 × 3 tiles of level 0, just inside the grid's lines)
+    const double e0 = 5156 * 102.4, n0 = 55449 * 102.4;
+    const std::vector<AerialTile> tiles = aerialTiles(0, e0 + 1, n0 + 1, e0 + 102.4 * 4 - 1, n0 + 102.4 * 3 - 1);
     check(tiles.size() == 12, "12 tiles");
     for (const AerialTile& t : tiles) check(c.get(t) == nullptr, "nothing there yet");
     check(asked.size() == 4 && c.loadingNow() == 4, "a few at a time: the server is a public service");
@@ -256,12 +258,12 @@ void sentinel() {
     check(z == 0 || res * 2 > (1 / s) * 1.3 / 2, "S2 at " + std::to_string(s) + " not needlessly fine");
   }
   check(s2Zoom(100, 51) == S2_MAX_ZOOM, "close up: the finest zoom there is");
-  // the tile over Kassel at zoom 7 (fetched by hand to check the address: .../g/7/43/67.jpg)
+  // the tile over Kassel at zoom 7: x = (9.4 + 180) / 360 · 128 = 67.3, y = 42.7 (WMTS: …/{TileMatrix}/{TileRow}/{TileCol}.jpg)
   const std::vector<AerialTile> kassel = s2Tiles(7, 51.3, 9.4, 51.31, 9.41);
-  check(kassel.size() == 1 && kassel[0].col == 67 && kassel[0].row == 43, "Kassel at zoom 7");
-  check(s2Url(kassel[0]) == "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/7/43/67.jpg", "the WMTS address");
+  check(kassel.size() == 1 && kassel[0].col == 67 && kassel[0].row == 42, "Kassel at zoom 7");
+  check(s2Url(kassel[0]) == "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/7/42/67.jpg", "the WMTS address");
   check(aerialUrl(kassel[0]) == s2Url(kassel[0]), "aerialUrl of a Sentinel tile");
-  check(aerialKey(kassel[0]) == "s2/7/67/43", "its key");
+  check(aerialKey(kassel[0]) == "s2/7/67/42", "its key");
   // corners: the whole world at zoom 0, and the tiles of a box cover it
   const auto nw = s2TileLatLon(0, 0, 0);
   check(std::abs(nw[0] - 85.0511) < 1e-3 && nw[1] == -180, "zoom 0 starts at 85.05° N, 180° W");
