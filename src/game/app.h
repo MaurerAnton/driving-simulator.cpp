@@ -9,6 +9,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "core/task.h"
@@ -18,6 +19,8 @@
 #include "render/sky.h"
 #include "render/tiles.h"
 #include "world/loader.h"
+#include "world/regions.h"
+#include "world/regiontiles.h"
 #include "world/world.h"
 
 namespace fs {
@@ -42,8 +45,19 @@ class App {
   explicit App(const dom::El& canvasElement);
   ~App();
 
-  /** Open the map: its index and the first piece of the road network; `onProgress` names what is being fetched. */
-  Task<void> loadWorld(std::function<void(std::string)> onProgress = nullptr);
+  /**
+   * Open the map: its index and the first piece of the road network; `onProgress` names what
+   * is being fetched.  `region`: a region of the regions' index (world/regions.h) to open in
+   * place of the site's own map – its index and network come from the map-assets of the
+   * original repository, its tiles one by one out of the parts there (world/regiontiles.h).
+   * (1.7.7 hands in a LoadedRegion with a source and keeps a PartCache beside it; here the
+   * region itself is enough.)
+   */
+  Task<void> loadWorld(std::function<void(std::string)> onProgress = nullptr, std::optional<Region> region = std::nullopt);
+  /** the region that is open ("": the site's own map) */
+  std::string regionId;
+  /** the open region's tiles (null: the site's own map) */
+  std::shared_ptr<RegionTiles> regionTiles;
   void resize();
   /**
    * The sun's shadows: `mapSize` pixels square (0: none) over `reach` metres around the player.

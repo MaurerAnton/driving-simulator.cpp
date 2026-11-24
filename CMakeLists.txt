@@ -25,9 +25,18 @@ else()
   set(FAHRSIM_OPT "-O1" CACHE STRING "optimisation level")
 endif()
 
+# The compiler's results are kept (ccache) and shared by every copy of the repository on the
+# machine: paths are taken relative to the copy's root, so that a file compiled in one worktree
+# is not compiled again in the next (several agents work in worktrees of their own, and each
+# merge of main would otherwise rebuild everything in each of them).
 find_program(CCACHE ccache)
 if(CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
-  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER env "CCACHE_BASEDIR=${CMAKE_SOURCE_DIR}" CCACHE_NOHASHDIR=1
+      "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" "${CCACHE}")
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # (what ccache needs to keep results of files that use the precompiled header)
+    add_compile_options(-fpch-preprocess)
+  endif()
 endif()
 
 # --- sources -----------------------------------------------------------------
