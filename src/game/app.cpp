@@ -51,6 +51,37 @@ class SiteFiles : public MapFiles {
   std::string base_;
 };
 
+/**
+ * The files of a region: its map.json, road network and network chunks, kept under
+ * regions/<id>/ of the map-assets (world/regionfiles.ts' regionFiles over regionFetchSource).
+ */
+class RegionFiles : public MapFiles {
+ public:
+  RegionFiles(std::string root, std::string id) : root_(std::move(root)), id_(std::move(id)) {}
+
+  Task<std::optional<Bytes>> bytes(std::string path) override {
+    plat::Response res = co_await plat::fetch(root_ + std::string(REGIONS_DIR) + "/" + id_ + "/" + path);
+    if (!res.ok()) co_return std::nullopt;
+    if (plat::isGzip(res.body)) {
+      // (a file that only looks like gzip is given as it is, as the original does)
+      Bytes plain = plat::gunzip(res.body);
+      if (!plain.empty()) co_return plain;
+    }
+    co_return std::move(res.body);
+  }
+
+ private:
+  std::string root_, id_;
+};
+
+/** "…/tiles/412_398.fsb?v=…" → "412_398" ("" when the address is not a tile's) */
+std::string tileKeyOf(const std::string& url) {
+  const size_t at = url.rfind("tiles/");
+  if (at == std::string::npos) return "";
+  const size_t from = at + 6, dot = url.find(".fsb", from);
+  return dot == std::string::npos ? "" : url.substr(from, dot - from);
+}
+
 }  // namespace
 
 App::App(const dom::El& canvasElement) : canvas(canvasElement) {
@@ -67,9 +98,8 @@ App::App(const dom::El& canvasElement) : canvas(canvasElement) {
 
 App::~App() { dom::window().off("resize", resizeListener_); }
 
-Task<void> App::loadWorld(std::function<void(std::string)> onProgress) {
+Task<void> App::loadWorld(std::function<void(std::string)> onProgress, std::optional<Region> region) {
   if (onProgress) onProgress("world");
-  auto files = std::make_shared<SiteFiles>(baseUrl);
   // a few traffic lights are out of order every day (others each day); ?lightsout=0…1 sets the share
   bool asked = false;
   const double share0 = jsNumber(searchParam("lightsout", &asked));
@@ -80,11 +110,40 @@ Task<void> App::loadWorld(std::function<void(std::string)> onProgress) {
   // (which lights are out is decided by sim/signals' lightsOutBy(day, share): wired when that layer is merged)
   (void)day;
   (void)share;
-  map = co_await MapLoader::open(files, options);
+  // a region chosen (settings: region) comes from map-assets: its own map.json and network.  The
+  // world frame stays the shared one every region was built in, so no origin is set here.
+  regionId.clear();
+  regionTiles = nullptr;
+  std::shared_ptr<SiteFiles> site;
+  if (region) {
+    // 2.0: its tiles are fetched one at a time out of the parts (1.7.7 downloads whole parts)
+    auto parts = std::make_shared<RegionTiles>(plat::locationBase() + "parts/", MAP_ASSETS_URL);
+    if (co_await parts->open(region->tiles)) {
+      regionTiles = parts;
+      regionId = region->id;
+      map = co_await MapLoader::open(std::make_shared<RegionFiles>(MAP_ASSETS_URL, region->id), options);
+    } else {
+      plat::warn("[region] " + region->id + ": the index of its tiles could not be read: the site's map is loaded");
+    }
+  }
+  if (!regionTiles) {
+    site = std::make_shared<SiteFiles>(baseUrl);
+    map = co_await MapLoader::open(site, options);
+  }
+  // (a breath for the page between the big steps, so that the loading screen is drawn)
   co_await plat::sleep(0);
-  files->version = map->version;
+  if (site) site->version = map->version;
   world = &map->world;
   tiles = std::make_unique<TileManager>(map->tiles, baseUrl, map->version);
+  if (regionTiles) {
+    // the region's tiles come from its parts; anything else the renderer asks for, from the site
+    std::shared_ptr<RegionTiles> parts = regionTiles;
+    tiles->fetch = [parts](std::string url) -> Task<plat::Response> {
+      const std::string key = tileKeyOf(url);
+      if (key.empty()) return plat::fetch(std::move(url));
+      return parts->fetch(key);
+    };
+  }
   scene->add(tiles->group);
 }
 
