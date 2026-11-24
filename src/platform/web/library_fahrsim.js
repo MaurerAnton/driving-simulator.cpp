@@ -362,6 +362,14 @@ addToLibrary({
   fsd_exit_fullscreen: function () {
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   },
+  fsd_handle_limit__deps: ['$FSD'],
+  fsd_handle_limit: function () {
+    return FSD.els.length;
+  },
+  fsd_forget_listener__deps: ['$FSD'],
+  fsd_forget_listener: function (id) {
+    delete FSD.fns[id];
+  },
   /** which handles are in the page now: writes a byte (1/0) for each handle up to `n` */
   fsd_connected_map__deps: ['$FSD'],
   fsd_connected_map: function (out, n) {
@@ -547,6 +555,36 @@ addToLibrary({
     } catch (e) {
       return FSD.out('');
     }
+  },
+
+  // pictures: an address or bytes become something drawImage and texImage2D take (handle → FSD.images)
+  fsc_image_load__deps: ['$FSD'],
+  fsc_image_load: function (id, url) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      FSD.images.push(img);
+      _fsc_image_done(id, FSD.images.length - 1, img.naturalWidth, img.naturalHeight);
+    };
+    img.onerror = () => _fsc_image_done(id, 0, 0, 0);
+    img.src = FSD.str(url);
+  },
+  fsc_image_decode__deps: ['$FSD'],
+  fsc_image_decode: function (id, ptr, n, mime) {
+    const blob = new Blob([HEAPU8.slice(ptr, ptr + n)], { type: FSD.str(mime) });
+    createImageBitmap(blob).then(
+      (bmp) => {
+        FSD.images.push(bmp);
+        _fsc_image_done(id, FSD.images.length - 1, bmp.width, bmp.height);
+      },
+      () => _fsc_image_done(id, 0, 0, 0),
+    );
+  },
+  fsc_image_free__deps: ['$FSD'],
+  fsc_image_free: function (h) {
+    const img = FSD.images[h];
+    if (img && img.close) img.close();
+    FSD.images[h] = null;
   },
 
   // ---------------------------------------------------------------------------

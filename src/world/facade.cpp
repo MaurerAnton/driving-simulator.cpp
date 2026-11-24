@@ -1,42 +1,109 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/**
- * What the faces of a building need for their facades: the four numbers of
- * every corner from the rule that face is stored by (see facade.h).
- *
- * Origin: src/world/facade.ts (MaurerAnton/driving-simulator @ 3420ad0, v0.8.0).
- */
+// Origin: src/world/facade.ts @ v1.7.7
+/** What the faces of a building need for their facades (see facade.h). */
 #include "world/facade.h"
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
+#include <cstdlib>
 
+#include "core/js.h"
 #include "world/tilefmt.h"
 
 namespace fs {
 
 namespace {
-inline int16_t q16(double v) {
-  double r = std::round(v / UV_SCALE);
-  return static_cast<int16_t>(std::max(-32767.0, std::min(32767.0, r)));
+
+/** a corner higher than this above the foot of a wall can be its eave */
+const double EAVE_ABOVE = 0.6;
+/** how far (in units of UV_SCALE) what a rule gives may be from what the map build wanted */
+const int TOLERANCE = 2;
+/** a run is written as  corners × 8 + rule  in 16 bits */
+const size_t MAX_RUN = 8191;
+
+int16_t q16(double v) {
+  const double q = jsMax(-32767, jsMin(32767, jsRound(v / UV_SCALE)));
+  // (what is no number is 0 in an array of whole numbers)
+  return q == q ? static_cast<int16_t>(q) : 0;
 }
+
+template <class Index>
+PackedFaces packFacesOf(std::span<const int16_t> pos, std::span<const Index> idx, std::span<const int16_t> a16) {
+  const size_t count = pos.size() / 3;
+  // which corners belong together
+  std::vector<int32_t> parent(count);
+  for (size_t i = 0; i < count; i++) parent[i] = static_cast<int32_t>(i);
+  auto find = [&](size_t i) -> size_t {
+    while (static_cast<size_t>(parent[i]) != i) {
+      parent[i] = parent[static_cast<size_t>(parent[i])];
+      i = static_cast<size_t>(parent[i]);
+    }
+    return i;
+  };
+  for (size_t t = 0; t + 2 < idx.size(); t += 3) {
+    const size_t a = find(idx[t]);
+    const size_t b = find(idx[t + 1]);
+    const size_t c = find(idx[t + 2]);
+    const size_t m = std::min(a, std::min(b, c));
+    parent[a] = static_cast<int32_t>(m);
+    parent[b] = static_cast<int32_t>(m);
+    parent[c] = static_cast<int32_t>(m);
+  }
+  PackedFaces packed;
+  std::vector<uint16_t>& run = packed.run;
+  std::vector<int16_t>& uvx = packed.uvx;
+  std::vector<int16_t> tmp(a16.size(), 0);
+  auto explicitRun = [&](size_t first, size_t n) {
+    for (size_t i = first * 4; i < (first + n) * 4; i++) uvx.push_back(i < a16.size() ? a16[i] : 0);
+    // (runs without a rule that follow each other are one run)
+    if (!run.empty() && (run.back() & 7) == FACE_EXPLICIT && static_cast<size_t>(run.back() >> 3) + n <= MAX_RUN) run.back() = static_cast<uint16_t>(run.back() + (n << 3));
+    else run.push_back(static_cast<uint16_t>((n << 3) | FACE_EXPLICIT));
+  };
+  auto fits = [&](size_t first, size_t n) {
+    for (size_t i = first * 4; i < (first + n) * 4; i++)
+      if (std::abs(tmp[i] - (i < a16.size() ? a16[i] : 0)) > TOLERANCE) return false;
+    return true;
+  };
+  size_t first = 0;
+  while (first < count) {
+    const size_t group = find(first);
+    size_t n = 1;
+    while (first + n < count && n < MAX_RUN && find(first + n) == group) n++;
+    int rule = FACE_EXPLICIT;
+    for (int r : {FACE_WALL_SUNK, FACE_WALL, FACE_ROOF_SLOPED, FACE_ROOF_FLAT}) {
+      if ((first + n) * 4 <= tmp.size() && deriveFace(pos, first, n, r, tmp) && fits(first, n)) {
+        rule = r;
+        break;
+      }
+    }
+    if (rule == FACE_EXPLICIT) explicitRun(first, n);
+    else {
+      run.push_back(static_cast<uint16_t>((n << 3) | static_cast<size_t>(rule)));
+      packed.ruled += static_cast<int>(n);
+    }
+    first += n;
+  }
+  return packed;
+}
+
 }  // namespace
 
-bool deriveFace(const std::vector<double>& pos, int first, int n, int rule,
-                std::vector<int16_t>& out) {
+bool deriveFace(std::span<const int16_t> pos, size_t first, size_t n, int rule, std::span<int16_t> out) {
   if (n < 3) return false;
-  const size_t o = static_cast<size_t>(first) * 3;
+  const size_t o = first * 3;
+  // (a run that reaches beyond the corners there are, or beyond `out`: no numbers can be made for it)
+  if (o + n * 3 > pos.size() || (first + n) * 4 > out.size()) return false;
   if (rule == FACE_ROOF_FLAT) {
-    double uMin = std::numeric_limits<double>::infinity();
-    double vMin = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < n; i++) {
-      uMin = std::min(uMin, pos[o + static_cast<size_t>(i) * 3]);
-      vMin = std::min(vMin, pos[o + static_cast<size_t>(i) * 3 + 2]);
+    double uMin = JS_INF;
+    double vMin = JS_INF;
+    for (size_t i = 0; i < n; i++) {
+      uMin = jsMin(uMin, pos[o + i * 3]);
+      vMin = jsMin(vMin, pos[o + i * 3 + 2]);
     }
-    for (int i = 0; i < n; i++) {
-      const size_t k = static_cast<size_t>(first + i) * 4;
-      out[k] = q16((pos[o + static_cast<size_t>(i) * 3] - uMin) * POS_XZ_SCALE);
-      out[k + 1] = q16((pos[o + static_cast<size_t>(i) * 3 + 2] - vMin) * POS_XZ_SCALE);
+    for (size_t i = 0; i < n; i++) {
+      const size_t k = (first + i) * 4;
+      out[k] = q16((pos[o + i * 3] - uMin) * POS_XZ_SCALE);
+      out[k + 1] = q16((pos[o + i * 3 + 2] - vMin) * POS_XZ_SCALE);
       out[k + 2] = 0;
       out[k + 3] = 0;
     }
@@ -46,10 +113,12 @@ bool deriveFace(const std::vector<double>& pos, int first, int n, int rule,
   const double x0 = pos[o];
   const double y0 = pos[o + 1];
   const double z0 = pos[o + 2];
-  double nx = 0, ny = 0, nz = 0;
-  for (int i = 0; i < n; i++) {
-    const size_t a = o + static_cast<size_t>(i) * 3;
-    const size_t b = o + static_cast<size_t>((i + 1) % n) * 3;
+  double nx = 0;
+  double ny = 0;
+  double nz = 0;
+  for (size_t i = 0; i < n; i++) {
+    const size_t a = o + i * 3;
+    const size_t b = o + ((i + 1) % n) * 3;
     const double ax = (pos[a] - x0) * POS_XZ_SCALE;
     const double ay = (pos[a + 1] - y0) * POS_Y_SCALE;
     const double az = (pos[a + 2] - z0) * POS_XZ_SCALE;
@@ -65,13 +134,12 @@ bool deriveFace(const std::vector<double>& pos, int first, int n, int rule,
   // level, along the face
   const double ux = nz / hl;
   const double uz = -nx / hl;
-  double uMin = std::numeric_limits<double>::infinity();
-  double uMax = -std::numeric_limits<double>::infinity();
-  for (int i = 0; i < n; i++) {
-    const double u = (pos[o + static_cast<size_t>(i) * 3] - x0) * POS_XZ_SCALE * ux +
-                     (pos[o + static_cast<size_t>(i) * 3 + 2] - z0) * POS_XZ_SCALE * uz;
-    uMin = std::min(uMin, u);
-    uMax = std::max(uMax, u);
+  double uMin = JS_INF;
+  double uMax = -JS_INF;
+  for (size_t i = 0; i < n; i++) {
+    const double u = (pos[o + i * 3] - x0) * POS_XZ_SCALE * ux + (pos[o + i * 3 + 2] - z0) * POS_XZ_SCALE * uz;
+    uMin = jsMin(uMin, u);
+    uMax = jsMax(uMax, u);
   }
   if (rule == FACE_ROOF_SLOPED) {
     const double nl = std::sqrt(nx * nx + ny * ny + nz * nz);
@@ -87,18 +155,16 @@ bool deriveFace(const std::vector<double>& pos, int first, int n, int rule,
       vy = -vy;
       vz = -vz;
     }
-    double vMin = std::numeric_limits<double>::infinity();
-    for (int i = 0; i < n; i++) {
-      const double v = (pos[o + static_cast<size_t>(i) * 3] - x0) * POS_XZ_SCALE * vx +
-                       (pos[o + static_cast<size_t>(i) * 3 + 1] - y0) * POS_Y_SCALE * vy +
-                       (pos[o + static_cast<size_t>(i) * 3 + 2] - z0) * POS_XZ_SCALE * vz;
-      vMin = std::min(vMin, v);
+    double vMin = JS_INF;
+    for (size_t i = 0; i < n; i++) {
+      const double v = (pos[o + i * 3] - x0) * POS_XZ_SCALE * vx + (pos[o + i * 3 + 1] - y0) * POS_Y_SCALE * vy + (pos[o + i * 3 + 2] - z0) * POS_XZ_SCALE * vz;
+      vMin = jsMin(vMin, v);
     }
-    for (int i = 0; i < n; i++) {
-      const size_t k = static_cast<size_t>(first + i) * 4;
-      const double x = (pos[o + static_cast<size_t>(i) * 3] - x0) * POS_XZ_SCALE;
-      const double y = (pos[o + static_cast<size_t>(i) * 3 + 1] - y0) * POS_Y_SCALE;
-      const double z = (pos[o + static_cast<size_t>(i) * 3 + 2] - z0) * POS_XZ_SCALE;
+    for (size_t i = 0; i < n; i++) {
+      const size_t k = (first + i) * 4;
+      const double x = (pos[o + i * 3] - x0) * POS_XZ_SCALE;
+      const double y = (pos[o + i * 3 + 1] - y0) * POS_Y_SCALE;
+      const double z = (pos[o + i * 3 + 2] - z0) * POS_XZ_SCALE;
       out[k] = q16(x * ux + z * uz - uMin);
       out[k + 1] = q16(x * vx + y * vy + z * vz - vMin);
       out[k + 2] = 0;
@@ -108,124 +174,55 @@ bool deriveFace(const std::vector<double>& pos, int first, int n, int rule,
   }
   if (rule != FACE_WALL && rule != FACE_WALL_SUNK) return false;
   // a wall: heights above its foot (where the foot was before it was sunk)
-  double low = std::numeric_limits<double>::infinity();
-  for (int i = 0; i < n; i++) low = std::min(low, pos[o + static_cast<size_t>(i) * 3 + 1]);
+  double low = JS_INF;
+  for (size_t i = 0; i < n; i++) low = jsMin(low, pos[o + i * 3 + 1]);
   const bool sunk = rule == FACE_WALL_SUNK;
   const double lo = low * POS_Y_SCALE + (sunk ? SINK : 0);
-  auto height = [&](int i) {
-    const double y = pos[o + static_cast<size_t>(i) * 3 + 1] * POS_Y_SCALE;
+  auto height = [&](size_t i) -> double {
+    const double y = pos[o + i * 3 + 1] * POS_Y_SCALE;
     return sunk && y < low * POS_Y_SCALE + SINK / 2 ? y + SINK : y;
   };
-  double hi = -std::numeric_limits<double>::infinity();
-  for (int i = 0; i < n; i++) hi = std::max(hi, height(i));
+  double hi = -JS_INF;
+  for (size_t i = 0; i < n; i++) hi = jsMax(hi, height(i));
   double eave = hi;
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     const double y = height(i);
     if (y > lo + EAVE_ABOVE && y < eave) eave = y;
   }
-  const int L = q16(uMax - uMin);
-  const int H = q16(eave - lo);
-  for (int i = 0; i < n; i++) {
-    const size_t k = static_cast<size_t>(first + i) * 4;
-    const double x = (pos[o + static_cast<size_t>(i) * 3] - x0) * POS_XZ_SCALE;
-    const double z = (pos[o + static_cast<size_t>(i) * 3 + 2] - z0) * POS_XZ_SCALE;
-    out[k] = q16(x * ux + z * uz - uMin);
+  const int16_t L = q16(uMax - uMin);
+  const int16_t H = q16(eave - lo);
+  for (size_t i = 0; i < n; i++) {
+    const size_t k = (first + i) * 4;
+    out[k] = q16((pos[o + i * 3] - x0) * POS_XZ_SCALE * ux + (pos[o + i * 3 + 2] - z0) * POS_XZ_SCALE * uz - uMin);
     out[k + 1] = q16(height(i) - lo);
-    out[k + 2] = static_cast<int16_t>(L);
-    out[k + 3] = static_cast<int16_t>(H);
+    out[k + 2] = L;
+    out[k + 3] = H;
   }
   return true;
 }
 
-namespace {
-/** Which corners belong together (a face is a run of them). */
-std::vector<int> faceParents(size_t count, const std::vector<double>& idx) {
-  std::vector<int> parent(count);
-  for (size_t i = 0; i < count; i++) parent[i] = static_cast<int>(i);
-  auto find = [&](int i) {
-    while (parent[static_cast<size_t>(i)] != i) {
-      parent[static_cast<size_t>(i)] = parent[static_cast<size_t>(parent[static_cast<size_t>(i)])];
-      i = parent[static_cast<size_t>(i)];
-    }
-    return i;
-  };
-  for (size_t t = 0; t + 2 < idx.size(); t += 3) {
-    int a = find(static_cast<int>(idx[t]));
-    int b = find(static_cast<int>(idx[t + 1]));
-    int c = find(static_cast<int>(idx[t + 2]));
-    int m = std::min(a, std::min(b, c));
-    parent[static_cast<size_t>(a)] = m;
-    parent[static_cast<size_t>(b)] = m;
-    parent[static_cast<size_t>(c)] = m;
-  }
-  for (size_t i = 0; i < count; i++) parent[i] = find(static_cast<int>(i));
-  return parent;
-}
-}  // namespace
+PackedFaces packFaces(std::span<const int16_t> pos, std::span<const uint16_t> idx, std::span<const int16_t> a16) { return packFacesOf<uint16_t>(pos, idx, a16); }
+PackedFaces packFaces(std::span<const int16_t> pos, std::span<const uint32_t> idx, std::span<const int16_t> a16) { return packFacesOf<uint32_t>(pos, idx, a16); }
 
-PackedFaces packFaces(const std::vector<double>& pos, const std::vector<double>& idx,
-                      const std::vector<int16_t>& a16) {
-  const size_t count = pos.size() / 3;
-  std::vector<int> parent = faceParents(count, idx);
-  PackedFaces out;
-  std::vector<int16_t> tmp(a16.size(), 0);
-  int ruled = 0;
-  auto explicitRun = [&](size_t first, size_t n) {
-    for (size_t i = first * 4; i < (first + n) * 4; i++) out.uvx.push_back(a16[i]);
-    // (runs without a rule that follow each other are one run)
-    const long last = static_cast<long>(out.run.size()) - 1;
-    if (last >= 0 && (out.run[static_cast<size_t>(last)] & 7) == FACE_EXPLICIT &&
-        (out.run[static_cast<size_t>(last)] >> 3) + static_cast<int>(n) <= MAX_RUN)
-      out.run[static_cast<size_t>(last)] =
-          static_cast<uint16_t>(out.run[static_cast<size_t>(last)] + (n << 3));
-    else
-      out.run.push_back(static_cast<uint16_t>((n << 3) | FACE_EXPLICIT));
-  };
-  auto fits = [&](size_t first, size_t n) {
-    for (size_t i = first * 4; i < (first + n) * 4; i++)
-      if (std::abs(static_cast<int>(tmp[i]) - static_cast<int>(a16[i])) > TOLERANCE) return false;
-    return true;
-  };
-  size_t first = 0;
-  while (first < count) {
-    int group = parent[first];
-    size_t n = 1;
-    while (first + n < count && n < static_cast<size_t>(MAX_RUN) &&
-           parent[first + n] == group)
-      n++;
-    int rule = FACE_EXPLICIT;
-    for (int r : {FACE_WALL_SUNK, FACE_WALL, FACE_ROOF_SLOPED, FACE_ROOF_FLAT}) {
-      if (deriveFace(pos, static_cast<int>(first), static_cast<int>(n), r, tmp) && fits(first, n)) {
-        rule = r;
-        break;
-      }
-    }
-    if (rule == FACE_EXPLICIT) explicitRun(first, n);
-    else {
-      out.run.push_back(static_cast<uint16_t>((n << 3) | rule));
-      ruled += static_cast<int>(n);
-    }
-    first += n;
-  }
-  out.ruled = ruled;
-  return out;
-}
-
-std::vector<int16_t> unpackFaces(const std::vector<double>& pos, const std::vector<uint16_t>& run,
-                                 const std::vector<int16_t>* uvx) {
-  const size_t count = pos.size() / 3;
-  std::vector<int16_t> out(count * 4, 0);
+std::vector<int16_t> unpackFaces(std::span<const int16_t> pos, std::span<const uint16_t> run, const std::vector<int16_t>* uvx) {
+  std::vector<int16_t> out((pos.size() / 3) * 4, 0);
   size_t first = 0;
   size_t x = 0;
-  for (uint16_t r : run) {
-    const size_t n = static_cast<size_t>(r >> 3);
-    const int rule = r & 7;
+  for (size_t r = 0; r < run.size(); r++) {
+    const size_t n = run[r] >> 3;
+    const int rule = run[r] & 7;
     if (rule == FACE_EXPLICIT) {
-      if (uvx)
-        for (size_t i = first * 4; i < (first + n) * 4 && x < uvx->size(); i++)
-          out[i] = (*uvx)[x++];
-    } else
-      deriveFace(pos, static_cast<int>(first), static_cast<int>(n), rule, out);
+      if (uvx) {
+        for (size_t i = first * 4; i < (first + n) * 4; i++) {
+          // (numbers the tile does not have are 0; corners the mesh does not have take none)
+          const int16_t v = x < uvx->size() ? (*uvx)[x] : 0;
+          x++;
+          if (i < out.size()) out[i] = v;
+        }
+      }
+    } else {
+      deriveFace(pos, first, n, rule, out);
+    }
     first += n;
   }
   return out;

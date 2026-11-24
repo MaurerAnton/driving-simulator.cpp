@@ -49,6 +49,12 @@ set(FAHRSIM_PCH <algorithm> <array> <cmath> <cstdint> <cstdio> <cstdlib> <cstrin
     <map> <memory> <optional> <set> <string> <unordered_map> <unordered_set> <utility> <vector>)
 
 if(FAHRSIM_WASM)
+  # (bringing the port up: -DFAHRSIM_LAYERS="core;platform" builds only those folders of src/)
+  set(FAHRSIM_LAYERS "" CACHE STRING "only these folders of src/ (empty: all)")
+  if(FAHRSIM_LAYERS)
+    string(REPLACE ";" "|" layer_regex "${FAHRSIM_LAYERS}")
+    list(FILTER FAHRSIM_SOURCES INCLUDE REGEX "/src/(${layer_regex})/")
+  endif()
   add_executable(fahrsim "${CMAKE_CURRENT_SOURCE_DIR}/src/app/main_web.cpp" ${FAHRSIM_SOURCES} ${FAHRSIM_WEB_SOURCES})
   target_include_directories(fahrsim PRIVATE ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim PRIVATE ${FAHRSIM_OPT} ${FAHRSIM_WARN} -fwasm-exceptions -sUSE_ZLIB=1)

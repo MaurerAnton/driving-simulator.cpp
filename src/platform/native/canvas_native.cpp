@@ -108,6 +108,10 @@ std::string toDataURL(int, const char*, double) { return "data:,"; }
 
 }  // namespace canvasBackend
 
+Task<Image> loadImage(std::string) { return resolved(Image()); }
+Task<Image> decodeImage(Bytes, std::string) { return resolved(Image()); }
+void freeImage(Image& image) { image = Image(); }
+
 namespace canvasNative {
 
 long calls(const Ctx2D& g) {

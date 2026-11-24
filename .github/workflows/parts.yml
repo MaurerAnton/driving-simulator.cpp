@@ -1,0 +1,29 @@
+name: parts index
+
+# Where every tile lies inside the regional maps' parts (web/parts/N.json: tools/build-part-index.mjs).
+# Run by hand when the original repository has got new parts; what it finds is committed.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Read every part that has no index yet
+        run: node tools/build-part-index.mjs
+      - name: Commit
+        run: |
+          git config user.name "MaurerAnton"
+          git config user.email "MaurerAnton@users.noreply.github.com"
+          git add web/parts
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -q -m "web/parts: where the tiles lie in the regional maps' parts ($(ls web/parts | wc -l) files)"
+          git pull -q --rebase origin main
+          git push -q origin HEAD:main

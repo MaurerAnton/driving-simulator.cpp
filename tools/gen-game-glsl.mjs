@@ -4,10 +4,14 @@
 // run on three.js's shader for its kind, and what comes out is kept, with the cache key and the
 // names of the uniforms the hook added.  Nothing is typed over by hand.
 //
+// Which materials: every file tools/glsl/<part>.mjs lists some (one file per part of the game, so
+// that two people adding shaders do not edit the same file).  In C++: `gamePatch("name")`
+// (src/render/glsl_gen.h) is the patch that puts the captured shader on a material.
+//
 //   node tools/gen-game-glsl.mjs [path of the original repository]
 //
 // Run again when the original's shaders change; the result is committed.
-import { writeFileSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -41,15 +45,16 @@ function capture(name, material) {
   };
 }
 
+// every tools/glsl/*.mjs names materials of the original: `export async function captures({ load, THREE })`
+// returns [[name, material], …] (see tools/glsl/tiles.mjs)
 const out = [];
-{
-  const mats = await load('src/render/materials.ts');
-  const tex = new THREE.DataTexture(new Uint8Array(4), 1, 1);
-  out.push(capture('ground', mats.makeGroundMaterial(false)));
-  out.push(capture('paint', mats.makeGroundMaterial(true)));
-  out.push(capture('terrain', mats.makeTerrainMaterial(tex)));
-  out.push(capture('building', mats.makeBuildingMaterial(false)));
-  out.push(capture('buildingPlain', mats.makeBuildingMaterial(true)));
+const dir = join(here, 'glsl');
+for (const file of readdirSync(dir).filter((f) => f.endsWith('.mjs')).sort()) {
+  const mod = await import(pathToFileURL(join(dir, file)).href);
+  for (const [name, material] of await mod.captures({ load, THREE })) {
+    if (out.some((o) => o.name === name)) throw new Error(`two shaders are called ${name}`);
+    out.push(capture(name, material));
+  }
 }
 
 const raw = (s) => {
