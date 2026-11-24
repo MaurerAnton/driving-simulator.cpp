@@ -17,10 +17,7 @@
 #include "sim/flightspec.h"
 #define FS_VEHICLES_PLANE 1
 #endif
-#if __has_include("sim/crane.h")
 #include "sim/crane.h"
-#define FS_VEHICLES_CRANES 1
-#endif
 #if __has_include("sim/forklift.h")
 #include "sim/forklift.h"
 #define FS_VEHICLES_FORKLIFT 1
@@ -474,7 +471,6 @@ Table build() {
     add(d);
   }
 #endif
-#ifdef FS_VEHICLES_CRANES
   // The cranes (sim/crane.ts, game/craneplay.ts): the mobile crane and the loader crane are trucks of class C,
   // driven like any to their stand on the construction site and worked there; the tower crane stands on its
   // base – nothing to drive (what is given for it is what the rest of the game needs: the camera, its size).
@@ -528,7 +524,6 @@ Table build() {
     d.crane = "loader";
     add(d);
   }
-#endif
   {
     VehicleDef d = car;
     d.kind = "towerCrane";
