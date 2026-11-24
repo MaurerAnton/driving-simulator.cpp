@@ -126,29 +126,6 @@ const char* const KNOWN[] = {"lang",         "vehicle",        "transmission", "
                              "lessonPlace",  "lessonPlaceAsked", "lessonArea", "lessonWatch",  "wasm",         "server",          "version",          "speech",
                              "power"};
 
-/** `JSON.stringify(v)` of a value that was read */
-void put(JsonOut& o, const Json& v) {
-  switch (v.kind) {
-    case Json::Kind::Null: o.null(); break;
-    case Json::Kind::Bool: o.boolean(v.boolean); break;
-    case Json::Kind::Number: o.number(v.number); break;
-    case Json::Kind::String: o.string(v.str); break;
-    case Json::Kind::Array:
-      o.beginArray();
-      for (const Json& e : v.array) put(o, e);
-      o.endArray();
-      break;
-    case Json::Kind::Object:
-      o.beginObject();
-      for (const auto& [name, member] : v.object) {
-        o.key(name);
-        put(o, member);
-      }
-      o.endObject();
-      break;
-  }
-}
-
 /** Defaults, overlaid with what was stored – whatever is missing or implausible keeps its default. */
 Settings merge(const Json& parsed) {
   const Settings d = fresh();
@@ -277,9 +254,7 @@ Settings merge(const Json& parsed) {
   if (parsed.isObject()) {
     for (const auto& [name, member] : parsed.object) {
       if (std::find(std::begin(KNOWN), std::end(KNOWN), name) != std::end(KNOWN)) continue;
-      JsonOut o;
-      put(o, member);
-      s.unknown.emplace_back(name, o.text());
+      s.unknown.emplace_back(name, member.stringify());
     }
   }
 
