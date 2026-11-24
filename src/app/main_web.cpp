@@ -42,8 +42,11 @@ Task<void> boot() {
     glClear(GL_COLOR_BUFFER_BIT);
   }
 
-  plat::Response res = co_await plat::fetch(plat::locationBase() + "map/map.json");
-  box.append(line("map/map.json: HTTP " + std::to_string(res.status) + ", " + std::to_string(res.body.size()) + " bytes, " + res.contentType));
+  // (where the map is: the page says – beside it when served locally, the 1.7.7 site's on the test site)
+  dom::El meta = dom::querySelector("meta[name='fahrsim-map']");
+  const std::string mapBase = plat::locationBase() + (meta ? meta.getAttribute("content") : std::string("map/"));
+  plat::Response res = co_await plat::fetch(mapBase + "map.json");
+  box.append(line(mapBase + "map.json: HTTP " + std::to_string(res.status) + ", " + std::to_string(res.body.size()) + " bytes, " + res.contentType));
 
   int clicks = 0;
   dom::El b = dom::el("button", "btn", "tap me");
