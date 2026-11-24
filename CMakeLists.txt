@@ -49,6 +49,12 @@ set(FAHRSIM_PCH <algorithm> <array> <cmath> <cstdint> <cstdio> <cstdlib> <cstrin
     <map> <memory> <optional> <set> <string> <unordered_map> <unordered_set> <utility> <vector>)
 
 if(FAHRSIM_WASM)
+  # (bringing the port up: -DFAHRSIM_LAYERS="core;platform" builds only those folders of src/)
+  set(FAHRSIM_LAYERS "" CACHE STRING "only these folders of src/ (empty: all)")
+  if(FAHRSIM_LAYERS)
+    string(REPLACE ";" "|" layer_regex "${FAHRSIM_LAYERS}")
+    list(FILTER FAHRSIM_SOURCES INCLUDE REGEX "/src/(${layer_regex})/")
+  endif()
   add_executable(fahrsim "${CMAKE_CURRENT_SOURCE_DIR}/src/app/main_web.cpp" ${FAHRSIM_SOURCES} ${FAHRSIM_WEB_SOURCES})
   target_include_directories(fahrsim PRIVATE ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim PRIVATE ${FAHRSIM_OPT} ${FAHRSIM_WARN} -fwasm-exceptions -sUSE_ZLIB=1)
@@ -71,7 +77,13 @@ if(FAHRSIM_WASM)
     "SHELL:-s EXPORTED_RUNTIME_METHODS=['UTF8ToString','stringToUTF8','lengthBytesUTF8','HEAPU8','HEAPF32','HEAPF64','HEAP32']"
     "SHELL:-s EXPORTED_FUNCTIONS=['_main','_malloc','_free']"
     "SHELL:-s ASSERTIONS=0"
-    "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/web/library_fahrsim.js")
+    )
+  # the browser's side of the host layer: every src/platform/web/library_*.js
+  file(GLOB FAHRSIM_JS_LIBS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/web/library_*.js")
+  foreach(lib IN LISTS FAHRSIM_JS_LIBS)
+    target_link_options(fahrsim PRIVATE "SHELL:--js-library ${lib}")
+  endforeach()
+  set_property(TARGET fahrsim APPEND PROPERTY LINK_DEPENDS ${FAHRSIM_JS_LIBS})
   # the page around the module: copied beside it
   add_custom_command(TARGET fahrsim POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/web" "${FAHRSIM_SITE}"

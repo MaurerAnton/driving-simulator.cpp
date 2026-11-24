@@ -4,57 +4,61 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  wasm:
-    name: Emscripten WASM build
-    runs-on: ubuntu-latest
+  native:
+    name: Native build and tests
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Packages
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ninja-build zlib1g-dev libpng-dev libegl-dev libgles-dev
+      - name: Build and test
+        run: FS_JOBS=4 tools/check.sh
 
-      - name: Set up Emscripten
+  web:
+    name: WebAssembly build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: 3.1.74
-
-      - name: Build zlib into the sysroot (the headers zlib.h needs)
-        run: python3 "$EMSDK/upstream/emscripten/embuilder.py" build zlib
-
-      - name: Configure (Emscripten)
-        run: emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release
-
+      - name: Packages
+        run: sudo apt-get update -q && sudo apt-get install -y -q ninja-build
       - name: Build
-        run: cmake --build build --parallel
-
-      - name: Report
         run: |
-          ls -la build/fahrsim.js build/fahrsim.wasm
-          wc -c build/fahrsim.wasm
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+          # (while the port is brought up, only the layers that are complete are built; see docs/PORT.md)
+          emcmake cmake -S . -B build-web -G Ninja -DFAHRSIM_LAYERS="core;platform;engine"
+          cmake --build build-web
+          # on GitHub Pages the map is the one the 1.7.7 site serves (the same host, the folder beside this one)
+          sed -i 's|<meta name="fahrsim-map" content="map/" />|<meta name="fahrsim-map" content="../driving-simulator/map/" />|' build-web/site/index.html
+          grep -c 'driving-simulator/map/' build-web/site/index.html
+          ls -la build-web/site
+      - name: The site as an artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: fahrsim-wasm
-          path: |
-            build/fahrsim.js
-            build/fahrsim.wasm
+          path: build-web/site
 
-  native:
-    name: Native build + unit tests
-    runs-on: ubuntu-latest
+  deploy:
+    name: Publish the test site
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [web]
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -B build-native -DCMAKE_BUILD_TYPE=Release
-      - name: Build
-        run: cmake --build build-native --parallel
-      - name: Test
-        run: ctest --test-dir build-native --output-on-failure
-
-  parity:
-    name: LOC parity report
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Report parity
-        run: python3 tools/parity.py || true
+      - id: deployment
+        uses: actions/deploy-pages@v4

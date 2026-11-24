@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="description" content="Freier 3D-Fahrschulsimulator: deutsche Verkehrsregeln im echten Straßennetz üben. AGPL-3.0." />
+    <meta name="theme-color" content="#16202b" />
+    <!-- where the map is, relative to this page (the test site takes the map of the 1.7.7 site) -->
+    <meta name="fahrsim-map" content="map/" />
+    <title>Fahrsim Baunatal – freier 3D-Fahrschulsimulator</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 4l46 46-46 46L4 50z' fill='%23fff' stroke='%23222' stroke-width='3'/%3E%3Cpath d='M50 21l29 29-29 29-29-29z' fill='%23f6c817'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="css/maps.css" />
+    <link rel="stylesheet" href="css/learn.css" />
+    <link rel="stylesheet" href="css/theory.css" />
+    <style>
+      /* until the program has arrived (it replaces what is in #ui) */
+      #boot { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; color: #dfe7ee; font: 16px system-ui, sans-serif; background: #16202b; }
+      #boot b { font-size: 22px; }
+      #boot progress { width: min(60vw, 320px); }
+    </style>
+  </head>
+  <body>
+    <canvas id="view" tabindex="0" aria-label="3D-Ansicht"></canvas>
+    <div id="ui"><div id="boot"><b>Fahrsim Baunatal</b><span id="boot-text">…</span><progress id="boot-bar" max="1"></progress></div></div>
+    <noscript>Dieser Simulator benötigt JavaScript, WebAssembly und WebGL 2.</noscript>
+    <script>
+      // The page only fetches the program (fahrsim.wasm) and says how far that is; everything else is the program's.
+      (function () {
+        var text = document.getElementById('boot-text');
+        var bar = document.getElementById('boot-bar');
+        var say = function (s) {
+          if (text) text.textContent = s;
+        };
+        window.__fs = { ready: false, info: function () { return {}; } };
+        if (typeof WebAssembly !== 'object') {
+          say('This browser has no WebAssembly. / Dieser Browser kann kein WebAssembly.');
+          return;
+        }
+        window.Module = {
+          canvas: document.getElementById('view'),
+          print: function (s) { console.log(s); },
+          printErr: function (s) { console.warn(s); },
+          setStatus: function (s) {
+            var m = /\((\d+(?:\.\d+)?)\/(\d+)\)/.exec(s || '');
+            if (m && bar) bar.value = Number(m[1]) / Number(m[2]);
+          },
+          onAbort: function (what) {
+            say('The program stopped: ' + what);
+          },
+        };
+        window.addEventListener('error', function (e) {
+          if (!window.__fs.ready && document.getElementById('boot')) say('Error: ' + (e.message || e));
+        });
+      })();
+    </script>
+    <script async src="fahrsim.js"></script>
+  </body>
+</html>

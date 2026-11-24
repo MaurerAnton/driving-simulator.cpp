@@ -6,6 +6,7 @@
 
 #include "core/task.h"
 #include "platform/dom.h"
+#include "platform/dom_internal.h"
 #include "platform/native/dom_native.h"
 #include "platform/native/native.h"
 #include "platform/plat.h"
@@ -129,6 +130,39 @@ int main() {
   assert(box.childElementCount() == 1 && native::text(box) == "Bye");
   box.replaceChildren();
   assert(native::text(box).empty());
+
+  // --- handlers of elements that are gone are let go (dom::collect) ---
+  {
+    native::reset();
+    int before = fs::dom::detail::listenerCount();
+    El kept = el("div");   // named from here: stays, though it is not in the page
+    kept.onclick([kept] { kept.toggleClass("x"); });
+    {
+      // a menu that is built, shown and thrown away: its buttons name each other and the panel
+      El panel = el("div", "panel");
+      El ok = el("button", "", "OK"), cancel = el("button", "", "Cancel");
+      ok.onclick([panel, cancel] { cancel.disabled(true); panel.addClass("done"); });
+      cancel.onclick([panel, ok] { ok.disabled(true); panel.remove(); });
+      panel.on("pointerdown", [ok](Event&) { ok.focus(); });
+      panel.append(ok, cancel);
+      body().append(panel);
+      assert(fs::dom::detail::listenerCount() == before + 4);
+      assert(collect() == 0);   // it is in the page
+      panel.remove();
+      assert(collect() == 0);   // still named by `panel`, `ok`, `cancel`
+    }
+    assert(collect() == 3);     // nothing but its own handlers names it now
+    assert(fs::dom::detail::listenerCount() == before + 1);
+    // an element in the page keeps what its handlers name, also when that is detached
+    El shown = el("button"), aside = el("div");
+    int hits = 0;
+    aside.onclick([&hits] { hits++; });
+    shown.onclick([aside] { aside.click(); });
+    body().append(shown);
+    assert(collect() == 0);
+    shown.click();
+    assert(hits == 1);
+  }
 
   // --- tasks: they start at once, wait for timers, can be awaited again ---
   plat::native::manualClock(true);

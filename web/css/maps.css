@@ -1,0 +1,92 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The maps: the windows of the big map, the trams and buses and their stops on it, drawing a way,
+   watching a vehicle, and the corner map (brought along by src/ui/mapwindow.ts). */
+
+/* ---------- the windows of the big map: no scrollbars to be seen (they still scroll), as large as their contents ---------- */
+.bigmap, .bigmap * { scrollbar-width: none; }
+.bigmap ::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.bigmap .bm-plan { width: fit-content; min-width: min(300px, 100%); max-width: min(400px, 100%); box-sizing: border-box; }
+/* folded up to its title row */
+.bigmap .bm-folded { overflow: hidden; }
+.bigmap .bm-folded > :not(.bm-head) { display: none !important; }
+.bigmap .bm-head .bm-fold { margin-inline-start: auto; }
+.bigmap .bm-head .bm-fold + .bm-x { margin-inline-start: 0; }
+/* the grip at a window's lower corner: drag to make it smaller */
+.bigmap .bm-griphost { position: relative; }
+.bigmap .bm-grip {
+  position: absolute; width: 30px; height: 30px; z-index: 2; pointer-events: auto; touch-action: none; cursor: nwse-resize;
+  background:
+    linear-gradient(135deg, transparent 55%, rgba(255, 255, 255, 0.55) 55%, rgba(255, 255, 255, 0.55) 62%, transparent 62%, transparent 72%, rgba(255, 255, 255, 0.55) 72%, rgba(255, 255, 255, 0.55) 79%, transparent 79%);
+  border-radius: 0 0 12px 0;
+}
+.bigmap .bm-grip.rtl { cursor: nesw-resize; transform: scaleX(-1); }
+.bigmap .bm-grip[hidden] { display: none; }
+
+/* ---------- the small window of a vehicle or a stop ---------- */
+.bm-pop {
+  align-self: center; display: grid; gap: 8px; width: fit-content; min-width: min(260px, 100%); max-width: min(420px, 100%); max-height: 46vh; overflow-y: auto;
+  overscroll-behavior: contain; box-sizing: border-box; padding: 10px 12px; pointer-events: auto;
+  background: var(--panel-solid); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.bm-pop[hidden] { display: none; }
+.bm-pop .bm-head { display: flex; align-items: center; gap: 8px; }
+.bm-pop .bm-x { flex: none; width: 36px; height: 36px; margin-inline-start: auto; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--text); cursor: pointer; font-size: 15px; }
+.bm-pop-title { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.bm-pop-title b { font-size: 16px; overflow-wrap: anywhere; }
+.bm-pop-title small, .bm-pop > small { color: var(--muted); line-height: 1.35; }
+.bm-pop .bm-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.bm-pop .btn { padding: 9px 14px; font-size: 14px; min-height: 40px; }
+/* the menu of a tram or bus: beside the vehicle on the map (src/ui/transitmap.ts places it), its two buttons side by side and big enough for a finger */
+.bm-pop.bm-ctx { position: absolute; align-self: auto; z-index: 3; min-width: min(250px, calc(100% - 16px)); max-width: min(360px, calc(100% - 16px)); max-height: none; }
+.bm-pop .bm-ctx-row { flex-wrap: nowrap; }
+.bm-pop .bm-ctx-row .btn { flex: 1 1 0; min-height: 46px; min-width: 0; padding: 8px 10px; white-space: normal; line-height: 1.2; }
+.bm-pop .bm-ctx-row .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+/* a line's number on its colour: a tram's square-cornered, a bus's round */
+.bm-line { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 28px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 12px; font-weight: 800; font-size: 13px; line-height: 1; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.bm-line.tram { border-radius: 5px; }
+.bm-deps { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.bm-deps li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.bm-deps li span { min-width: 0; overflow-wrap: anywhere; }
+.bm-deps li i { font-style: normal; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- drawing the way ---------- */
+.bm-drawbar {
+  align-self: center; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: 100%; box-sizing: border-box;
+  background: var(--panel-solid); border: 2px solid #2ee66b; border-radius: 12px; padding: 8px 12px; pointer-events: auto; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.bm-drawbar[hidden] { display: none; }
+.bm-drawbar b { display: block; font-size: 14px; }
+.bm-drawbar small { display: block; color: var(--muted); }
+.bm-drawbar .btn { padding: 9px 14px; font-size: 14px; min-height: 40px; }
+.bm-plan .bm-draw .bm-row .btn { flex: 1 1 auto; }
+
+/* ---------- the aeroplane put somewhere on the map: at which height ---------- */
+.bm-spot .bm-height { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+.bm-spot .bm-height select { min-height: 40px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.07); color: var(--text); font: inherit; }
+
+/* ---------- watching a tram or a bus ---------- */
+.hud > .watchbar {
+  position: absolute; left: max(14px, env(safe-area-inset-left)); top: max(14px, env(safe-area-inset-top)); max-width: min(560px, calc(100% - 28px)); box-sizing: border-box;
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; pointer-events: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.hud > .watchbar .wb-text { flex: 1 1 180px; min-width: 0; }
+.hud > .watchbar .wb-text b { display: block; font-size: 15px; overflow-wrap: anywhere; }
+.hud > .watchbar .wb-text small { display: block; color: var(--muted); line-height: 1.3; }
+.hud > .watchbar .btn { padding: 8px 12px; min-height: 40px; font-size: 14px; }
+/* (while watching, what belongs to the player's own vehicle steps back) */
+.hud.watching .side, .hud.watching .dash, .hud.watching .assist, .hud.watching .tip { display: none; }
+.overlay.watchask .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- the corner map: looking round, moving it ---------- */
+.hud .map.mini .mini-back {
+  position: absolute; left: 6px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; padding: 5px; border: 0; border-radius: 50%;
+  background: rgba(10, 16, 24, 0.78); color: #fff; cursor: pointer; pointer-events: auto;
+}
+.hud .map.mini .mini-back svg { display: block; width: 100%; height: 100%; }
+.hud .map.mini .mini-back[hidden] { display: none; }
+.hud .map.mini .mini-back:hover { background: rgba(255, 204, 0, 0.9); color: #111; }
+.hud.touchmode .map.mini .mini-back { left: 3px; width: 26px; height: 26px; padding: 4px; }
+/* the rim: a thicker ring to take hold of (the map can be dragged to another place by it) */
+.hud .map.mini { border-width: 3px; cursor: grab; }
+.hud .map.mini:active { cursor: grabbing; }

@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/date.h"
 #include "core/task.h"
 
 namespace fs {
@@ -33,6 +34,8 @@ double nowMs();
 double dateMs();
 /** minutes the local time is behind UTC at that moment (`new Date(ms).getTimezoneOffset()`: -60 in a German winter) */
 double timezoneOffsetMin(double ms);
+/** the calendar fields of a moment in the device's local time (`new Date(ms).getHours()` …) */
+DateFields localFields(double ms);
 /** setTimeout(fn, ms) */
 void setTimeout(std::function<void()> fn, double ms);
 /** `await new Promise(r => setTimeout(r, ms))` */
@@ -52,6 +55,8 @@ struct Response {
   /** the HTTP status; 0: there was no answer at all (no connection, refused) */
   int status = 0;
   Bytes body;
+  /** the Content-Type header ('' when the server sent none) */
+  std::string contentType;
   bool ok() const { return status >= 200 && status < 300; }
   std::string text() const { return std::string(body.begin(), body.end()); }
 };

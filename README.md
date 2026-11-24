@@ -1,116 +1,68 @@
-# Fahrsim Baunatal — C++ port (Emscripten/WASM)
+# Fahrsim Baunatal 2 — the C++ rewrite
 
-C++ translation of [MaurerAnton/driving-simulator](https://github.com/MaurerAnton/driving-simulator)
-("Fahrsim Baunatal", a free 3D driving-school simulator for North Hesse). The game
-logic, rendering (a three.js-equivalent engine in C++), audio, input, i18n and
-networking are translated to **pure C++** and compiled to **WebAssembly** with
-[Emscripten](https://emscripten.org). No JavaScript game code runs in the page.
+A rewrite of [Fahrsim Baunatal](https://github.com/MaurerAnton/driving-simulator) – the free 3D driving-school
+simulator on real road networks – in C++, compiled to WebAssembly. The aim is speed on weak devices: the same
+game, the same maps, the same picture, with less work for the processor and no pauses for garbage collection.
 
-**Upstream has moved on:** the source repo reached **1.7.2** (194,547 lines of
-TypeScript) while this port was being written; the parity table below is
-measured against every release, and the port follows the same order.
+**Test builds:** <https://maureranton.github.io/driving-simulator.cpp/> (every push to `main`).
+**The current game (1.7.7, TypeScript):** <https://maureranton.github.io/driving-simulator/>.
 
-**Status: in progress.** The port is built incrementally, upstream version by
-upstream version (v0.1.0 → v1.7.2), starting from the entry point
-(`src/main.ts` at `5b6ddc7`). Each upstream commit's state is translated with
-real code only — no stubs, no placeholders.
+> **Status: being brought up.** The foundation is in place (see below); the game itself is being moved onto it.
+> What works and what is still missing is listed under [Progress](#progress), updated as it changes.
 
-## Layout
+## How it is built
 
-```
-src/main.cpp        entry point (origin: src/main.ts)
-src/app/            entry point (origin: src/main.ts)
-src/audio/          synthesised sound graph (origin: src/audio/audio.ts)
-src/core/           2D ground-plane geometry (origin: src/core/geom.ts)
-src/engine/         three.js-equivalent renderer: Scene, Mesh, materials,
-                    geometries, math (Vector/Matrix/Quaternion), WebGL2 backend
-src/game/           the simulator (origin: src/game/*.ts)
-src/geo/            UTM32/world-frame conversion (origin: src/geo/utm.ts)
-src/input/          driver input (origin: src/input/input.ts)
-src/platform/       software 2D canvas, host interfaces (HudHost, TileSource, …)
-src/render/         the scene: sky, tiles, props, signs, cars, mirrors, HUD
-src/sim/            vehicle dynamics, traffic, rules, signals, collisions
-src/ui/             menus and HUD (origin: src/ui/hud.ts)
-src/world/          road network, lanes, tile container (origin: src/world/*.ts)
-tools/parity.py     LOC parity report (TS original vs C++ port)
-tools/versions.tsv  upstream version list + per-version TS line counts
-.github/workflows/  CI: Emscripten build + native build + parity report
-```
+- **The original at v1.7.7 is the specification.** Every C++ file is a translation of the TypeScript file of the
+  same path and name (`src/world/lanes.ts` → `src/world/lanes.{h,cpp}`), with the same names, numbers and rules,
+  and is checked against the original where it computes something: the same inputs must give the same numbers.
+- **A renderer of our own** (`src/engine`) draws with WebGL 2 – with three.js's own shaders, so the picture is the
+  original's – but uploads every array once, leaves out what is outside the picture before anything reaches the
+  graphics card, and sorts its draws so that programs and materials change rarely.
+- **The page is still the page.** Menus and the display are real HTML elements with the original's style sheets,
+  built from C++ through a thin layer (`src/platform/dom.h`); texts stay in the original's 28 languages.
+- **One program, two hosts:** the browser (Emscripten), and this machine (tests, tools, pictures drawn off screen
+  with OpenGL ES) – nothing in the game calls a browser API directly.
+- **Regional maps without the big download:** 1.7.7 fetches a whole archive of 20–100 MB before it can show a
+  region; here only the tiles that are needed are fetched, each with a byte-range request (`src/world/regiontiles`).
 
-Every translated file carries an `// Origin: src/…` header naming the TypeScript
-file it comes from.
+[docs/PORT.md](docs/PORT.md) is the working guide: layout, the TypeScript → C++ rules, how to build, test and
+compare with the original.
 
-## Parity
-
-| version | upstream commit | TS LOC | C++ LOC | parity |
-|---------|-----------------|-------:|--------:|-------:|
-| 0.1.0   | `5b6ddc7`       | 10,819 | 14,635 | 1.35 |
-| 0.2.0   | `0e593a7`       | 10,819 | — | no source change (sign graphics only) |
-| 0.3.0   | `633e0ca`       | 11,026 | — | done |
-| 0.4.0   | `578e397`       | 12,847 | 17,555 | 1.37 |
-| 0.5.0   | `1c08919`       | 13,710 | 19,221 | 1.40 |
-| 0.6.0   | `408014b`       | 22,817 | 28,893 | 1.27 |
-| 0.7.0   | `ff37c5d`       | 32,933 | 42,857 | 1.30 |
-| 0.8.0   | `3420ad0`       | 37,418 | — | — |
-| 0.9.0   | `9d37870`       | 37,452 | — | — |
-| 1.0.0   | `v1.0.0`        | 42,762 | — | — |
-| 1.1.0   | `v1.1.0`        | 45,763 | — | — |
-| 1.2.0   | `v1.2.0`        | 61,331 | — | — |
-| 1.3.0   | `v1.3.0`        | 66,252 | — | — |
-| 1.4.0   | `v1.4.0`        | 120,012 | — | — |
-| 1.5.0   | `v1.5.0`        | 137,788 | — | — |
-| 1.6.0   | `v1.6.0`        | 146,760 | — | — |
-| 1.7.0   | `925e08c`       | 193,775 | — | — |
-| 1.7.1   | `2648b83`       | 194,062 | — | — |
-| 1.7.2   | `f68dd99`       | 194,547 | — | — |
-
-Run `python3 tools/parity.py` for the live numbers (needs the read-only
-`driving-simulator` checkout for exact per-commit counts, or falls back to the
-recorded values in `tools/versions.tsv`).  Both sides count every source file
-of the shipped program: `src/*.ts` with the language dictionaries for the
-original, `src/*.cpp` and `src/*.h` with the engine and the entry point for
-the port.
-
-### Tests
-
-`ctest` runs every unit test **with live `assert()`s** (the Release build's
-`NDEBUG` is undone for the test targets – without it every assert is a no-op
-and the tests "pass" without checking anything). 15 checks are skipped with
-their reason in `CMakeLists.txt`: 14 that already fail on the original commit
-with asserts enabled (they date from the first translation, before the
-assertions were ever executed) and `i18n_test`, whose regenerated 0.7.0 texts
-await review; the rest – including `hud_test` and the class-CE `ce_test` –
-run green.
-
-`i18n_test` is the original's `tests/i18n` + `npm run i18n:check` in one:
-every language is complete (same keys, placeholders and `[[key]]` tokens),
-the checker's rules live in `src/i18n/check.h`, and the translations are the
-original ones (see [docs/TRANSLATING.md](docs/TRANSLATING.md)).
-
-The 0.1.0 translation is complete: all 35 upstream files are present as C++
-counterparts. The C++ total is larger because the port also carries the
-three.js-equivalent engine (the TypeScript game gets that from the `three`
-package) and the platform layer that replaces the DOM and the canvas.
-
-## Build
+## Building
 
 ```bash
-# WebAssembly (Emscripten)
-emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-# → build/fahrsim.js + build/fahrsim.wasm
+# tests and tools on this machine
+tools/check.sh                       # build everything, run every test
+tools/t.sh lanes_test                # build and run one test or tool
 
-# Native (console smoke build, also used by CI)
-cmake -B build-native -DCMAKE_BUILD_TYPE=Release
-cmake --build build-native
-ctest --test-dir build-native --output-on-failure
+# the browser build
+source ~/emsdk/emsdk_env.sh
+emcmake cmake -S . -B build-web -G Ninja && cmake --build build-web     # → build-web/site/
+node tools/dev/serve.mjs             # serves it on http://127.0.0.1:5180/ with the map of the original's checkout
+node tools/dev/shot.mjs "" shot.png  # a picture of it from a headless browser
 ```
 
-CI (`.github/workflows/build.yml`) sets up Emscripten, builds the WASM, runs
-the native unit tests and uploads the artifact on every push.
+Needs: a C++20 compiler, CMake ≥ 3.24, Ninja, zlib, libpng and OpenGL ES 3 with EGL for the native side;
+Emscripten 3.1.74 for the browser build; Node ≥ 24 for the tools.
+
+## Progress
+
+| Part | State |
+| --- | --- |
+| Host layer: page, files, storage, clock, 2D canvas, graphics context – in the browser and natively | works, tested in a headless browser |
+| Renderer with three.js's shaders, shadow map, culling | written; every material's program compiles on the test GPU |
+| Deploy to GitHub Pages on every push | works |
+| Regional maps: index of where each tile lies in the 376 archives | done (`web/parts`) |
+| Map: road network in pieces, lanes, routes, tiles (v1.7.7) | in progress |
+| Driving: vehicle dynamics, traffic, signals, rules, the autopilot's driver (v1.7.7) | in progress |
+| Scene graph, geometries, maths (three.js r187) | maths done and checked against three.js; the rest in progress |
+| The 28 languages as data | in progress |
+| Sound | in progress |
+| Settings, navigation, lessons, vehicle definitions | in progress |
+| The picture: tiles, sky, vehicles, signs | tiles and sky translated; the rest to do |
+| The game: menu, driving, cameras, display, big map with all regions, autopilot trips | to do |
 
 ## Licence
 
-AGPL-3.0-only — same as the original (see [LICENSE](LICENSE)).
-Map data attribution and other notices follow the original project's
-`NOTICE.md`.
+AGPL-3.0-only, as the original (see [LICENSE](LICENSE)). Notices for the map data, three.js and other material:
+[NOTICE.md](NOTICE.md).
