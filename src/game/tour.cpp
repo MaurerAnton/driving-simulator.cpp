@@ -19,7 +19,7 @@
 
 namespace fs {
 
-namespace tour_detail {
+namespace {
 
 /**
  * `function*` of the original: something that runs to its next `yield` each time it is asked to go on
@@ -63,12 +63,6 @@ class Generator {
  private:
   std::coroutine_handle<promise_type> h_;
 };
-
-}  // namespace tour_detail
-
-namespace {
-
-using tour_detail::Generator;
 
 /** small deterministic generator of numbers in 0 … 1 */
 std::function<double()> chance(double seed) {

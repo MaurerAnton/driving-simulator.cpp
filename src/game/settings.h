@@ -19,23 +19,8 @@
 #include "game/tourlog.h"
 #include "game/vehicles.h"
 
-// What the player set for the voice of one language is audio/voicepick.h's (SpeechPref).  Until
-// the sound is part of the port the settings carry it as it is stored, so that they stand alone.
-#if __has_include("audio/voicepick.h")
+// What the player set for the voice of one language: audio/voicepick.h (SpeechPref)
 #include "audio/voicepick.h"
-#else
-namespace fs {
-/** What the player set for the voice of one language (audio/voicepick.ts). */
-struct SpeechPref {
-  /** the voice's URI; '' = automatic */
-  std::string voice;
-  /** 0.6 … 1.6 (1 = the voice's own) */
-  double rate = 1;
-  /** 0.6 … 1.4 */
-  double pitch = 1;
-};
-}  // namespace fs
-#endif
 
 namespace fs {
 
