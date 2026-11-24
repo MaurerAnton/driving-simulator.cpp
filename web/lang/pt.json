@@ -2451,5 +2451,6 @@
 "worldBack":"Voltar a {name}",
 "worldHint":"Toque numa região para a escolher",
 "worldSize":"Transferência: {mb} MB",
-"worldRegion":"Região"
+"worldRegion":"Região",
+"mapAerialSources":"As fotos aéreas estão desligadas até as ativares (mapa → Camadas). São então carregadas diretamente dos servidores das suas fontes – EOX (Sentinel-2 cloudless 2016) e os serviços cartográficos dos estados alemães: esses servidores ficam a saber o teu endereço IP e a área mostrada."
 }

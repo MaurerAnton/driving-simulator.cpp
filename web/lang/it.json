@@ -2451,5 +2451,6 @@
 "worldBack":"Torna a {name}",
 "worldHint":"Tocca una regione per sceglierla",
 "worldSize":"Download: {mb} MB",
-"worldRegion":"Regione"
+"worldRegion":"Regione",
+"mapAerialSources":"Le foto aeree sono disattivate finché non le attivi (mappa → Livelli). Vengono poi caricate direttamente dai server delle loro fonti – EOX (Sentinel-2 cloudless 2016) e gli uffici catastali dei Länder tedeschi: quei server vengono a conoscenza del tuo indirizzo IP e della zona mostrata."
 }

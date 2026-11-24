@@ -203,8 +203,9 @@ const std::vector<std::pair<std::string, std::vector<std::vector<double>>>>& aer
 const AerialSource S2_SOURCE = {
     "s2",
     "Sentinel-2 cloudless 2016 – EOX",
-    "Sentinel-2 cloudless – https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016), CC BY 4.0",
-    "https://s2maps.eu",
+    // (the credit EOX asks for since June 2026 – s2maps.eu is now cloudless.eox.at: its FAQ, "What is the required attribution text?")
+    "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)",
+    "https://cloudless.eox.at/documentation/faq",
     "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",
     "s2cloudless_3857",
     "",
@@ -221,7 +222,7 @@ std::vector<std::pair<std::string, AerialSource>> stateSources() {
       {"DE-NW", {"nw", "Luftbilder DOP – Geobasis NRW", "Luftbilder: Land NRW (2026), dl-de/zero-2.0", "https://www.bezreg-koeln.nrw.de/geobasis-nrw/produkte-und-dienste/luftbild-und-satellitenbildinformationen/aktuelle-luftbild-und-0", "https://www.wms.nrw.de/geobasis/wms_nw_dop", "nw_dop_rgb", "1.3.0", "dl-de/zero-2.0"}},
       {"DE-BY", {"by", "Luftbilder DOP20 – Bayerische Vermessungsverwaltung", "Luftbilder: © Bayerische Vermessungsverwaltung – www.geodaten.bayern.de, CC BY 4.0", "https://geodaten.bayern.de/opengeodata/", "https://geoservices.bayern.de/od/wms/dop/v1/dop20", "by_dop20c", "1.1.1", "CC BY 4.0"}},
       {"DE-BB", {"bb", "Luftbilder DOP20 – LGB Brandenburg", "Luftbilder: © GeoBasis-DE/LGB, dl-de/by-2-0 (Daten geändert)", "https://geobasis-bb.de", "https://isk.geobasis-bb.de/mapproxy/dop20c/service/wms", "bebb_dop20c", "1.3.0", "dl-de/by-2.0"}},
-      {"DE-SN", {"sn", "Luftbilder DOP20 – GeoSN", "Luftbilder: © GeoBasis-DE / GeoSN, dl-de/by-2-0", "https://www.geodaten.sachsen.de", "https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest", "sn_dop_020", "1.3.0", "dl-de/by-2.0"}},
+      {"DE-SN", {"sn", "Luftbilder DOP20 – GeoSN", "Luftbilder: GeoSN, dl-de/by-2-0", "https://www.geodaten.sachsen.de", "https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest", "sn_dop_020", "1.3.0", "dl-de/by-2.0"}},
       {"DE-TH", {"th", "Luftbilder DOP20 – GDI-Th", "Luftbilder: © GDI-Th, CC BY 4.0", "https://www.geoportal-th.de", "https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP", "th_dop", "1.3.0", "CC BY 4.0"}},
       {"DE-NI", {"ni", "Luftbilder DOP20 – LGLN", "Luftbilder: © GeoBasis-DE / LGLN (2026), CC BY 4.0", "https://www.lgln.niedersachsen.de/startseite/geodaten_karten/open_geodata/", "https://opendata.lgln.niedersachsen.de/doorman/noauth/dop_wms", "ni_dop20", "1.3.0", "CC BY 4.0"}},
       {"DE-SH", {"sh", "Luftbilder DOP20 – LVermGeo SH", "Luftbilder: © GeoBasis-DE/LVermGeo SH/CC BY 4.0", "https://www.schleswig-holstein.de/DE/fachinhalte/G/geoinformationen/opendata.html", "https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD", "sh_dop20_rgb", "1.3.0", "CC BY 4.0"}},

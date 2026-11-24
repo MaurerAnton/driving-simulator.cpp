@@ -60,11 +60,12 @@ dabei die IP-Adresse und den gezeigten Ausschnitt – das sagen auch die Einstel
 die Herkunft der Bilder.
 
 Seit 2.0 zeigt die große Karte Luftbilder für ganz Deutschland und darüber hinaus, ebenfalls nur im eigenen
-Browser von den Diensten geladen; jeder Dienst erfährt die IP-Adresse und den gezeigten Ausschnitt. Die Karte
+Browser von den Diensten geladen; jeder Dienst erfährt die IP-Adresse und den gezeigten Ausschnitt. Darum sind
+sie in 2.0 ausgeschaltet, bis man sie im Ebenen-Feld der Karte einschaltet. Die Karte
 nennt in ihrer Ecke die Herkunft der Bilder, die gerade zu sehen sind. Quellen, Lizenzen und Adressen im
 Einzelnen: `docs/AERIAL.md`.
 
-- Weit herausgezoomt und außerhalb Deutschlands: Sentinel-2 cloudless – https://s2maps.eu by EOX IT Services
+- Weit herausgezoomt und außerhalb Deutschlands: EOxCloudless https://cloudless.eox.at by EOX IT Services
   GmbH (Contains modified Copernicus Sentinel data 2016), CC BY 4.0
   (<https://creativecommons.org/licenses/by/4.0/>). Verwendet wird nur das Mosaik von 2016; die späteren
   Jahrgänge stehen unter CC BY-NC-SA 4.0 und werden nicht verwendet.
@@ -80,7 +81,7 @@ Einzelnen: `docs/AERIAL.md`.
   - Nordrhein-Westfalen: Land NRW (2026), dl-de/zero-2.0
   - Rheinland-Pfalz: ©GeoBasis-DE / LVermGeoRP (2026), dl-de/by-2-0, http://www.lvermgeo.rlp.de [Daten bearbeitet]
   - Saarland: © GeoBasis DE/LVGL-SL (2026), dl-de/by-2-0
-  - Sachsen: © GeoBasis-DE / GeoSN, dl-de/by-2-0
+  - Sachsen: GeoSN, dl-de/by-2-0
   - Schleswig-Holstein: © GeoBasis-DE/LVermGeo SH/CC BY 4.0
   - Thüringen: © GDI-Th, CC BY 4.0
 

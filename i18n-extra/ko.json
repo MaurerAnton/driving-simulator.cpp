@@ -4,5 +4,6 @@
   "worldBack": "{name}(으)로 돌아가기",
   "worldHint": "지역을 눌러 선택하세요",
   "worldSize": "다운로드: {mb}MB",
-  "worldRegion": "지역"
+  "worldRegion": "지역",
+  "mapAerialSources": "항공사진은 직접 켜기 전까지 꺼져 있습니다(지도 → 레이어). 켜면 출처의 서버에서 바로 불러옵니다 – EOX(Sentinel-2 cloudless 2016)와 독일 각 주의 측량 기관: 이 서버들은 당신의 IP 주소와 표시되는 지역을 알게 됩니다."
 }

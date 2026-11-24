@@ -307,7 +307,8 @@ void Hud::showSettings(std::function<void()> back) {
   }
   // the aerial photographs under the maps – and where they come from
   check(t("mapAerialSetting"), s.reality.aerial, [sp](bool v) { sp->reality.aerial = v; });
-  target.append(el("p", "note", t("mapAerialNote")));
+  // 2.0: they come from EOX and the states' surveys, and are off until switched on (reality/aerial.h): a note that says so
+  target.append(el("p", "note", t("mapAerialSources")));
   check(t("hudRules"), s.hudRules, [sp](bool v) { sp->hudRules = v; });
   check(t("signalTimers"), s.signalTimers, [sp](bool v) { sp->signalTimers = v; });
   check(t("queueLabels"), s.queueLabels, [sp](bool v) { sp->queueLabels = v; });

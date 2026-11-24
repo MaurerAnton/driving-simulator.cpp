@@ -2451,5 +2451,6 @@
 "worldBack":"Geri dön: {name}",
 "worldHint":"Seçmek için bir bölgeye dokunun",
 "worldSize":"İndirme: {mb} MB",
-"worldRegion":"Bölge"
+"worldRegion":"Bölge",
+"mapAerialSources":"Hava fotoğrafları sen açana kadar kapalıdır (harita → Katmanlar). Açınca doğrudan kaynaklarının sunucularından yüklenir – EOX (Sentinel-2 cloudless 2016) ve Alman eyaletlerinin harita kadastro daireleri: bu sunucular IP adresini ve hangi bölgenin gösterildiğini öğrenir."
 }

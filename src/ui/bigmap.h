@@ -312,6 +312,8 @@ class BigMap {
   std::string aerialCredit;
   /** draw the aerial photographs for the picture of W × H CSS pixels (in screen pixels; under the roads) */
   void drawAerialLayer(const Ctx2D& g, double W, double H, double dpr);
+  /** the switch of the aerial photographs, in the panel of layers (off until ticked: ticking it is the player's word that they may be fetched) */
+  dom::El aerialSwitch();
 
   // 2.0: one map for all regions ----------------------------------------------------------
   std::shared_ptr<WorldLayer> worldLayer;

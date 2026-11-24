@@ -243,8 +243,11 @@ struct Settings {
     bool kartaview = false;
     bool mapillary = false;
     std::string mapillaryToken;
-    /** aerial photographs of the land survey under the maps – the big one, the corner one, the car's screen (on since 1.4.0) */
-    bool aerial = true;
+    /**
+     * aerial photographs of the land survey under the maps – the big one, the corner one, the car's screen (on since 1.4.0;
+     * 2.0: off until the player switches them on – they come from the states' and EOX's servers, which learn the area looked at)
+     */
+    bool aerial = false;
   };
   Reality reality;
   /**

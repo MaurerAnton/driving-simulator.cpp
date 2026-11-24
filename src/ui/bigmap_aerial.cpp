@@ -31,4 +31,20 @@ void BigMap::drawAerialLayer(const Ctx2D& g, double W, double H, double dpr) {
   for (const std::string& c : credits) aerialCredit += (aerialCredit.empty() ? "" : " · ") + c;
 }
 
+dom::El BigMap::aerialSwitch() {
+  // (1.7.7's box on the bottom bar, bigmap.ts open())
+  dom::El aerialToggle = dom::el("label", "bm-check");
+  dom::El aerialBox = dom::el("input");
+  aerialBox.type("checkbox");
+  aerialBox.checked(host.aerial());
+  aerialBox.onchange([this, aerialBox] {
+    host.setAerial(aerialBox.checked());
+    redraw();
+  });
+  aerialToggle.append(aerialBox, dom::el("span", "", t("mapAerial")));
+  // the states' orthophotos and Sentinel-2 (reality/aerial.h)
+  aerialToggle.title(aerialLayerName());
+  return aerialToggle;
+}
+
 }  // namespace fs

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: ui sim i18n core platform
+// LINK: ui reality geo sim i18n core platform
 /**
  * The crane's display and controls (ui/cranepanel.ts – the original has no test of its own): built in the page
  * kept in memory, driven by keys, the on-screen buttons, a joystick and a gamepad, and filled with the limiter's readings.

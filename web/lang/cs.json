@@ -2451,5 +2451,6 @@
 "worldBack":"Zpět: {name}",
 "worldHint":"Klepnutím vyberte region",
 "worldSize":"Stahování: {mb} MB",
-"worldRegion":"Region"
+"worldRegion":"Region",
+"mapAerialSources":"Letecké snímky jsou vypnuté, dokud je nezapneš (mapa → Vrstvy). Pak se načítají přímo ze serverů jejich zdrojů – EOX (Sentinel-2 cloudless 2016) a zeměměřických úřadů německých spolkových zemí: tyto servery se dozvědí tvou IP adresu a jaká oblast je zobrazena."
 }

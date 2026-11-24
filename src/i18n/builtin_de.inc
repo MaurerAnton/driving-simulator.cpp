@@ -2452,5 +2452,6 @@ R"FSLANG({
 "worldBack":"Zurück nach {name}",
 "worldHint":"Tippe eine Region an, um sie auszuwählen",
 "worldSize":"Download: {mb} MB",
-"worldRegion":"Region"
+"worldRegion":"Region",
+"mapAerialSources":"Die Luftbilder sind aus, bis du sie einschaltest (Karte → Ebenen). Dann werden sie direkt von den Servern ihrer Quellen geladen – EOX (Sentinel-2 cloudless 2016) und die Landesvermessungen der deutschen Länder: Diese Server erfahren deine IP-Adresse und welcher Ausschnitt gezeigt wird."
 })FSLANG"

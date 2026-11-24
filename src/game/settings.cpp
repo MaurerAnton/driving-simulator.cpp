@@ -343,8 +343,8 @@ Settings merge(const Json& parsed) {
   const double version = numberOf(parsed.at("version"), parsed.has("version"));
   // settings written before 1.4.0 stored the map's old default (not on the screen) as if chosen: the new default, once
   if (!(version >= 2)) s.mapOnScreen = true;
-  // (the same for the aerial photographs under the maps: before 1.4.0 they had to be asked for)
-  if (!(version >= 2)) s.reality.aerial = true;
+  // (the same for the aerial photographs under the maps: before 1.4.0 they had to be asked for –
+  // 2.0: they are again, so settings of before 1.4.0 keep them off: reality/aerial.h)
   // (and for the main menu: the rows were 1.3.0's default – the stage is 1.4.0's; a list chosen stays a list)
   if (!(version >= 2) && s.menuStyle == "carousel") s.menuStyle = "stage";
   // (1.7.1: simpler physics by default – the even grip of every road and field; settings of before stored the old default)

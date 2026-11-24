@@ -282,21 +282,8 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
   credit = el("small");
   scaleBox.append(scaleText, scaleBar, credit);
   // aerial photographs: ticking the box is the player's word that they may be fetched
-  // (the photographs are not translated yet – ui/maphooks.h: until they are, there is no box to tick)
-  if (photos) {
-    El aerialToggle = el("label", "bm-check");
-    El aerialBox = el("input");
-    aerialBox.type("checkbox");
-    aerialBox.checked(host.aerial());
-    aerialBox.onchange([this, aerialBox] {
-      host.setAerial(aerialBox.checked());
-      redraw();
-    });
-    aerialToggle.append(aerialBox, el("span", "", t("mapAerial")));
-    // 2.0: the states' orthophotos and Sentinel-2 (reality/aerial.h)
-    aerialToggle.title(aerialLayerName());
-    bottom.append(scaleBox, aerialToggle, pathToggle, clear);
-  } else bottom.append(scaleBox, pathToggle, clear);
+  // (2.0: the box is in the panel of layers – aerialSwitch(), ui/bigmap_aerial.cpp)
+  bottom.append(scaleBox, pathToggle, clear);
   if (host.transit && transit) bottom.append(transit->toggle());
   // which layers are shown: a small panel of switches
   El layersBox = el("div", "bm-layers");
@@ -315,6 +302,7 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
     l.append(box2, el("span", "", t(layerKey(id))));
     layersBox.append(l);
   }
+  if (photos) layersBox.append(aerialSwitch());
   bottom.append(layersBtn, layersBox);
   // a drive is planned here: places by a tap on the map or by their address, or a tour of the streets
   planBox = el("div", "bm-plan");

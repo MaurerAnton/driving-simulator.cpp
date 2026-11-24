@@ -4,5 +4,6 @@
   "worldBack": "返回{name}",
   "worldHint": "点按一个地区即可选择",
   "worldSize": "下载：{mb} MB",
-  "worldRegion": "地区"
+  "worldRegion": "地区",
+  "mapAerialSources": "航拍照片默认关闭，需要你自己打开（地图 → 图层）。打开后，照片直接从其来源的服务器加载——EOX（Sentinel-2 cloudless 2016）和德国各州的测绘部门：这些服务器会得知你的 IP 地址以及显示的区域。"
 }

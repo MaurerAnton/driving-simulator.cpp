@@ -4,5 +4,6 @@
   "worldBack": "{name} に戻る",
   "worldHint": "地域をタップして選択",
   "worldSize": "ダウンロード: {mb} MB",
-  "worldRegion": "地域"
+  "worldRegion": "地域",
+  "mapAerialSources": "航空写真はオンにするまでオフです（地図 → レイヤー）。オンにすると、提供元のサーバーから直接読み込まれます――EOX（Sentinel-2 cloudless 2016）とドイツ各州の測量機関：これらのサーバーにはあなたの IP アドレスと表示中の範囲が伝わります。"
 }

@@ -4,11 +4,13 @@
 over WMS, their tile grid in UTM 32N and the tile cache (four requests at a time, the most recently used
 pictures kept). 2.0 extends the same layer to all of Germany and beyond.
 
-The layer is switched on and off with the box on the big map's bottom bar ("Aerial photos"), and in the
-settings (`settings.reality.aerial`), as in 1.7.7. 1.7.7 has it **on** by default (since 1.4.0,
-`settings.ts`); the port keeps that default. The player's browser fetches every picture straight from
-the service. Each service learns the IP address and the area looked at. The settings' note
-(`mapAerialNote`) says this.
+The layer is switched on and off with the box "Aerial photos" in the big map's panel of layers (2.0; 1.7.7 had
+the box on the bottom bar), and in the settings (`settings.reality.aerial`). 1.7.7 had it **on** by default
+(since 1.4.0, `settings.ts`). **2.0 has it off** until the player ticks the box: the player's browser fetches
+every picture straight from the services (EOX and up to fourteen state surveys), and each service learns the IP
+address and the area looked at. The settings' note (`mapAerialNote`) says this. 1.7.7's settings migration
+that switched the pictures on for settings older than 1.4.0 is dropped for the same reason. `?map=aerial`
+still switches them on, as in 1.7.7 (it is the player's own word).
 
 ## How a picture is chosen
 
@@ -54,7 +56,7 @@ All services checked on 2026-11-24 with these tests:
 
 | Area | Service (WMS GetMap base) | Layer | Licence | Credit shown |
 | --- | --- | --- | --- | --- |
-| Everywhere (far out, abroad) | `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg` (WMTS) | `s2cloudless_3857` (2016) | CC BY 4.0 | Sentinel-2 cloudless – https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016), CC BY 4.0 |
+| Everywhere (far out, abroad) | `https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg` (WMTS) | `s2cloudless_3857` (2016) | CC BY 4.0 | EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016) |
 | Baden-Württemberg | `https://owsproxy.lgl-bw.de/owsproxy/ows/WMS_LGL-BW_ATKIS_DOP_20_C` | `IMAGES_DOP_20_RGB` | dl-de/by-2.0 | LGL-BW (2026) Datenlizenz Deutschland – Namensnennung – Version 2.0, www.lgl-bw.de |
 | Bayern | `https://geoservices.bayern.de/od/wms/dop/v1/dop20` (WMS **1.1.1**) | `by_dop20c` | CC BY 4.0 | © Bayerische Vermessungsverwaltung – www.geodaten.bayern.de, CC BY 4.0 |
 | Berlin | `https://gdi.berlin.de/services/wms/dop_2025_fruehjahr` | `dop_2025` | dl-de/zero-2.0 | Geoportal Berlin / Digitale farbige Orthophotos 2025 (DOP20RGBI), dl-de/zero-2.0 |
@@ -66,7 +68,7 @@ All services checked on 2026-11-24 with these tests:
 | Nordrhein-Westfalen | `https://www.wms.nrw.de/geobasis/wms_nw_dop` | `nw_dop_rgb` | dl-de/zero-2.0 | Land NRW (2026), dl-de/zero-2.0 (a courtesy; none is required) |
 | Rheinland-Pfalz | `https://geo4.service24.rlp.de/wms/rp_dop20.fcgi` | `rp_dop20` | dl-de/by-2.0 | ©GeoBasis-DE / LVermGeoRP (2026), dl-de/by-2-0, http://www.lvermgeo.rlp.de [Daten bearbeitet] |
 | Saarland | `https://geoportal.saarland.de/freewms/dop` | `sl_dop` | dl-de/by-2.0 (capabilities: no fees, "noLimitations") | © GeoBasis DE/LVGL-SL (2026), dl-de/by-2-0 |
-| Sachsen | `https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest` | `sn_dop_020` | dl-de/by-2.0 (capabilities: "kostenfrei") | © GeoBasis-DE / GeoSN, dl-de/by-2-0 |
+| Sachsen | `https://geodienste.sachsen.de/wms_geosn_dop-rgb/guest` | `sn_dop_020` | dl-de/by-2.0 (GeoSN's general terms; capabilities: "kostenfrei") | GeoSN, dl-de/by-2-0 (the form GeoSN gives for electronic media) |
 | Schleswig-Holstein | `https://dienste.gdi-sh.de/WMS_SH_DOP20col_OpenGBD` | `sh_dop20_rgb` | CC BY 4.0 | © GeoBasis-DE/LVermGeo SH/CC BY 4.0 |
 | Thüringen | `https://www.geoproxy.geoportal-th.de/geoproxy/services/DOP` | `th_dop` | CC BY 4.0 | © GDI-Th, CC BY 4.0 |
 
@@ -75,12 +77,22 @@ only (`SRS=`); the others speak 1.3.0 (`CRS=`). In both, the BBOX is east, north
 
 ### Sentinel-2: why the 2016 mosaic
 
-EOX publishes Sentinel-2 cloudless for 2016 and 2018–2025. Only **2016** is under CC BY 4.0. The service's
-capabilities and https://s2maps.eu give **CC BY-NC-SA 4.0** for 2018 and later. The game is AGPL and may be
-used commercially, so a non-commercial licence does not fit. The capabilities also mark a "2017" layer CC BY
-4.0, but s2maps.eu does not list it as a release, so it is not used. The credit is the text EOX asks for
-("Sentinel-2 cloudless – https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel
-data 2016)").
+EOX publishes Sentinel-2 cloudless (now "EOxCloudless"; https://s2maps.eu redirects to
+https://cloudless.eox.at) for 2016 and 2018–2025. Checked on 2026-11-24 at
+<https://cloudless.eox.at/documentation/faq> and <https://cloudless.eox.at/documentation/license>:
+
+- "the 2016 vintage is published under the CC BY 4.0 license" – usable as an embedded basemap, also
+  commercially, with the attribution, under a fair-use policy, without an SLA, and not to be resold as raw tiles.
+  "Commercial apps may access the free 2016 endpoint under CC BY 4.0, provided traffic is reasonable."
+- "All mosaics from 2018 onwards are released under CC BY-NC-SA 4.0 (or proprietary commercial terms)", and
+  using the public endpoints of 2018+ in commercial production apps is prohibited. The game is AGPL and may be
+  used commercially, so a non-commercial licence does not fit: only 2016 is used.
+- The credit, "clearly visible wherever the imagery is displayed … in the map interface", is (since June 2026)
+  "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data
+  2016)". The map's corner shows it whenever a Sentinel tile is on the screen.
+
+The tiles come from `tiles.maps.eox.at` (`s2cloudless_3857`, the 2016 layer; it answers a browser with
+`Access-Control-Allow-Origin`). The game asks at most four tiles at a time and only for the view on the screen.
 
 ### Not used
 
@@ -104,12 +116,16 @@ instead, and support local files. The following are not used; Sentinel-2 shows i
 Both lists are also in the code: `AERIAL_STATES()` and `AERIAL_NOT_FREE()` in `src/reality/aerial.cpp`.
 `tests/aerial_test.cpp` checks them.
 
-Wording still to confirm with the states' own pages. The licence is clear for each; only the exact credit
-text is unconfirmed:
+Credits checked on 2026-11-24 beyond the table's sources:
 
-- Bayern's credit text (taken from a Bavarian guide, not the capabilities);
-- Sachsen's and Saarland's credit text (taken from catalogue records);
-- Bremen's credit text (taken from its 2024 terms of use).
+- Bayern: the capabilities say "kostenfrei" and "CC BY 4.0"; the credit is the one of Bavaria's open data
+  (geodaten.bayern.de).
+- Sachsen: GeoSN's general terms (<http://www.landesvermessung.sachsen.de/allgemeine-nutzungsbedingungen-8954.html>)
+  grant dl-de/by-2.0 with the source "GeoSN"; electronic media: "Quelle: GeoSN, dl-de/by-2-0".
+- Saarland: the capabilities say fees "None" and access constraints "noLimitations"; the credit follows
+  dl-de/by-2.0.
+- Bremen: the capabilities say "Creative Commons Namensnennung (CC-BY), Quellenvermerk: Landesamt
+  GeoInformation Bremen" and no access restrictions.
 
 ## Not in 2.0
 

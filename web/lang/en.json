@@ -2451,5 +2451,6 @@
 "worldBack":"Back to {name}",
 "worldHint":"Tap a region to choose it",
 "worldSize":"Download: {mb} MB",
-"worldRegion":"Region"
+"worldRegion":"Region",
+"mapAerialSources":"The aerial photographs are off until you switch them on (map → Layers). Then they are loaded straight from the servers of their sources – EOX (Sentinel-2 cloudless 2016) and the land surveys of the German states: those servers learn your IP address and which area is shown."
 }

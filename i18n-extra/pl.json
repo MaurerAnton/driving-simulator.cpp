@@ -4,5 +4,6 @@
   "worldBack": "Wróć: {name}",
   "worldHint": "Dotknij regionu, aby go wybrać",
   "worldSize": "Pobieranie: {mb} MB",
-  "worldRegion": "Region"
+  "worldRegion": "Region",
+  "mapAerialSources": "Zdjęcia lotnicze są wyłączone, dopóki ich nie włączysz (mapa → Warstwy). Wtedy są pobierane bezpośrednio z serwerów ich źródeł – EOX (Sentinel-2 cloudless 2016) i urzędów geodezyjnych krajów związkowych Niemiec: te serwery poznają twój adres IP i pokazywany obszar."
 }

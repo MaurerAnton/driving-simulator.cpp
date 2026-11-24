@@ -101,7 +101,10 @@ int main() {
     assert(saveSettings(s));
     assert(playedBefore());
     Json want;
-    assert(Json::parse(DEFAULT_177, want));
+    // 2.0: the aerial photographs are off until the player switches them on (docs/AERIAL.md)
+    std::string default20 = DEFAULT_177;
+    default20.replace(default20.find("\"aerial\":true"), 13, "\"aerial\":false");
+    assert(Json::parse(default20, want));
     assert(same(stored(), want));
     // (tests/game/lessonwatch.test.ts)
     assert(d.lessonWatch == false);   // driven unless chosen
@@ -254,7 +257,7 @@ int main() {
     assert(r.lang == "fr" && r.lastStart.spawn == 7 && r.lastStart.address && r.lastStart.address->street == "Marktplatz");
     assert(r.mapPack == "mine" && r.region == "nordhessen" && r.fuelKey == "k-1" && r.server == "https://fahrsim.example");
     assert(r.reality.mapillaryToken == "tok" && r.lessonPlaceAsked);
-    assert(r.vehicle == d.vehicle && r.volume == d.volume && r.graphics == d.graphics && r.quality == d.quality && !r.reality.panoramax && r.reality.aerial && !r.speech);
+    assert(r.vehicle == d.vehicle && r.volume == d.volume && r.graphics == d.graphics && r.quality == d.quality && !r.reality.panoramax && !r.reality.aerial && !r.speech);
   }
 
   storage();

@@ -4,5 +4,6 @@
   "worldBack": "Înapoi la {name}",
   "worldHint": "Atinge o regiune pentru a o alege",
   "worldSize": "Descărcare: {mb} MB",
-  "worldRegion": "Regiune"
+  "worldRegion": "Regiune",
+  "mapAerialSources": "Fotografiile aeriene sunt oprite până când le pornești (hartă → Straturi). Atunci sunt încărcate direct de pe serverele surselor lor – EOX (Sentinel-2 cloudless 2016) și oficiile de cadastru ale landurilor germane: aceste servere află adresa ta IP și zona afișată."
 }

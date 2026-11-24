@@ -2451,5 +2451,6 @@
 "worldBack":"Terug naar {name}",
 "worldHint":"Tik op een regio om die te kiezen",
 "worldSize":"Download: {mb} MB",
-"worldRegion":"Regio"
+"worldRegion":"Regio",
+"mapAerialSources":"De luchtfoto’s staan uit tot je ze aanzet (kaart → Lagen). Dan worden ze rechtstreeks geladen van de servers van hun bronnen – EOX (Sentinel-2 cloudless 2016) en de landmeetkundige diensten van de Duitse deelstaten: die servers krijgen je IP-adres te zien en welk gebied wordt getoond."
 }

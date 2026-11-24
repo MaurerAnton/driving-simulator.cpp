@@ -2451,5 +2451,6 @@
 "worldBack":"Vissza: {name}",
 "worldHint":"Koppints egy régióra a kiválasztásához",
 "worldSize":"Letöltés: {mb} MB",
-"worldRegion":"Régió"
+"worldRegion":"Régió",
+"mapAerialSources":"A légifotók ki vannak kapcsolva, amíg be nem kapcsolod őket (térkép → Rétegek). Ekkor közvetlenül a forrásaik szervereiről töltődnek be – EOX (Sentinel-2 cloudless 2016) és a német tartományok földmérési hivatalai: ezek a szerverek megtudják az IP-címedet és a megjelenített területet."
 }
