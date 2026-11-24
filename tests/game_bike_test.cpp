@@ -117,8 +117,17 @@ int main() {
   game.opens.openings.toggle("bonnet");
   for (int i = 0; i < 120; i++) game.opens.step(1.0 / 60, [](const std::string&) {});
   CHECK(game.opens.openings.get("bonnet") > 0.99, "the bonnet stands open: %.2f", game.opens.openings.get("bonnet"));
+  // (the car's body is cut into its parts the first time one opens: more objects under its root)
+  const auto count = [&]() {
+    int n = 0;
+    game.car.root->traverse([&n](Object3D&) { n++; });
+    return n;
+  };
+  const int before = count();
   game.opens.pose(&game.car);
-  CHECK(game.car.openings() != nullptr, "the car's parts that open were not made");
+  const int after = count();
+  std::printf("the car's objects: %d shut, %d with the bonnet open\n", before, after);
+  CHECK(after > before, "the car's parts that open were not made (%d → %d)", before, after);
 
   if (failures) {
     std::printf("%d failed\n", failures);
