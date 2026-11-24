@@ -13,23 +13,33 @@ A working game with as many of 1.7.7's features as fit, faster than 1.7.7. What 
 2. **The autopilot and everything around it** (drive to a place, tours, watching it drive).
 3. The rarely used vehicles (forklift, cranes, aeroplane …) can wait.
 
-## Scope of 2.0.0 (the original's files, by state)
+## What 2.0.0 contains (released 2026-11-24)
 
-**In:** `world/*` (map, lanes, routes, tiles, regions) · `sim/` vehicle, ground, collision, signals, traffic,
-rules, autodriver, follow, clearlanes, pastblock, smoothpose, queues, arrows, trailer · `game/` game (core),
-app, settings, vehicles, nav, address, tour, tourlog, spawnplace, lessonplaces, routepresets, track, faultlog,
-clock, history, turnaround, arcadedrive, cockpit, takeover, flycam, releases · `render/` tiles, materials, sky,
-props, parked, signs, signart, pedlights, far, facadedetail, headlights, car, carBody, instruments, mirrors,
-navscreen, actors · `ui/` hud, minimap, bigmap (+ the new world layer with all regions), mapwindow, maplayers,
-placesearch, addresspicker, pathdraw, regions, geoip, geolocate, notices, viewbuttons, closex, screentap,
-worldtap, touchstick, tiltsteer, lessonstart, lessonroutes · `input/*` · `audio/` audio, waves, profiles,
-compose, music, speech, voicepick · `i18n` (all 28 languages, as data).
+**From 1.7.7:** the map layer (every region), vehicle physics, traffic, signals and rules, the autopilot with trips,
+tours, "drive there" and "turn around", lessons, the HUD with menus and settings, the maps (mini map, big map,
+search, path drawing, transit-free layers), controls (keys, gamepad, touch stick, tilt), sound and speech, 28
+languages; the scenery (trees, parked cars, signs, far terrain, facades, headlights); cars, trucks, buses,
+articulated lorries, tractors with their trailers and the CE lessons; motorcycles; the finer car at "very high";
+the cranes; the aeroplane with its autopilot; pedestrians on the pavements and crossings.
 
-**Later (hooks left in the code):** pedestrians, cyclists, trams and buses with timetables, emergency vehicles,
-roadworks, level crossings, wildlife, weather and seasons, water, wipers, fuel and car wash, the other vehicles'
-models (truck, bus, motorcycles, tractor), trailers' lessons (CE), cranes, forklift, aeroplane, walking, theory
-lessons and the theory exam, replays, watching other vehicles, the stage and carousel menus, the reality view,
-multiplayer and the server, map packs, developer map modes, old-version switch.
+**New in 2.0:** one map for all regions (world layer, region cards, the region's schema before it is loaded, "Put the
+car here" across maps); a light map style; the whole road network and every town name at every zoom; a search over
+every town and loaded street plus online Photon search; aerial photographs for all of Germany (14 states' open DOP,
+Sentinel-2 cloudless 2016 for Europe); regions' tiles fetched one by one by byte range; all 308 regions checked
+(307 open – Duisburg's tiles are missing from map-assets).
+
+**For 2.1 (not ported yet):** theory lessons and the theory exam (game/theory*, exam/*, ui/learn*), weather and seasons
+(game/weather, render/weather, windscreen, season, dirt, snowtracks, grass, wipers), trams and buses by timetable
+(sim/timetable, tramdrive, world/stops, buslines, render/trams, transit, stopmodels, ui/transitmap), roadworks,
+narrowings, level crossings and signs with times (sim/roadevents, narrowings, levelcrossing, signtime, world/extrasigns),
+the forklift and the practice-yard drills (sim/forklift, game/forklift*, drills, beams), replays and watching
+(game/replay, spectate, showdrive, pointwatch), the stage and carousel menus, cyclists, emergency vehicles and
+wildlife, water, wading, fuel and services, getting out and walking (game/onfoot is translated, not wired), the doors
+in play (translated, need walking), the finer trucks (fleetdetail), rear openings, getting into parked cars
+(spawncar), multiplayer, the reality view, map packs, the version picker; people's shadows (needs a custom depth
+material in the engine).  Known-failing tests at 2.0.0: `render_actors_test` (its reference dump of the original was
+made without the people renderer; to be made anew), `game_bike_test` (the motorcycle starts in a car park and stands
+after ~29 m, so the bend that should show the lean is ridden at walking pace – the scenario needs a street start).
 
 ## Who does what (branches `w/<name>`, worktrees `/home/user/ds2w/<name>`)
 

@@ -2459,5 +2459,10 @@
 "map2.outside":"di luar peta",
 "map2.loading":"Memuat peta {name} …",
 "map2.regionPlace":"Peta: {name}",
-"map2.searching":"Mencari secara daring …"
+"map2.searching":"Mencari secara daring …",
+"news.2_0_0.regions":"Satu peta untuk semua wilayah: perkecil peta besar (M, peta mini, atau tombol peta) dan ke-308 wilayah Eropa muncul di atas garis batas negara. Perbesar salah satunya untuk melihat jalan dan permukimannya, ketuk sebuah jalan lalu tekan «Taruh mobil di sini» – permainan membuka peta itu dan Anda mulai dari sana. Setiap wilayah sudah dibuka dan diperiksa; Köln kini punya tanahnya.",
+"news.2_0_0.map":"Peta besar terbaca seperti aplikasi peta: gaya terang di samping yang gelap, seluruh jaringan jalan dan nama setiap permukiman di setiap tingkat zoom, serta pencarian yang menemukan setiap permukiman dan jalan di peta – dan tempat mana pun lewat pencarian daring (Photon, OpenStreetMap; dapat dimatikan di lapisan).",
+"news.2_0_0.aerial":"Foto udara seluruh Jerman dari data terbuka 14 negara bagian dan citra satelit Sentinel-2 seluruh Eropa – nyalakan di lapisan peta (mati secara bawaan: server gambar mengetahui wilayah yang Anda lihat).",
+"news.2_0_0.later":"Belum ada di 2.0: pelajaran teori dan ujian teori, cuaca dan musim, trem dan bus sesuai jadwal, pekerjaan jalan dan perlintasan sebidang, forklift dan latihan di lapangan latihan, tayangan ulang, pesepeda dan kendaraan darurat, air dan pengisian bahan bakar, turun dan berjalan kaki. Semuanya kembali di 2.1 – sampai saat itu 1.7.7 menyimpan semuanya di alamatnya sendiri.",
+"news.2_0_0.intro":"Fahrsim 2.0 ditulis ulang dari awal dalam C++ (berjalan sebagai WebAssembly di peramban): jalan, aturan, lalu lintas, pelajaran, autopilot, kendaraan, dan bahasa yang sama pada mesin baru yang untuk setiap gambar hanya butuh sekitar separuh kerja versi 1.7.7. Baru di 2.0:"
 }

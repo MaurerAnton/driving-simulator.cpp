@@ -75,6 +75,13 @@ struct Release {
 
 inline const std::vector<Release> RELEASES = {
     {
+        .version = "2.0.0",
+        .date = "2026-11-24",
+        .at = "",
+        .intro = "news.2_0_0.intro",
+        .items = {"news.2_0_0.regions", "news.2_0_0.map", "news.2_0_0.aerial", "news.2_0_0.later"},
+    },
+    {
         .version = "1.7.7",
         .date = "2026-11-23",
         .at = "",

@@ -2459,5 +2459,10 @@
 "map2.outside":"haritaların dışında",
 "map2.loading":"{name} haritası yükleniyor …",
 "map2.regionPlace":"Harita: {name}",
-"map2.searching":"Çevrim içi aranıyor …"
+"map2.searching":"Çevrim içi aranıyor …",
+"news.2_0_0.regions":"Tüm bölgeler için tek harita: büyük haritayı uzaklaştırın (M, mini harita veya harita düğmesi), Avrupa'nın 308 bölgesinin tamamı ülkelerin sınırları üzerinde görünür. Birine yakınlaşarak yollarını ve yerleşimlerini görün, bir yola dokunup “Arabayı buraya koy”a basın – oyun o haritayı açar ve sizi oradan başlatır. Her bölge açılıp denetlendi; Köln artık zeminine sahip.",
+"news.2_0_0.map":"Büyük harita bir harita uygulaması gibi okunur: koyu stilin yanında açık bir stil, her yakınlıkta tüm yol ağı ve her yerleşim adı, haritadaki her yerleşimi ve sokağı bulan bir arama – çevrimiçi aramayla da herhangi bir yer (Photon, OpenStreetMap; katmanlardan kapatılabilir).",
+"news.2_0_0.aerial":"14 eyaletin açık verilerinden tüm Almanya için hava fotoğrafları ve tüm Avrupa için Sentinel-2 uydu görüntüleri – haritanın katmanlarından açın (varsayılan olarak kapalı: görüntü sunucuları hangi bölgeye baktığınızı öğrenir).",
+"news.2_0_0.later":"Henüz 2.0'da olmayanlar: teori dersleri ve teori sınavı, hava durumu ve mevsimler, tarifeli tramvay ve otobüsler, yol çalışmaları ve hemzemin geçitler, forklift ve alıştırma sahası çalışmaları, tekrar izlemeler, bisikletliler ve acil durum araçları, su ve yakıt, araçtan inip yürümek. 2.1'de geri gelecekler – o zamana dek 1.7.7 hepsini kendi adresinde tutuyor.",
+"news.2_0_0.intro":"Fahrsim 2.0 sıfırdan C++ ile yeniden yazıldı (tarayıcıda WebAssembly olarak çalışır): aynı yollar, kurallar, trafik, dersler, otomatik pilot, araçlar ve diller; her kare için 1.7.7'nin yaklaşık yarısı kadar iş gerektiren yeni bir motorda. 2.0'daki yenilikler:"
 }

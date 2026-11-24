@@ -2459,5 +2459,10 @@
 "map2.outside":"ngoài các bản đồ",
 "map2.loading":"Đang tải bản đồ {name} …",
 "map2.regionPlace":"Bản đồ: {name}",
-"map2.searching":"Đang tìm trực tuyến …"
+"map2.searching":"Đang tìm trực tuyến …",
+"news.2_0_0.regions":"Một bản đồ cho mọi vùng: thu nhỏ bản đồ lớn (M, bản đồ nhỏ hoặc nút bản đồ) và cả 308 vùng của châu Âu hiện trên đường biên các nước. Phóng to một vùng để xem đường và khu dân cư, chạm vào một con đường rồi bấm «Đặt xe ở đây» – trò chơi mở bản đồ đó và cho bạn bắt đầu tại đó. Mọi vùng đều đã được mở và kiểm tra; Köln giờ đã có mặt đất.",
+"news.2_0_0.map":"Bản đồ lớn đọc như một ứng dụng bản đồ: kiểu sáng bên cạnh kiểu tối, toàn bộ mạng lưới đường và tên mọi khu dân cư ở mọi mức thu phóng, cùng ô tìm kiếm tìm được mọi khu dân cư và đường phố trên bản đồ – và bất kỳ nơi nào qua tìm kiếm trực tuyến (Photon, OpenStreetMap; có thể tắt trong các lớp).",
+"news.2_0_0.aerial":"Ảnh hàng không cho toàn nước Đức từ dữ liệu mở của 14 bang và ảnh vệ tinh Sentinel-2 cho toàn châu Âu – bật chúng trong các lớp của bản đồ (mặc định tắt: máy chủ ảnh biết bạn đang xem khu vực nào).",
+"news.2_0_0.later":"Chưa có trong 2.0: bài học lý thuyết và bài thi lý thuyết, thời tiết và mùa, tàu điện và xe buýt theo lịch, công trình trên đường và chỗ chắn tàu, xe nâng và bài tập trên bãi tập, xem lại, người đi xe đạp và xe khẩn cấp, nước và đổ nhiên liệu, xuống xe và đi bộ. Chúng sẽ trở lại trong 2.1 – đến lúc đó bản 1.7.7 vẫn giữ tất cả ở địa chỉ riêng của nó.",
+"news.2_0_0.intro":"Fahrsim 2.0 được viết lại từ đầu bằng C++ (chạy dưới dạng WebAssembly trong trình duyệt): cùng những con đường, luật lệ, giao thông, bài học, lái tự động, phương tiện và ngôn ngữ trên một bộ máy mới chỉ cần khoảng một nửa công việc của bản 1.7.7 cho mỗi khung hình. Điểm mới trong 2.0:"
 }

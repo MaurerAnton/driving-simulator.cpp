@@ -2459,5 +2459,10 @@
 "map2.outside":"jashtë hartave",
 "map2.loading":"Po ngarkohet harta e {name} …",
 "map2.regionPlace":"Harta: {name}",
-"map2.searching":"Po kërkohet në internet …"
+"map2.searching":"Po kërkohet në internet …",
+"news.2_0_0.regions":"Një hartë për të gjitha rajonet: zvogëlo hartën e madhe (M, harta e vogël ose butoni i hartës) dhe të 308 rajonet e Evropës shfaqen mbi kufijtë e vendeve. Zmadho njërin për të parë rrugët dhe vendbanimet, prek një rrugë dhe shtyp «Vendose makinën këtu» – loja e hap atë hartë dhe të nis që andej. Çdo rajon u hap dhe u kontrollua; Këlni tani ka tokën e tij.",
+"news.2_0_0.map":"Harta e madhe lexohet si një aplikacion hartash: një stil i çelët pranë atij të errët, i gjithë rrjeti rrugor dhe emri i çdo vendbanimi në çdo zmadhim, dhe një kërkim që gjen çdo vendbanim e rrugë të hartës – dhe çdo vend nëpërmjet kërkimit në internet (Photon, OpenStreetMap; mund të fiket te shtresat).",
+"news.2_0_0.aerial":"Foto ajrore për gjithë Gjermaninë nga të dhënat e hapura të 14 landeve dhe pamje satelitore Sentinel-2 për gjithë Evropën – ndizi te shtresat e hartës (fikur si parazgjedhje: serverët e pamjeve mësojnë cilën zonë po shikon).",
+"news.2_0_0.later":"Ende jo në 2.0: mësimet e teorisë dhe provimi i teorisë, moti dhe stinët, tramvajet dhe autobusët sipas orarit, punimet në rrugë dhe kalimet hekurudhore, pirunngritësi dhe ushtrimet në shesh, rishfaqjet, çiklistët dhe mjetet e emergjencës, uji dhe karburanti, zbritja dhe ecja. Kthehen në 2.1 – deri atëherë 1.7.7 i mban të gjitha në adresën e vet.",
+"news.2_0_0.intro":"Fahrsim 2.0 është rishkruar nga themeli në C++ (në shfletues punon si WebAssembly): të njëjtat rrugë, rregulla, trafik, mësime, autopilot, mjete dhe gjuhë mbi një motor të ri që për çdo pamje kërkon rreth gjysmën e punës së versionit 1.7.7. Të reja në 2.0:"
 }

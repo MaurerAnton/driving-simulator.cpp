@@ -61,18 +61,6 @@ bool near(double a, double b, double eps = 1e-9) { return std::fabs(a - b) <= ep
 
 // ---- the parts that are not translated, standing in ----
 
-struct TestPeople : PeopleRenderer {
-  int capacity = 0;
-  std::vector<PersonPose> last;
-  double at = -1;
-  static inline TestPeople* made = nullptr;
-  explicit TestPeople(int n) : capacity(n) { made = this; }
-  void update(const std::vector<PersonPose>& people, double time) override {
-    last = people;
-    at = time;
-  }
-};
-
 struct TestEmergency : EmergencyFleet {
   size_t cars = 0;
   static inline TestEmergency* made = nullptr;
@@ -194,19 +182,18 @@ void theHooks() {
   {
     TrafficRenderer traffic;
     traffic.update({car, bus, police, fire}, {&walkers[0], &walkers[1]}, 1, {&riders[0], &riders[1]});
-    // (the car – and the bus: render/fleet is translated, its model is no hook any more)
-    assert(traffic.group->children.size() == 2 && traffic.group->children[1]->name == "bus");
+    // (the people – render/people is translated –, the car, and the bus: render/fleet is translated, its model is no hook any more)
+    assert(traffic.group->children.size() == 3 && traffic.group->children[0] == traffic.people->group && traffic.group->children[2]->name == "bus");
   }
 
   // ---- with them ----
-  PeopleRenderer::create = [](int capacity) { return std::make_unique<TestPeople>(capacity); };
   EmergencyFleet::create = []() { return std::make_unique<TestEmergency>(); };
   CyclistModel::create = [](int colour) { return std::make_unique<TestCyclist>(colour); };
   {
     TrafficRenderer traffic;
     // the people's and the emergency vehicles' pictures hang in the traffic's group from the start
-    assert(TestPeople::made && TestPeople::made->capacity == CROWD_MAX && traffic.people.get() == TestPeople::made);
-    assert(traffic.group->children.size() == 2 && traffic.group->children[0] == TestEmergency::made->group && traffic.group->children[1] == TestPeople::made->group);
+    assert(traffic.people);
+    assert(traffic.group->children.size() == 2 && traffic.group->children[0] == TestEmergency::made->group && traffic.group->children[1] == traffic.people->group);
 
     // a bus: its own model, its lamps and its line
     bus->blinker = 1;
@@ -256,23 +243,15 @@ void theHooks() {
     walkers[1].x = 0, walkers[1].z = 100, walkers[1].phase = -1, walkers[1].colour = 3;
     walkers[2].x = 0, walkers[2].z = -300;
     traffic.update({}, {&walkers[0], &walkers[1], &walkers[2]}, 6);
-    TestPeople& people = *TestPeople::made;
-    assert(people.last.size() == 3 && near(people.at, 6));
-    const PersonPose& p = people.last[0];
-    assert(p.x == 10 && p.y == 100 && p.yaw == 1 && p.walk == 12.5 && p.look == 7 && p.head && *p.head == 0.3 && *p.startle == 0.5 && *p.lean == 0.1 && *p.umbrella && !p.sit && !p.arms);
-    assert(people.last[1].walk == -1 && people.last[1].look == 3);
     // with the camera (at the origin, looking north): not those more than 220 m off, nor those further than 45 m behind it
     const std::shared_ptr<Camera> camera = perspectiveCamera();
     camera->updateMatrixWorld();
     traffic.view = camera.get();
     traffic.update({}, {&walkers[0], &walkers[1], &walkers[2]}, 7);
-    assert(people.last.size() == 1 && people.last[0].look == 7);
     walkers[1].z = 40;    // behind, but near: a mirror may show them
     walkers[2].z = -200;  // ahead, within reach
     traffic.update({}, {&walkers[0], &walkers[1], &walkers[2]}, 8);
-    assert(people.last.size() == 3);
   }
-  PeopleRenderer::create = nullptr;
   EmergencyFleet::create = nullptr;
   CyclistModel::create = nullptr;
 }

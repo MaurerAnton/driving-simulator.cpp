@@ -12,5 +12,10 @@
   "map2.outside": "mimo mapy",
   "map2.loading": "Načítá se mapa {name} …",
   "map2.regionPlace": "Mapa: {name}",
-  "map2.searching": "Hledá se online …"
+  "map2.searching": "Hledá se online …",
+  "news.2_0_0.regions": "Jedna mapa pro všechny regiony: oddalte velkou mapu (M, minimapa nebo tlačítko mapy) a všech 308 regionů Evropy se objeví na obrysech států. Přibližte se k jednomu a uvidíte jeho silnice a obce, klepněte na silnici a stiskněte „Postavit auto sem“ – hra otevře tu mapu a nechá vás tam vyjet. Každý region byl otevřen a zkontrolován; Kolín nad Rýnem má teď svůj terén.",
+  "news.2_0_0.map": "Velká mapa se čte jako mapová aplikace: světlý styl vedle tmavého, celá silniční síť a název každé obce při každém přiblížení a hledání, které najde každou obec a ulici mapy – a díky hledání online i jakékoli místo (Photon, OpenStreetMap; lze vypnout ve vrstvách).",
+  "news.2_0_0.aerial": "Letecké snímky celého Německa z otevřených dat 14 spolkových zemí a satelitní snímky Sentinel-2 celé Evropy – zapněte je ve vrstvách mapy (ve výchozím stavu vypnuté: servery snímků se dozvědí, kterou oblast si prohlížíte).",
+  "news.2_0_0.later": "Zatím ne ve 2.0: lekce teorie a teoretická zkouška, počasí a roční období, tramvaje a autobusy podle jízdního řádu, stavby a železniční přejezdy, vysokozdvižný vozík a cvičení na cvičišti, záznamy jízd, cyklisté a vozidla záchranných složek, voda a tankování, vystoupení a chůze. Vrátí se ve 2.1 – do té doby je verze 1.7.7 má všechny na své vlastní adrese.",
+  "news.2_0_0.intro": "Fahrsim 2.0 je od základu přepsán v C++ (v prohlížeči běží jako WebAssembly): stejné silnice, pravidla, provoz, lekce, autopilot, vozidla a jazyky na novém enginu, který na každý snímek potřebuje zhruba polovinu práce verze 1.7.7. Novinky ve 2.0:"
 }

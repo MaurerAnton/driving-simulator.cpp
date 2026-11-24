@@ -12,5 +12,10 @@
   "map2.outside": "în afara hărților",
   "map2.loading": "Se încarcă harta {name} …",
   "map2.regionPlace": "Hartă: {name}",
-  "map2.searching": "Se caută online …"
+  "map2.searching": "Se caută online …",
+  "news.2_0_0.regions": "O hartă pentru toate regiunile: micșorează harta mare (M, minihartă sau butonul hărții) și toate cele 308 regiuni ale Europei apar pe contururile țărilor. Mărește una pentru a-i vedea drumurile și localitățile, atinge un drum și apasă „Pune mașina aici” – jocul deschide acea hartă și te face să pornești acolo. Fiecare regiune a fost deschisă și verificată; Köln are acum terenul său.",
+  "news.2_0_0.map": "Harta mare se citește ca o aplicație de hărți: un stil luminos lângă cel întunecat, întreaga rețea de drumuri și numele fiecărei localități la orice zoom și o căutare care găsește fiecare localitate și stradă a hărții – și orice loc prin căutarea online (Photon, OpenStreetMap; se poate opri din straturi).",
+  "news.2_0_0.aerial": "Fotografii aeriene pentru întreaga Germanie din datele deschise ale 14 landuri și imagini satelitare Sentinel-2 pentru toată Europa – pornește-le din straturile hărții (oprite implicit: serverele de imagini află ce zonă privești).",
+  "news.2_0_0.later": "Încă nu în 2.0: lecțiile de teorie și examenul teoretic, vremea și anotimpurile, tramvaiele și autobuzele după orar, lucrările la drum și trecerile la nivel, motostivuitorul și exercițiile pe terenul de antrenament, reluările, bicicliștii și vehiculele de urgență, apa și alimentarea, coborârea și mersul pe jos. Revin în 2.1 – până atunci 1.7.7 le păstrează pe toate la propria adresă.",
+  "news.2_0_0.intro": "Fahrsim 2.0 este rescris de la zero în C++ (rulează ca WebAssembly în browser): aceleași drumuri, reguli, trafic, lecții, pilot automat, vehicule și limbi pe un motor nou care are nevoie de aproximativ jumătate din munca versiunii 1.7.7 pentru fiecare imagine. Nou în 2.0:"
 }

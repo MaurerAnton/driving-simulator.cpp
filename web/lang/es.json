@@ -2459,5 +2459,10 @@
 "map2.outside":"fuera de los mapas",
 "map2.loading":"Cargando el mapa de {name} …",
 "map2.regionPlace":"Mapa: {name}",
-"map2.searching":"Buscando en línea …"
+"map2.searching":"Buscando en línea …",
+"news.2_0_0.regions":"Un mapa para todas las regiones: aleja el mapa grande (M, el minimapa o el botón del mapa) y las 308 regiones de Europa aparecen sobre los contornos de los países. Acércate a una para ver sus carreteras y localidades, toca una carretera y pulsa «Poner el coche aquí»: el juego abre ese mapa y te hace empezar allí. Se abrió y comprobó cada región; Colonia ya tiene su suelo.",
+"news.2_0_0.map":"El mapa grande se lee como una aplicación de mapas: un estilo claro junto al oscuro, toda la red de carreteras y el nombre de cada localidad en cualquier zoom, y una búsqueda que encuentra cada localidad y calle del mapa – y cualquier lugar mediante la búsqueda en línea (Photon, OpenStreetMap; se puede desactivar en las capas).",
+"news.2_0_0.aerial":"Fotos aéreas de toda Alemania a partir de los datos abiertos de 14 estados federados e imágenes de satélite Sentinel-2 de toda Europa: actívalas en las capas del mapa (desactivadas por defecto: los servidores de imágenes saben qué zona miras).",
+"news.2_0_0.later":"Aún no en la 2.0: las lecciones de teoría y el examen teórico, el tiempo y las estaciones, tranvías y autobuses según horario, obras y pasos a nivel, la carretilla elevadora y los ejercicios en la pista de prácticas, las repeticiones, ciclistas y vehículos de emergencia, el agua y el combustible, bajarse y caminar. Vuelven con la 2.1; hasta entonces la 1.7.7 los conserva todos en su propia dirección.",
+"news.2_0_0.intro":"Fahrsim 2.0 está reescrito desde cero en C++ (se ejecuta como WebAssembly en el navegador): las mismas carreteras, normas, tráfico, lecciones, piloto automático, vehículos e idiomas en un motor nuevo que necesita aproximadamente la mitad de trabajo que la 1.7.7 para cada imagen. Novedades de la 2.0:"
 }

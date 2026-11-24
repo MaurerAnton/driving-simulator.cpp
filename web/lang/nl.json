@@ -2459,5 +2459,10 @@
 "map2.outside":"buiten de kaarten",
 "map2.loading":"Kaart van {name} wordt geladen …",
 "map2.regionPlace":"Kaart: {name}",
-"map2.searching":"Online zoeken …"
+"map2.searching":"Online zoeken …",
+"news.2_0_0.regions":"Eén kaart voor alle regio's: zoom uit op de grote kaart (M, de minikaart of de kaartknop) en alle 308 regio's van Europa verschijnen op de omtrekken van de landen. Zoom in op een regio om haar wegen en plaatsen te zien, tik op een weg en druk op ‘Zet de auto hier’ – het spel opent die kaart en laat je daar beginnen. Elke regio is geopend en gecontroleerd; Keulen heeft nu zijn grond.",
+"news.2_0_0.map":"De grote kaart leest als een kaartapp: een lichte stijl naast de donkere, het hele wegennet en elke plaatsnaam op elk zoomniveau, en een zoekfunctie die elke plaats en straat van de kaart vindt – en elke willekeurige plek via online zoeken (Photon, OpenStreetMap; uit te zetten bij de lagen).",
+"news.2_0_0.aerial":"Luchtfoto's van heel Duitsland uit de open data van 14 deelstaten en Sentinel-2-satellietbeelden van heel Europa – zet ze aan bij de lagen van de kaart (standaard uit: de beeldservers zien welk gebied je bekijkt).",
+"news.2_0_0.later":"Nog niet in 2.0: de theorielessen en het theorie-examen, weer en seizoenen, trams en bussen volgens dienstregeling, wegwerkzaamheden en overwegen, de heftruck en de oefeningen op het oefenterrein, herhalingen, fietsers en hulpvoertuigen, water en tanken, uitstappen en lopen. Ze komen terug in 2.1 – tot dan heeft 1.7.7 ze allemaal op zijn eigen adres.",
+"news.2_0_0.intro":"Fahrsim 2.0 is vanaf de grond opnieuw geschreven in C++ (draait als WebAssembly in de browser): dezelfde wegen, regels, verkeer, lessen, automatische piloot, voertuigen en talen op een nieuwe engine die voor elk beeld ongeveer de helft van het werk van 1.7.7 nodig heeft. Nieuw in 2.0:"
 }

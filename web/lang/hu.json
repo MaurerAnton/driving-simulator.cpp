@@ -2459,5 +2459,10 @@
 "map2.outside":"a térképeken kívül",
 "map2.loading":"{name} térképe betöltődik …",
 "map2.regionPlace":"Térkép: {name}",
-"map2.searching":"Online keresés folyamatban …"
+"map2.searching":"Online keresés folyamatban …",
+"news.2_0_0.regions":"Egy térkép minden régióhoz: kicsinyítsd a nagy térképet (M, a minitérkép vagy a térkép gomb), és Európa mind a 308 régiója megjelenik az országok körvonalán. Nagyíts rá egyre, hogy lásd az útjait és településeit, koppints egy útra, és nyomd meg „Ide az autót” – a játék megnyitja azt a térképet, és ott indulsz. Minden régiót megnyitottunk és ellenőriztünk; Kölnnek már van talaja.",
+"news.2_0_0.map":"A nagy térkép olyan, mint egy térképalkalmazás: világos stílus a sötét mellett, a teljes úthálózat és minden településnév minden nagyításon, és egy keresés, amely megtalálja a térkép minden települését és utcáját – az online kereséssel pedig bármilyen helyet (Photon, OpenStreetMap; a rétegeknél kikapcsolható).",
+"news.2_0_0.aerial":"Légifotók egész Németországról 14 tartomány nyílt adataiból, és Sentinel-2 műholdképek egész Európáról – kapcsold be őket a térkép rétegeinél (alapból ki vannak kapcsolva: a képkiszolgálók megtudják, melyik területet nézed).",
+"news.2_0_0.later":"Még nincs benne a 2.0-ban: az elméleti leckék és az elméleti vizsga, időjárás és évszakok, menetrend szerinti villamosok és buszok, útépítések és vasúti átjárók, a targonca és a gyakorlópálya feladatai, visszajátszások, kerékpárosok és megkülönböztetett járművek, víz és tankolás, kiszállás és gyaloglás. A 2.1-ben visszatérnek – addig az 1.7.7 mindet megőrzi a saját címén.",
+"news.2_0_0.intro":"A Fahrsim 2.0-t az alapoktól C++-ban írtuk újra (a böngészőben WebAssemblyként fut): ugyanazok az utak, szabályok, forgalom, leckék, robotpilóta, járművek és nyelvek egy új motoron, amely képkockánként nagyjából feleannyi munkával jár, mint az 1.7.7. Újdonságok a 2.0-ban:"
 }

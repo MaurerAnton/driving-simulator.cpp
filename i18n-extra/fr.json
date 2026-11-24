@@ -12,5 +12,10 @@
   "map2.outside": "hors des cartes",
   "map2.loading": "Chargement de la carte {name} …",
   "map2.regionPlace": "Carte : {name}",
-  "map2.searching": "Recherche en ligne …"
+  "map2.searching": "Recherche en ligne …",
+  "news.2_0_0.regions": "Une carte pour toutes les régions : dézoomez sur la grande carte (M, la mini-carte ou le bouton carte) et les 308 régions d'Europe apparaissent sur les contours des pays. Zoomez sur l'une d'elles pour voir ses routes et ses villes, touchez une route et appuyez sur « Placer la voiture ici » – le jeu ouvre cette carte et vous y fait démarrer. Chaque région a été ouverte et vérifiée ; Cologne a maintenant son sol.",
+  "news.2_0_0.map": "La grande carte se lit comme une application de cartes : un style clair à côté du sombre, tout le réseau routier et le nom de chaque localité à chaque zoom, et une recherche qui trouve chaque ville et chaque rue de la carte – et n'importe quel lieu grâce à la recherche en ligne (Photon, OpenStreetMap ; désactivable dans les calques).",
+  "news.2_0_0.aerial": "Des photos aériennes pour toute l'Allemagne, issues des données ouvertes de 14 Länder, et des images satellite Sentinel-2 pour toute l'Europe – à activer dans les calques de la carte (désactivées par défaut : les serveurs d'images apprennent quelle zone vous regardez).",
+  "news.2_0_0.later": "Pas encore dans la 2.0 : les leçons de théorie et l'examen théorique, la météo et les saisons, les trams et bus selon l'horaire, les travaux et passages à niveau, le chariot élévateur et les exercices sur l'aire d'entraînement, les rediffusions, les cyclistes et véhicules d'urgence, l'eau et le carburant, descendre et marcher. Ils reviennent avec la 2.1 – d'ici là, la 1.7.7 les garde tous à sa propre adresse.",
+  "news.2_0_0.intro": "Fahrsim 2.0 est entièrement réécrit en C++ (exécuté en WebAssembly dans le navigateur) : les mêmes routes, règles, circulation, leçons, pilote automatique, véhicules et langues sur un nouveau moteur qui demande environ deux fois moins de travail que la 1.7.7 pour chaque image. Nouveau dans la 2.0 :"
 }

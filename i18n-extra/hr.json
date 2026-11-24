@@ -12,5 +12,10 @@
   "map2.outside": "izvan karata",
   "map2.loading": "Učitava se karta {name} …",
   "map2.regionPlace": "Karta: {name}",
-  "map2.searching": "Pretražuje se na mreži …"
+  "map2.searching": "Pretražuje se na mreži …",
+  "news.2_0_0.regions": "Jedna karta za sve regije: udaljite veliku kartu (M, mini-karta ili gumb karte) i svih 308 regija Europe pojavi se na obrisima država. Približite jednu da vidite njezine ceste i mjesta, dodirnite cestu i pritisnite „Stavi auto ovdje” – igra otvara tu kartu i tamo vas pokreće. Svaka je regija otvorena i provjerena; Köln sada ima svoje tlo.",
+  "news.2_0_0.map": "Velika karta čita se kao aplikacija s kartama: svijetli stil uz tamni, cijela cestovna mreža i ime svakog mjesta pri svakom povećanju te pretraga koja pronalazi svako mjesto i ulicu karte – a online pretragom i bilo koje mjesto (Photon, OpenStreetMap; može se isključiti u slojevima).",
+  "news.2_0_0.aerial": "Zračne snimke cijele Njemačke iz otvorenih podataka 14 saveznih zemalja i satelitske snimke Sentinel-2 cijele Europe – uključite ih u slojevima karte (zadano isključeno: poslužitelji slika saznaju koje područje gledate).",
+  "news.2_0_0.later": "Još nije u 2.0: lekcije teorije i teorijski ispit, vrijeme i godišnja doba, tramvaji i autobusi po voznom redu, radovi na cesti i željeznički prijelazi, viličar i vježbe na poligonu, ponovne snimke, biciklisti i hitna vozila, voda i gorivo, izlazak i hodanje. Vraćaju se u 2.1 – do tada ih 1.7.7 čuva sve na svojoj adresi.",
+  "news.2_0_0.intro": "Fahrsim 2.0 iz temelja je napisan iznova u C++-u (u pregledniku radi kao WebAssembly): iste ceste, pravila, promet, lekcije, autopilot, vozila i jezici na novom pogonu kojem za svaku sliku treba otprilike pola posla verzije 1.7.7. Novo u 2.0:"
 }

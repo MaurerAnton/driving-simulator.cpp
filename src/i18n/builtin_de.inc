@@ -2460,5 +2460,10 @@ R"FSLANG({
 "map2.outside":"außerhalb der Karten",
 "map2.loading":"Karte {name} wird geladen …",
 "map2.regionPlace":"Karte: {name}",
-"map2.searching":"Online-Suche läuft …"
+"map2.searching":"Online-Suche läuft …",
+"news.2_0_0.regions":"Eine Karte für alle Regionen: Auf der großen Karte (M, die Minikarte oder der Kartenknopf) herauszoomen, und alle 308 Regionen Europas erscheinen auf den Umrissen der Länder. In eine hineinzoomen zeigt ihre Straßen und Orte; eine Straße antippen und „Auto hierhin stellen“ drücken – das Spiel öffnet diese Karte und lässt dich dort losfahren. Jede Region wurde geöffnet und geprüft; Köln hat jetzt seinen Boden.",
+"news.2_0_0.map":"Die große Karte liest sich wie eine Karten-App: ein heller Stil neben dem dunklen, das ganze Straßennetz und jeder Ortsname in jeder Zoomstufe, und eine Suche, die jeden Ort und jede Straße der Karte findet – und über die Online-Suche jeden beliebigen Ort (Photon, OpenStreetMap; in den Ebenen abschaltbar).",
+"news.2_0_0.aerial":"Luftbilder für ganz Deutschland aus den offenen Daten von 14 Bundesländern und Sentinel-2-Satellitenbilder für ganz Europa – in den Ebenen der Karte einschalten (ab Werk aus: die Bildserver erfahren, welche Gegend du ansiehst).",
+"news.2_0_0.later":"Noch nicht in 2.0: die Theorielektionen und die Theorieprüfung, Wetter und Jahreszeiten, Straßenbahnen und Busse nach Fahrplan, Baustellen und Bahnübergänge, der Gabelstapler und die Übungen auf dem Übungsplatz, Wiederholungen, Radfahrer und Einsatzfahrzeuge, Wasser und Tanken, Aussteigen und Gehen. Sie kommen mit 2.1 zurück – bis dahin hat 1.7.7 sie alle unter seiner eigenen Adresse.",
+"news.2_0_0.intro":"Fahrsim 2.0 ist von Grund auf in C++ neu geschrieben (im Browser als WebAssembly): dieselben Straßen, Regeln, derselbe Verkehr, dieselben Lektionen, Autopilot, Fahrzeuge und Sprachen – auf einer neuen Engine, die für jedes Bild etwa die Hälfte der Arbeit von 1.7.7 braucht. Neu in 2.0:"
 })FSLANG"

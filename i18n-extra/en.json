@@ -12,5 +12,10 @@
   "map2.outside": "outside the maps",
   "map2.loading": "Loading the map of {name} …",
   "map2.regionPlace": "Map: {name}",
-  "map2.searching": "Searching online …"
+  "map2.searching": "Searching online …",
+  "news.2_0_0.regions": "One map for every region: zoom out on the big map (M, the mini map or the map button) and all 308 regions of Europe appear on the outlines of the countries. Zoom into one to see its roads and towns, tap a road and press \"Put the car here\" – the game opens that map and starts you there. Every region was opened and checked; Köln now has its ground.",
+  "news.2_0_0.map": "The big map reads like a map app: a light style beside the dark one, the whole road network and every town name at every zoom, and a search that finds every town and street of the map – and any place at all through the online search (Photon, OpenStreetMap; it can be switched off in the layers).",
+  "news.2_0_0.aerial": "Aerial photographs for the whole of Germany from the open data of 14 federal states, and Sentinel-2 satellite pictures for all of Europe – switch them on in the map's layers (off by default: the image servers learn which area you look at).",
+  "news.2_0_0.later": "Not yet in 2.0: the theory lessons and the theory exam, weather and seasons, trams and buses by timetable, roadworks and level crossings, the forklift and the practice-yard drills, replays, cyclists and emergency vehicles, water and fuel, getting out and walking. They come back in 2.1 – until then 1.7.7 keeps them all at its own address.",
+  "news.2_0_0.intro": "Fahrsim 2.0 is rewritten from the ground up in C++ (running as WebAssembly in the browser): the same roads, rules, traffic, lessons, autopilot, vehicles and languages on a new engine that needs about half the work of 1.7.7 for each picture. New in 2.0:"
 }
