@@ -11,7 +11,7 @@
 
 namespace fs::i18n {
 
-const char BUILTIN_STAMP[] = "7f89c5e87b35";
+const char BUILTIN_STAMP[] = "441816a5bc8a";
 const char BUILTIN_SOURCE[] = "1.7.7";
 
 const BuiltinLang BUILTIN_LANGS[] = {

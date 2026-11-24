@@ -143,8 +143,13 @@ async function exportTexts(original) {
   const data = new Map();
   let keys = 0;
   for (const l of langs) {
-    const dict = (await load(`${l.code}.ts`)).default;
-    if (dict === null || typeof dict !== 'object' || Array.isArray(dict)) fail(`${l.code}.ts: does not export an object of texts`);
+    const original = (await load(`${l.code}.ts`)).default;
+    if (original === null || typeof original !== 'object' || Array.isArray(original)) fail(`${l.code}.ts: does not export an object of texts`);
+    // the texts new in 2.0 (i18n-extra/<code>.json, every language): after the original's, which they never replace
+    const extraFile = join(ROOT, 'i18n-extra', `${l.code}.json`);
+    const extra = existsSync(extraFile) ? JSON.parse(readFileSync(extraFile, 'utf8')) : {};
+    for (const k of Object.keys(extra)) if (k in original) fail(`i18n-extra/${l.code}.json: ${k} is a text of the original already`);
+    const dict = { ...original, ...extra };
     for (const [k, v] of Object.entries(dict)) if (typeof v !== 'string') fail(`${l.code}.ts: ${k} is not a text`);
     const json = jsonLines(dict, 1);
     checkData(dict, `${l.code}.ts`, json);

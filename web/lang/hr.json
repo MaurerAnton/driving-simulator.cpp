@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"S prikolicom kamion smije voziti 60 km/h izvan naselja i 80 km/h na autocesti – i ondje gdje znakovi drugima dopuštaju više.",
 "ref.vehicle":"Rukovanje vozilom",
 "ref.busService":"Linijski prijevoz: pravila prijevoznika",
-"ref.tramRules":"Pogonska pravila tramvajskog prijevoznika"
+"ref.tramRules":"Pogonska pravila tramvajskog prijevoznika",
+"worldAll":"Sve regije",
+"worldOpen":"Otvori ovu kartu",
+"worldBack":"Natrag: {name}",
+"worldHint":"Dodirnite regiju da je odaberete",
+"worldSize":"Preuzimanje: {mb} MB",
+"worldRegion":"Regija"
 }

@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Khi kéo rơ moóc, xe tải chỉ được chạy 60 km/h ngoài khu dân cư và 80 km/h trên cao tốc – kể cả nơi biển báo cho phép xe khác chạy nhanh hơn.",
 "ref.vehicle":"Điều khiển xe",
 "ref.busService":"Chạy tuyến: quy định của công ty xe buýt",
-"ref.tramRules":"Quy định vận hành của công ty tàu điện"
+"ref.tramRules":"Quy định vận hành của công ty tàu điện",
+"worldAll":"Tất cả các vùng",
+"worldOpen":"Mở bản đồ này",
+"worldBack":"Quay lại {name}",
+"worldHint":"Chạm vào một vùng để chọn",
+"worldSize":"Tải xuống: {mb} MB",
+"worldRegion":"Khu vực"
 }

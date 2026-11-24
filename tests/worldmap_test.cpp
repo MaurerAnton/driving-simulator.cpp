@@ -205,7 +205,7 @@ int main() {
   settle();
   El globe = dom::body().querySelector(".bm-world");
   check(globe && !globe.hidden(), "the globe is in the bar");
-  check(globe.get("aria-label") == "All regions", "the globe's label");
+  check(globe.getAttribute("aria-label") == "All regions", "the globe's label");
   El card = dom::body().querySelector(".bm-region");
   check(card && card.hidden(), "close up: no card");
 
@@ -223,7 +223,7 @@ int main() {
   // the globe: every region in view – and pressed again, back to the view before
   globe.click();
   settle();
-  check(globe.get("aria-pressed") == "true", "the globe is pressed");
+  check(globe.getAttribute("aria-pressed") == "true", "the globe is pressed");
   check(!card.hidden(), "every region: the card's hint");
   // a tap on Bremen (where the globe put it) selects it and shows its card
   MapView v = layer->fitAll(W, H);
@@ -260,16 +260,16 @@ int main() {
     const auto [hx, hz] = mid(site);
     tap(c, v.sx(hx), v.sy(hz));
   }
-  check(card.hidden() && globe.get("aria-pressed") == "false", "the loaded region: back into it");
+  check(card.hidden() && globe.getAttribute("aria-pressed") == "false", "the loaded region: back into it");
 
   // with keys: Home goes to every region and back
   c.focus();
   dom::native::key("Home");
   settle();
-  check(globe.get("aria-pressed") == "true", "Home: every region");
+  check(globe.getAttribute("aria-pressed") == "true", "Home: every region");
   dom::native::key("Home");
   settle();
-  check(globe.get("aria-pressed") == "false", "Home again: back");
+  check(globe.getAttribute("aria-pressed") == "false", "Home again: back");
 
   // the search field finds a region (after the places of the loaded map), and choosing it selects it
   {

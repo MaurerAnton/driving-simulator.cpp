@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Con il rimorchio un camion può andare a 60 km/h fuori dai centri abitati e a 80 km/h in autostrada – anche dove i segnali consentono di più agli altri.",
 "ref.vehicle":"Uso del veicolo",
 "ref.busService":"Servizio di linea: regole dell'azienda di trasporto",
-"ref.tramRules":"Regolamento di esercizio dell'azienda tranviaria"
+"ref.tramRules":"Regolamento di esercizio dell'azienda tranviaria",
+"worldAll":"Tutte le regioni",
+"worldOpen":"Apri questa mappa",
+"worldBack":"Torna a {name}",
+"worldHint":"Tocca una regione per sceglierla",
+"worldSize":"Download: {mb} MB",
+"worldRegion":"Regione"
 }

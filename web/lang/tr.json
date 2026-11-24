@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Römorklu bir kamyon, levhalar başkalarına daha fazlasına izin verse bile yerleşim yeri dışında en fazla 60 km/h, otoyolda en fazla 80 km/h hızla gidebilir.",
 "ref.vehicle":"Araç kullanımı",
 "ref.busService":"Hat hizmeti: otobüs işletmesinin kuralları",
-"ref.tramRules":"Tramvay işletmesinin işletme kuralları"
+"ref.tramRules":"Tramvay işletmesinin işletme kuralları",
+"worldAll":"Tüm bölgeler",
+"worldOpen":"Bu haritayı aç",
+"worldBack":"Geri dön: {name}",
+"worldHint":"Seçmek için bir bölgeye dokunun",
+"worldSize":"İndirme: {mb} MB",
+"worldRegion":"Bölge"
 }

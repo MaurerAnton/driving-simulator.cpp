@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Cu remorcă, un camion are voie să meargă cu 60 km/h în afara localității și cu 80 km/h pe autostradă – chiar și acolo unde indicatoarele le permit altora mai mult.",
 "ref.vehicle":"Manevrarea vehiculului",
 "ref.busService":"Serviciul de linie: regulile companiei de transport",
-"ref.tramRules":"Regulile de exploatare ale companiei de tramvaie"
+"ref.tramRules":"Regulile de exploatare ale companiei de tramvaie",
+"worldAll":"Toate regiunile",
+"worldOpen":"Deschide această hartă",
+"worldBack":"Înapoi la {name}",
+"worldHint":"Atinge o regiune pentru a o alege",
+"worldSize":"Descărcare: {mb} MB",
+"worldRegion":"Regiune"
 }

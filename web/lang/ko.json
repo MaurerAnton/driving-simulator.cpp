@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"트레일러를 단 트럭은 시가지 밖에서 60 km/h, 고속도로에서 80 km/h까지 달릴 수 있어요 – 표지가 다른 차량에 더 높은 속도를 허용해도 마찬가지예요.",
 "ref.vehicle":"차량 조작",
 "ref.busService":"노선 운행: 버스 회사 규정",
-"ref.tramRules":"트램 회사 운전 규정"
+"ref.tramRules":"트램 회사 운전 규정",
+"worldAll":"모든 지역",
+"worldOpen":"이 지도 열기",
+"worldBack":"{name}(으)로 돌아가기",
+"worldHint":"지역을 눌러 선택하세요",
+"worldSize":"다운로드: {mb}MB",
+"worldRegion":"지역"
 }

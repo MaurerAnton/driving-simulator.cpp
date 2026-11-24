@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"S přívěsem smí nákladní auto jet 60 km/h mimo obec a 80 km/h po dálnici – i tam, kde značky ostatním dovolují víc.",
 "ref.vehicle":"Ovládání vozidla",
 "ref.busService":"Linková doprava: pravidla dopravce",
-"ref.tramRules":"Provozní předpisy dopravního podniku"
+"ref.tramRules":"Provozní předpisy dopravního podniku",
+"worldAll":"Všechny regiony",
+"worldOpen":"Otevřít tuto mapu",
+"worldBack":"Zpět: {name}",
+"worldHint":"Klepnutím vyberte region",
+"worldSize":"Stahování: {mb} MB",
+"worldRegion":"Region"
 }

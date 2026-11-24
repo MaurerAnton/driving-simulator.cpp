@@ -15,6 +15,7 @@
  * (New with the port: the original has no test that runs the game itself; its tests/drive.sim.ts
  * drives the lessons with the same driver outside the game – tests/trips_test.cpp mirrors that.)
  */
+#include <filesystem>
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -57,6 +58,11 @@ int main(int argc, char** argv) {
   }
   if (!mapDir.empty() && mapDir.back() != '/') mapDir += '/';
   // the page's own files (the languages, the outlines) from the repository, the map from its folder
+  // (the real map is only on the machine the port is made on: elsewhere – CI – nothing to test)
+  if (!std::filesystem::exists(mapDir + "map.json")) {
+    std::printf("SKIP: no map at %s\n", mapDir.c_str());
+    return 0;
+  }
   plat::native::mount(plat::locationBase(), "web/");
   plat::native::mount(plat::locationBase() + "map/", mapDir);
   const int width = 640;

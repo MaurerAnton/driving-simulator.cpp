@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Avec une remorque, un camion peut rouler à 60 km/h hors agglomération et à 80 km/h sur autoroute – même là où les panneaux autorisent plus aux autres.",
 "ref.vehicle":"Maîtrise du véhicule",
 "ref.busService":"Service de ligne : consignes de l’exploitant",
-"ref.tramRules":"Règlement d’exploitation du tramway"
+"ref.tramRules":"Règlement d’exploitation du tramway",
+"worldAll":"Toutes les régions",
+"worldOpen":"Ouvrir cette carte",
+"worldBack":"Retour à {name}",
+"worldHint":"Touchez une région pour la choisir",
+"worldSize":"Téléchargement : {mb} Mo",
+"worldRegion":"Région"
 }

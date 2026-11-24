@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Me rimorkio një kamion mund të ecë 60 km/h jashtë qendrave të banuara dhe 80 km/h në autostradë – edhe aty ku shenjat u lejojnë të tjerëve më shumë.",
 "ref.vehicle":"Përdorimi i automjetit",
 "ref.busService":"Shërbimi i linjës: rregullat e kompanisë së autobusëve",
-"ref.tramRules":"Rregullat e shfrytëzimit të kompanisë së tramvajeve"
+"ref.tramRules":"Rregullat e shfrytëzimit të kompanisë së tramvajeve",
+"worldAll":"Të gjitha rajonet",
+"worldOpen":"Hap këtë hartë",
+"worldBack":"Kthehu te {name}",
+"worldHint":"Prek një rajon për ta zgjedhur",
+"worldSize":"Shkarkim: {mb} MB",
+"worldRegion":"Rajon"
 }

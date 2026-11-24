@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Pótkocsival a teherautó lakott területen kívül 60 km/h-val, autópályán 80 km/h-val haladhat – akkor is, ha a táblák másoknak többet engednek.",
 "ref.vehicle":"Járműkezelés",
 "ref.busService":"Menetrend szerinti járat: a közlekedési vállalat szabályai",
-"ref.tramRules":"A közlekedési vállalat forgalmi utasítása"
+"ref.tramRules":"A közlekedési vállalat forgalmi utasítása",
+"worldAll":"Minden régió",
+"worldOpen":"Térkép megnyitása",
+"worldBack":"Vissza: {name}",
+"worldHint":"Koppints egy régióra a kiválasztásához",
+"worldSize":"Letöltés: {mb} MB",
+"worldRegion":"Régió"
 }

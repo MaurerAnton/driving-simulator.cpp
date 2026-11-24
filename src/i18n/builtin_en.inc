@@ -2446,5 +2446,11 @@ R"FSLANG({
 "v.truckSpeed.why":"With a trailer a truck may drive 60 km/h outside built-up areas and 80 km/h on the motorway – even where signs allow others more.",
 "ref.vehicle":"Vehicle handling",
 "ref.busService":"Line service: the bus company's rules",
-"ref.tramRules":"The tram company's operating rules"
+"ref.tramRules":"The tram company's operating rules",
+"worldAll":"All regions",
+"worldOpen":"Open this map",
+"worldBack":"Back to {name}",
+"worldHint":"Tap a region to choose it",
+"worldSize":"Download: {mb} MB",
+"worldRegion":"Region"
 })FSLANG"

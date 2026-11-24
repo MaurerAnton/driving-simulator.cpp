@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Z przyczepą ciężarówka może jechać 60 km/h poza terenem zabudowanym i 80 km/h na autostradzie – także tam, gdzie znaki pozwalają innym na więcej.",
 "ref.vehicle":"Obsługa pojazdu",
 "ref.busService":"Obsługa linii: regulamin przewoźnika",
-"ref.tramRules":"Przepisy ruchu przedsiębiorstwa tramwajowego"
+"ref.tramRules":"Przepisy ruchu przedsiębiorstwa tramwajowego",
+"worldAll":"Wszystkie regiony",
+"worldOpen":"Otwórz tę mapę",
+"worldBack":"Wróć: {name}",
+"worldHint":"Dotknij regionu, aby go wybrać",
+"worldSize":"Pobieranie: {mb} MB",
+"worldRegion":"Region"
 }

@@ -2446,5 +2446,11 @@ R"FSLANG({
 "v.truckSpeed.why":"Mit Anhänger darf ein Lkw außerorts 60 km/h und auf der Autobahn 80 km/h fahren – auch wo Schilder anderen mehr erlauben.",
 "ref.vehicle":"Fahrzeugbedienung",
 "ref.busService":"Linienverkehr: Regeln des Verkehrsbetriebs",
-"ref.tramRules":"Betriebsvorschriften des Verkehrsbetriebs"
+"ref.tramRules":"Betriebsvorschriften des Verkehrsbetriebs",
+"worldAll":"Alle Regionen",
+"worldOpen":"Diese Karte öffnen",
+"worldBack":"Zurück nach {name}",
+"worldHint":"Tippe eine Region an, um sie auszuwählen",
+"worldSize":"Download: {mb} MB",
+"worldRegion":"Region"
 })FSLANG"

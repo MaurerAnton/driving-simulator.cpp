@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Dengan gandengan, truk boleh melaju 60 km/jam di luar kota dan 80 km/jam di jalan bebas hambatan – meskipun rambu mengizinkan kendaraan lain lebih cepat.",
 "ref.vehicle":"Penguasaan kendaraan",
 "ref.busService":"Angkutan dalam trayek: aturan perusahaan bus",
-"ref.tramRules":"Aturan operasional perusahaan trem"
+"ref.tramRules":"Aturan operasional perusahaan trem",
+"worldAll":"Semua wilayah",
+"worldOpen":"Buka peta ini",
+"worldBack":"Kembali ke {name}",
+"worldHint":"Ketuk sebuah wilayah untuk memilihnya",
+"worldSize":"Unduhan: {mb} MB",
+"worldRegion":"Wilayah"
 }

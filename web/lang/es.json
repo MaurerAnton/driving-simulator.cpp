@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Con remolque, un camión puede circular a 60 km/h fuera de poblado y a 80 km/h en autopista – aunque las señales permitan más a otros.",
 "ref.vehicle":"Manejo del vehículo",
 "ref.busService":"Servicio de línea: normas de la empresa de autobuses",
-"ref.tramRules":"Normas de explotación de la empresa de tranvías"
+"ref.tramRules":"Normas de explotación de la empresa de tranvías",
+"worldAll":"Todas las regiones",
+"worldOpen":"Abrir este mapa",
+"worldBack":"Volver a {name}",
+"worldHint":"Toca una región para elegirla",
+"worldSize":"Descarga: {mb} MB",
+"worldRegion":"Región"
 }

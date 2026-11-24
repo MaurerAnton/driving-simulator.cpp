@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"トレーラー付きのトラックは、市街地以外で60 km/h、高速道路で80 km/hまでです。標識がほかの車にそれ以上の速度を認めていても同じです。",
 "ref.vehicle":"車両操作",
 "ref.busService":"路線運行：バス会社の規則",
-"ref.tramRules":"路面電車会社の運転規則"
+"ref.tramRules":"路面電車会社の運転規則",
+"worldAll":"すべての地域",
+"worldOpen":"この地図を開く",
+"worldBack":"{name} に戻る",
+"worldHint":"地域をタップして選択",
+"worldSize":"ダウンロード: {mb} MB",
+"worldRegion":"地域"
 }

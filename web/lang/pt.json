@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"Com reboque, um camião pode circular a 60 km/h fora das localidades e a 80 km/h na autoestrada – mesmo onde os sinais permitem mais aos outros.",
 "ref.vehicle":"Domínio do veículo",
 "ref.busService":"Serviço de linha: normas da empresa de transportes",
-"ref.tramRules":"Regulamento de exploração da empresa de elétricos"
+"ref.tramRules":"Regulamento de exploração da empresa de elétricos",
+"worldAll":"Todas as regiões",
+"worldOpen":"Abrir este mapa",
+"worldBack":"Voltar a {name}",
+"worldHint":"Toque numa região para a escolher",
+"worldSize":"Transferência: {mb} MB",
+"worldRegion":"Região"
 }

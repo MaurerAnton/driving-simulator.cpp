@@ -2445,5 +2445,11 @@
 "v.truckSpeed.why":"带挂车的货车在城区外限速 60 km/h，在高速公路上限速 80 km/h——即使标志允许其他车辆开得更快。",
 "ref.vehicle":"车辆操控",
 "ref.busService":"线路运营：公交公司的规定",
-"ref.tramRules":"有轨电车公司的行车规章"
+"ref.tramRules":"有轨电车公司的行车规章",
+"worldAll":"所有地区",
+"worldOpen":"打开这张地图",
+"worldBack":"返回{name}",
+"worldHint":"点按一个地区即可选择",
+"worldSize":"下载：{mb} MB",
+"worldRegion":"地区"
 }
