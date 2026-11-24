@@ -4,6 +4,8 @@
 //         mergeVertices)
 #include "engine/geometries.h"
 
+#include "engine/internal.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -649,10 +651,11 @@ GeometryPtr polyhedronGeometry(const std::vector<double>& vertices, const std::v
   // helper functions
   const auto pushVertex = [&](const Vector3& vertex) { push(vertexBuffer, vertex.x, vertex.y, vertex.z); };
   const auto getVertexByIndex = [&](int index, Vector3& vertex) {
-    const size_t stride = static_cast<size_t>(index) * 3;
-    vertex.x = vertices[stride + 0];
-    vertex.y = vertices[stride + 1];
-    vertex.z = vertices[stride + 2];
+    const size_t stride = enginedetail::vertexNumber(index) * 3;
+    // (an index that names no vertex reads `undefined` in JavaScript: not a number)
+    vertex.x = stride + 0 < vertices.size() ? vertices[stride + 0] : JS_NAN;
+    vertex.y = stride + 1 < vertices.size() ? vertices[stride + 1] : JS_NAN;
+    vertex.z = stride + 2 < vertices.size() ? vertices[stride + 2] : JS_NAN;
   };
   // Angle around the Y axis, counter-clockwise when looking from above.
   const auto azimuth = [](const Vector3& vector) { return std::atan2(vector.z, -vector.x); };
@@ -1061,7 +1064,7 @@ Vector2 getBevelVec(const Vector2& inPt, const Vector2& inPrev, const Vector2& i
 
 /** addShape of ExtrudeGeometry: the triangles of one shape, appended to the geometry's positions and uvs */
 void extrudeShape(BufferGeometry& scope, std::vector<double>& verticesArray, std::vector<double>& uvArray, const Shape& shape, const ExtrudeOptions& options) {
-  std::vector<double> placeholder;
+  std::vector<double> placeholder;   // (three.js's name for it: every vertex of the solid once, before the triangles are laid out)
   // options
   const int curveSegments = options.curveSegments;
   const int steps = options.steps;
@@ -1462,7 +1465,7 @@ GeometryPtr mergeGeometries(const std::vector<GeometryPtr>& geometries, bool use
     std::vector<uint32_t> mergedIndex;
     for (size_t i = 0; i < geometries.size(); ++i) {
       const AttrPtr& index = geometries[i]->index;
-      for (size_t j = 0; j < index->count(); ++j) mergedIndex.push_back(static_cast<uint32_t>(index->getX(j)) + indexOffset);
+      for (size_t j = 0; j < index->count(); ++j) mergedIndex.push_back(jsUint32(index->getX(j)) + indexOffset);
       const AttrPtr position = geometries[i]->position();
       if (!position) return nullptr;   // (three.js fails here: an indexed geometry without positions)
       indexOffset += static_cast<uint32_t>(position->count());
@@ -1533,7 +1536,7 @@ GeometryPtr mergeVertices(const BufferGeometry& geometry, double tolerance) {
   std::string hash;
   char number[40];
   for (size_t i = 0; i < vertexCount; i++) {
-    const size_t index = indices ? static_cast<size_t>(indices->getX(i)) : i;
+    const size_t index = indices ? enginedetail::vertexAt(*indices, i) : i;
     // Generate a hash for the vertex attributes at the current index 'i'
     hash.clear();
     for (const auto& entry : geometry.attributes) {

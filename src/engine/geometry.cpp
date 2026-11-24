@@ -2,8 +2,12 @@
 // Origin: three.js r187 src/core/BufferGeometry.js (InstancedBufferGeometry.js: `instanceCount`)
 #include "engine/engine.h"
 #include "engine/gpu.h"
+#include "engine/internal.h"
 
 namespace fs {
+
+using enginedetail::vertexAt;
+using enginedetail::vertexNumber;
 
 BufferGeometry::BufferGeometry() : id(gpu::nextId()) {}
 
@@ -231,9 +235,9 @@ BufferGeometry& BufferGeometry::computeVertexNormals() {
     // indexed elements
     if (index) {
       for (size_t i = 0, il = index->count(); i < il; i += 3) {
-        const size_t vA = static_cast<size_t>(index->getX(i + 0));
-        const size_t vB = static_cast<size_t>(index->getX(i + 1));
-        const size_t vC = static_cast<size_t>(index->getX(i + 2));
+        const size_t vA = vertexAt(*index, i + 0);
+        const size_t vB = vertexAt(*index, i + 1);
+        const size_t vC = vertexAt(*index, i + 2);
         pA.fromBufferAttribute(*positionAttribute, vA);
         pB.fromBufferAttribute(*positionAttribute, vB);
         pC.fromBufferAttribute(*positionAttribute, vC);
@@ -290,9 +294,11 @@ std::vector<T> picked(const std::vector<T>& array, int itemSize, const BufferAtt
   const size_t n = indices.length();
   std::vector<T> array2(n * static_cast<size_t>(itemSize));
   size_t index2 = 0;
+  // (an index beyond the attribute's end reads `undefined` in JavaScript: NaN in an array of floats, 0 in one of whole numbers)
+  const T none = std::numeric_limits<T>::has_quiet_NaN ? std::numeric_limits<T>::quiet_NaN() : T();
   for (size_t i = 0; i < n; i++) {
-    size_t index = static_cast<size_t>(indices.at(i)) * static_cast<size_t>(itemSize);
-    for (int j = 0; j < itemSize; j++, index++) array2[index2++] = index < array.size() ? array[index] : T();
+    size_t index = vertexNumber(indices.at(i)) * static_cast<size_t>(itemSize);
+    for (int j = 0; j < itemSize; j++, index++) array2[index2++] = index < array.size() ? array[index] : none;
   }
   return array2;
 }
