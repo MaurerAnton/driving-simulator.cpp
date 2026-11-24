@@ -15,11 +15,7 @@
 #include "platform/plat.h"
 #include "ui/geolocate.h"
 #include "ui/mapwindow.h"
-// (ui/lessonroutes.ts is translated by someone else: its section of the panel is there as soon as the header is)
-#if __has_include("ui/lessonroutes.h")
 #include "ui/lessonroutes.h"
-#define FS_BIGMAP_ROUTE_PRESETS 1
-#endif
 
 namespace fs {
 
@@ -591,12 +587,10 @@ void BigMap::fillPlan() {
   }
 
   // --- the set routes (game/routepresets.ts): driven from where the vehicle stands (not from the menu's map: no vehicle yet) ---
-#ifdef FS_BIGMAP_ROUTE_PRESETS
   if (host.startPreset && !(host.menu && host.menu()))
-    box.append(routePresetSection([this](auto&& k, auto&&... v) { return t(std::string(k), v...); }, [this](const std::string& id) {
+    box.append(routePresetSection([this](const std::string& k, const TrParams& v) { return t(k, v); }, [this](const std::string& id) {
       if (host.startPreset) host.startPreset(id);
     }));
-#endif
   // --- a tour of the streets: as long as asked for, through as many different streets as possible ---
   El tourBox = el("div", "bm-tour");
   tourBox.append(el("b", "", t("tourTitle")), el("small", "", t(!stops.empty() ? "tourHintTo" : "tourHintRound")));
