@@ -374,8 +374,9 @@ using ShaderPatchPtr = std::shared_ptr<ShaderPatch>;
 
 /** The parameters of `new THREE.Mesh…Material({ … })`, for lambert(), basic(), phong(). */
 struct MaterialParams {
-  std::optional<Color> color;
-  TexturePtr map;
+  // (every member has an initialiser, so that `{.color = 0x808890}` leaves nothing for -Wmissing-field-initializers to name)
+  std::optional<Color> color{};
+  TexturePtr map{};
   bool vertexColors = false;
   bool transparent = false;
   double opacity = 1;
@@ -390,12 +391,12 @@ struct MaterialParams {
   bool polygonOffset = false;
   double polygonOffsetFactor = 0;
   double polygonOffsetUnits = 0;
-  std::optional<Color> emissive;
+  std::optional<Color> emissive{};
   double emissiveIntensity = 1;
-  std::optional<Color> specular;
+  std::optional<Color> specular{};
   double shininess = 30;
   bool colorWrite = true;
-  std::string name;
+  std::string name{};
 };
 
 class Material {
