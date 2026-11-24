@@ -71,7 +71,13 @@ if(FAHRSIM_WASM)
     "SHELL:-s EXPORTED_RUNTIME_METHODS=['UTF8ToString','stringToUTF8','lengthBytesUTF8','HEAPU8','HEAPF32','HEAPF64','HEAP32']"
     "SHELL:-s EXPORTED_FUNCTIONS=['_main','_malloc','_free']"
     "SHELL:-s ASSERTIONS=0"
-    "SHELL:--js-library ${CMAKE_CURRENT_SOURCE_DIR}/src/platform/web/library_fahrsim.js")
+    )
+  # the browser's side of the host layer: every src/platform/web/library_*.js
+  file(GLOB FAHRSIM_JS_LIBS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/platform/web/library_*.js")
+  foreach(lib IN LISTS FAHRSIM_JS_LIBS)
+    target_link_options(fahrsim PRIVATE "SHELL:--js-library ${lib}")
+  endforeach()
+  set_property(TARGET fahrsim APPEND PROPERTY LINK_DEPENDS ${FAHRSIM_JS_LIBS})
   # the page around the module: copied beside it
   add_custom_command(TARGET fahrsim POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/web" "${FAHRSIM_SITE}"
