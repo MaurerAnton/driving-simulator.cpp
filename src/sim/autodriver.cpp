@@ -40,7 +40,6 @@ AutoDriver::AutoDriver(World& worldIn, SignalSystem& signalsIn, RuleMonitor& rul
   turnSpeed_ = opts.truck ? 2.7 : 4.5;
   // the deceleration the driver plans with when stopping at a line (15 t take longer)
   decel_ = opts.truck ? 1.3 : 2.2;
-  for (const auto& c : world.crossings()) crossings_[c.e].push_back(c);
   me_.length = opts.spec && opts.spec->length > 0 ? opts.spec->length : 4.28;
   me_.width = opts.spec && opts.spec->width > 0 ? opts.spec->width : 1.79;
 }
@@ -53,7 +52,75 @@ void AutoDriver::reset() {
   lastTurn_ = 0;
   lastNext_ = nullptr;
   haltLane_ = nullptr;
+  bendTick_ = 0;
+  bendLimit_ = 0;
   cmd.arrived = false;
+  cmd.turnRound = nullptr;
+}
+
+double AutoDriver::bendCap(const Lane* lane, double from, const Connector* next,
+                           const std::vector<Connector*>& route, double speed) {
+  const double STEP = 6;
+  /** the turn is measured over 2 × SPAN steps: a kink in the line of a road is a gentle bend, a hairpin is not */
+  const int SPAN = 2;
+  const double pull = opts.truck ? 1.5 : 2.2;
+  const double ease = opts.truck ? 1.1 : 1.7;
+  const double reach = std::min(240.0, (speed * speed) / (2 * ease) + 45);
+  const int n = std::min(48, static_cast<int>(std::ceil(reach / STEP)) + 2 * SPAN + 1);
+  // along the lane the car is on, the path through the junction behind it, the lane after that, …
+  const Lane* curLane = lane;
+  const Connector* curConn = lane ? next : next;
+  if (lane && !curConn) curConn = nullptr;
+  const Connector* after = lane ? next : nullptr;
+  double at = std::max(0.0, from);
+  int count = 0;
+  PolySample sm;
+  while (count < n && (curLane || curConn)) {
+    if (curLane) {
+      double len = curLane->len;
+      if (at > len) {
+        // on to the path through the junction behind this lane
+        at -= len;
+        const Connector* c = after;
+        if (!c) {
+          for (Connector* r : route)
+            if (r->from == curLane) { c = r; break; }
+          if (!c && curLane->out.size() == 1) c = curLane->out[0];
+        }
+        after = nullptr;
+        curConn = c;
+        curLane = nullptr;
+        continue;
+      }
+      sm = lanePoint(*curLane, at, sm);
+    } else {
+      double len = curConn->len;
+      if (at > len) {
+        // and on to the lane the path leads onto
+        at -= len;
+        curLane = curConn->to;
+        curConn = nullptr;
+        continue;
+      }
+      sm = samplePolyline(curConn->pl, at, sm);
+    }
+    bendDir_[count * 2] = sm.tx;
+    bendDir_[count * 2 + 1] = sm.tz;
+    count++;
+    at += STEP;
+  }
+  double cap = std::numeric_limits<double>::infinity();
+  for (int i = SPAN; i + SPAN < count; i++) {
+    int a = (i - SPAN) * 2;
+    int b = (i + SPAN) * 2;
+    double turn = std::acos(std::max(-1.0, std::min(1.0, bendDir_[a] * bendDir_[b] + bendDir_[a + 1] * bendDir_[b + 1])));
+    if (turn < 0.05) continue;
+    double bend = std::sqrt((pull * 2 * SPAN * STEP) / turn);
+    // (the bend begins where the stretch it was measured over begins)
+    double d = std::max(0.0, (i - SPAN) * STEP - 4.0);
+    cap = std::min(cap, std::sqrt(bend * bend + 2 * ease * d));
+  }
+  return cap;
 }
 
 AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
@@ -157,7 +224,8 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
       int sg2 = (a2 && a2->sg >= 0 && l2.to->sc >= 0) ? signals.get(l2.to->sc, a2->sg) : SIG_GREEN;
       bool red = sg2 == SIG_RED || sg2 == SIG_RED_AMBER ||
                  (sg2 == SIG_AMBER && (speed * speed) / (2 * std::max(dStop - 2.5, 0.5)) < 3);
-      if (obey && dStop > 0 && a2 && l2.to->arms.size() > 2 && (red || a2->role == ROLE_STOP)) {
+      // (a line the front of the car has only just reached still counts: the car is not in the junction yet)
+      if (obey && dStop > -0.6 && a2 && l2.to->arms.size() > 2 && (red || a2->role == ROLE_STOP)) {
         double room = dStop - 2.5;
         // (A light right behind a junction: wait before it, do not creep up to the line.
         // A stop sign there is crept up to: the car has to get to its line to stop at it.)
@@ -182,9 +250,8 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
   bool onExitLane = lane != nullptr && laneS < std::min(lane->stopAt, lane->len) - 0.5;
   /** crossings of lane `l`, whose start is `offset` metres ahead of the front bumper */
   auto scanCrossings = [&](const Lane& l, double offset) {
-    auto xs = crossings_.find(l.edge->id);
-    if (xs == crossings_.end()) return;
-    for (const auto& c : xs->second) {
+    const auto& xs = l.edge->xings;
+    for (const auto& c : xs) {
       double pos = l.dir > 0 ? c.s - l.s0 : l.s0 - c.s;
       double d = offset + pos - c.w / 2;
       if (d < -0.5 || d > 70) continue;
@@ -234,10 +301,16 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
   me.next = nullptr;
   me.route = &route;
   bool halting = false;
+  /** at the place to halt at (not merely standing near it, behind somebody) */
+  bool atHalt = false;
+  Connector* turnRound = nullptr;
+  /** how far along the path through the junction the car is (when it is not on a lane) */
+  double connS = 0;
   if (((inJunction && !onExitLane) || !lane) && next) {
     proj = projectOnPolyline(next->pl, mpos[0], mpos[2], proj);
     const Connector* on = next;
     double at = proj.s;
+    connS = at;
     aim([&](double d) {
       double sj = at + d;
       if (sj <= on->len)
@@ -389,7 +462,23 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
         limit = std::min(limit, std::sqrt(2 * (DECEL * 0.7) * dd));
         halting = dd < 45;
         if (halting) remark = "halt";
-        if (dd < 0.6) crossStop = true;
+        if (dd < 0.6) {
+          crossStop = true;
+          atHalt = true;
+        }
+      }
+      // --- the end of the street, and the way leads back out of it: stop short of the end ---
+      if (next && next->from == lane && next->turn == TURN_UTURN && lane->to->arms.size() == 1) {
+        double dd = std::max(0.0, lane->len - 3.5 - centre);
+        limit = std::min(limit, std::sqrt(2 * (DECEL * 0.7) * dd));
+        if (dd < 45) {
+          halting = true;
+          remark = "deadEnd";
+        }
+        if (dd < 0.6) {
+          crossStop = true;
+          turnRound = const_cast<Connector*>(next);
+        }
       }
     }
     if ((distToLine > 45 && ahead > 45) || distToLine < -3) turn = 0;
@@ -443,6 +532,13 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
       if (lead.gap < 2.2) crossStop = true;
     }
   }
+  // --- controls ---
+  // (the bends further ahead are come up to at the speed they can be driven at; looked at a few
+  //  times a second, the way ahead changes as the car moves)
+  if (bendTick_++ % 6 == 0)
+    bendLimit_ = (lane || next) ? bendCap(lane, lane ? laneS - FRONT : connS, next, route, speed) : 0;
+  const double vBend = std::isfinite(bendLimit_) ? bendLimit_ : 1e300;
+
   // changing lanes is announced like a turn: indicator on, a look over the shoulder, then over
   changeT_ = change != 0 ? changeT_ + dt : 0;
   double look = turn != 0 && std::min(distToLine, ahead) < 25 ? (turn < 0 ? 1.6 : -1.6) : 0;
@@ -465,6 +561,7 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
   // keep the lateral acceleration comfortable
   double vCurve = std::sqrt((TRUCK ? 1.5 : 2.2) / std::max(std::fabs(curv), 0.002));
   double target = std::min(limit * 0.94, vCurve);
+  target = std::min(target, vBend);
   double brake = 0;
   if (mustStop && distToLine > -1) {
     double d = std::max(0.0, distToLine - (TRUCK ? 1.8 : 1.2));
@@ -487,10 +584,14 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
     // Braking for a line, for somebody in the way or at the destination is as firm as it takes;
     // easing off for a limit, a bend or a junction ahead stays gentle.
     bool firm = mustStop || crossStop || halting || stopAhead || gap < 40 ||
-                vCurve < limit * 0.94 || err < -4;
+                vCurve < limit * 0.94 || vBend < v.speed - 3 || err < -4;
     double most = firm ? 0.8 : (TRUCK ? 1.6 : 2.1) / (TRUCK ? 6.5 : 9.5);
     brake = std::max(brake, std::min(most, -err * 0.3));
   }
+
+  // Standing where the way is not free – a red light behind the next joint in the road, somebody
+  // crossing: held on the brake.  (Left to itself, the car creeps on at walking pace, over the line.)
+  if (target < 0.05 && v.speed < 1.2) brake = std::max(brake, 0.4);
 
   cmd.steer = steer;
   cmd.throttle = brake > 0 ? 0 : throttle;
@@ -499,7 +600,8 @@ AutoCommand AutoDriver::step(double dt, const Vehicle& v, const double mpos[3],
   cmd.look = look;
   cmd.remark = remark;
   cmd.waiting = mustStop || crossStop || (gap < 12 && target < 0.3);
-  cmd.arrived = halting && crossStop && std::fabs(v.speed) < 0.1;
+  cmd.arrived = atHalt && std::fabs(v.speed) < 0.1;
+  cmd.turnRound = (turnRound && std::fabs(v.speed) < 0.1) ? turnRound : nullptr;
   seen.next = next;
   seen.tx = tx;
   seen.tz = tz;

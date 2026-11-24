@@ -60,6 +60,12 @@ struct AutoCommand {
   bool waiting = false;
   /** standing at the place it was told to halt at */
   bool arrived = false;
+  /**
+   * Standing at the end of a street the way leads back out of: the path to
+   * turn round by.  Turning in the road takes going back and forth, which
+   * this driver does not do – whoever runs it puts the car onto `to`.
+   */
+  struct Connector* turnRound = nullptr;
 };
 
 class AutoDriver {
@@ -96,6 +102,15 @@ class AutoDriver {
                    const std::vector<Connector*>& route);
 
  private:
+  /**
+   * How fast the bends further ahead may be come up to: the smallest speed
+   * at which every bend on the way (along the lane, through the junction
+   * paths, on) can still be driven – looked at a few times a second, since
+   * the way ahead changes as the car moves.
+   */
+  double bendCap(const Lane* lane, double from, const Connector* next,
+                 const std::vector<Connector*>& route, double speed);
+
   double turnSpeed_ = 0, decel_ = 0;
   double stoppedFor_ = 0, yieldWait_ = 0, changeT_ = 0, netWait_ = 0;
   double lastTurn_ = 0;
@@ -104,9 +119,13 @@ class AutoDriver {
   double haltS_ = 0;
   PolyProjection proj_;
   SurfaceHit hit_;
-  std::map<int, std::vector<CrossingJson>> crossings_;
   SelfDriving me_;
   PolySample smp_;
+  /** how often the bend look has run (it runs every 6th step) */
+  int bendTick_ = 0;
+  double bendLimit_ = 0;
+  double bendDir_[96] = {0};
+  PolySample bendSmp_;
 };
 
 }  // namespace fs

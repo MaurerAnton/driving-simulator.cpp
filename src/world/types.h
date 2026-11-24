@@ -8,11 +8,14 @@
  */
 #pragma once
 
+#include "world/grid.h"
 #include <cstdint>
 #include <string>
 #include <vector>
 
 namespace fs {
+
+struct CrossingJson;
 
 // ---------------------------------------------------------------------------
 // Road classes
@@ -161,6 +164,12 @@ struct EdgeJson {
   std::string r;      // ref
   /** centreline, [x, y, z] triples in world metres (cm precision) */
   std::vector<double> p;
+  /**
+   * the same in whole centimetres, each point as the step from the one before
+   * (the first from the origin) – what chunks of the network carry instead
+   * of `p`, which is then empty: it takes half the room
+   */
+  std::vector<double> q;
   int lf = 0;         // lanes forward (along a→b)
   int lb = 0;         // lanes backward
   double lw = 0;      // lane width
@@ -181,6 +190,10 @@ struct EdgeJson {
   std::string tf;     // turn:lanes forward (left→right, as in OSM)
   std::string tb;     // turn:lanes backward
   long long o = 0;    // OSM way id (provenance / debugging)
+  /** crossings on this edge (where the road network comes in chunks: there they travel with their edge) */
+  std::vector<CrossingJson> x;
+  /** forbidden movements from this edge, in chunks: via node, to edge, via node, to edge, … */
+  std::vector<double> bn;
 };
 
 struct ArmJson {
@@ -250,6 +263,14 @@ struct SpawnJson {
   /** yaw in radians (0 = north, positive = left/counter-clockwise) */
   double yaw = 0;
   std::string kind;  // 'parking' | 'street' | 'school'
+  /**
+   * The place was taken from the overview of the whole map (its roads were
+   * not loaded): it lies on a road only roughly, and is put into a lane once
+   * the roads there are loaded.
+   */
+  bool rough = false;
+  /** the town or municipality it lies in: the list of start points is grouped by it */
+  std::string g;
 };
 
 struct WorldMetaJson {
@@ -290,6 +311,29 @@ struct YardJson {
   double x = 0, z = 0;
   double len = 0, wid = 0;
   int rot = 0;
+};
+
+/** A piece of the road network: its records with the numbers they have in the whole map. */
+struct WorldChunkJson {
+  int v = 1;
+  std::vector<std::pair<int, NodeJson>> nodes;
+  std::vector<std::pair<int, EdgeJson>> edges;
+  std::vector<std::pair<int, SignalControllerJson>> signals;
+};
+
+/** What the game loads first of a map in pieces (map.json, version 2). */
+struct MapIndexJson {
+  int version = 2;
+  WorldMetaJson meta;
+  std::vector<PlaceJson> places;
+  std::vector<SpawnJson> spawns;
+  bool hasYard = false;
+  YardJson yard;
+  /** which tiles (500 m) and which chunks of the road network (4 km) exist */
+  struct GridBits tiles;
+  struct GridBits chunks;
+  /** numbers of nodes and edges in the whole map */
+  int nodes = 0, edges = 0;
 };
 
 struct WorldJson {

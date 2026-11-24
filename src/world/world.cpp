@@ -285,8 +285,11 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
 // World
 // ---------------------------------------------------------------------------
 
-World::World(const WorldJson& json) : json_(&json) {
+World::World(const WorldJson& json) {
+  jsonDoc_ = json;
+  meta_ = json.meta;
   signals_ = json.signals;
+  signalsPresent_.assign(signals_.size(), 1);
   crossings_ = json.crossings;
 
   nodes_.resize(json.nodes.size());
@@ -382,7 +385,8 @@ World::World(const WorldJson& json) : json_(&json) {
     }
   }
 
-  for (auto& e : edges_) finishEdge(e);
+  // the geometry of every road: where it lies, and its place in the index
+  for (auto& e : edges_) indexEdge(e, true);
 
   shapes_.reserve(nodes_.size());
   for (auto& node : nodes_) {
@@ -404,7 +408,7 @@ World::World(const WorldJson& json) : json_(&json) {
   }
 }
 
-void World::finishEdge(Edge& e) {
+void World::indexEdge(Edge& e, bool on) {
   double usable = std::max(0.0, e.len - e.cutA - e.cutB);
   e.blendA = std::min(14.0, usable * 0.45);
   e.blendB = std::min(14.0, usable * 0.45);
@@ -422,8 +426,13 @@ void World::finishEdge(Edge& e) {
     if (i + 1 < n) {
       double x2 = pts[i * 3 + 3];
       double z2 = pts[i * 3 + 5];
-      segGrid_.insertBox(std::min(x, x2) - pad, std::min(z, z2) - pad,
-                         std::max(x, x2) + pad, std::max(z, z2) + pad, e.id * 4096 + static_cast<int>(i));
+      const double x0 = std::min(x, x2) - pad;
+      const double z0 = std::min(z, z2) - pad;
+      const double x1 = std::max(x, x2) + pad;
+      const double z1 = std::max(z, z2) + pad;
+      const int code = e.id * 4096 + static_cast<int>(i);
+      if (on) segGrid_.insertBox(x0, z0, x1, z1, code);
+      else segGrid_.removeBox(x0, z0, x1, z1, code);
     }
   }
   e.minX = minX - pad;
@@ -694,6 +703,365 @@ bool pointNearKerb(double x, double z, const JunctionCorner& c) {
   if (side >= 0) return false;
   double w = c.swA + (c.swB - c.swA) * bestT;
   return best <= w * w;
+}
+
+
+// ---------------------------------------------------------------------------
+// A map whose road network comes in pieces (0.8.0): edges, junctions and
+// what changes when a piece arrives or goes (src/world/world.ts @ 3420ad0)
+// ---------------------------------------------------------------------------
+
+namespace {
+/** The centre line of an edge from its packed form (EdgeJson.q): metres. */
+std::vector<double> edgePointsOf(const std::vector<double>& q) {
+  std::vector<double> p(q.size());
+  double x = 0, y = 0, z = 0;
+  for (size_t i = 0; i + 2 < q.size(); i += 3) {
+    x += q[i];
+    y += q[i + 1];
+    z += q[i + 2];
+    p[i] = x / 100;
+    p[i + 1] = y / 100;
+    p[i + 2] = z / 100;
+  }
+  return p;
+}
+}  // namespace
+
+/** The junction `id` with only the road it is the end of (or nothing yet). */
+Node* World::stubNode(int id, const std::vector<double>& p, int at) {
+  Node n;
+  n.id = id;
+  n.x = at >= 0 && static_cast<size_t>(at * 3 + 2) < p.size() ? p[static_cast<size_t>(at * 3)] : 0;
+  n.y = at >= 0 && static_cast<size_t>(at * 3 + 2) < p.size() ? p[static_cast<size_t>(at * 3) + 1] : 0;
+  n.z = at >= 0 && static_cast<size_t>(at * 3 + 2) < p.size() ? p[static_cast<size_t>(at * 3) + 2] : 0;
+  n.gx = 0;
+  n.gz = 0;
+  n.ctrl = CTRL_NONE;
+  n.arms.clear();
+  n.sc = -1;
+  n.fr.clear();
+  n.tc = 0;
+  n.osm = 0;
+  n.shape = nullptr;
+  n.stub = true;
+  if (static_cast<size_t>(id) >= nodes_.size()) nodes_.resize(static_cast<size_t>(id) + 1);
+  nodes_[static_cast<size_t>(id)] = std::move(n);
+  allNodes_.insert(&nodes_[static_cast<size_t>(id)]);
+  return &nodes_[static_cast<size_t>(id)];
+}
+
+/** A road of a chunk: its two ends, its crossings, its place in the index. */
+Edge* World::addEdge(int id, const EdgeJson& ej) {
+  std::vector<double> p = ej.q.empty() ? ej.p : edgePointsOf(ej.q);
+  Polyline3 pl = makePolyline(p);
+  auto nodeAt = [&](int idx) -> Node* {
+    if (idx < 0 || static_cast<size_t>(idx) >= nodes_.size()) return nullptr;
+    Node& n = nodes_[static_cast<size_t>(idx)];
+    return n.id == idx ? &n : nullptr;
+  };
+  Node* a = nodeAt(ej.a);
+  if (!a) a = stubNode(ej.a, p, 0);
+  Node* b = nodeAt(ej.b);
+  if (!b) b = stubNode(ej.b, p, p.empty() ? 0 : static_cast<int>(p.size() / 3) - 1);
+  if (static_cast<size_t>(id) >= edges_.size()) edges_.resize(static_cast<size_t>(id) + 1);
+  Edge& e = edges_[static_cast<size_t>(id)];
+  e.id = id;
+  e.a = a;
+  e.b = b;
+  e.cls = ej.c;
+  e.tier = CLASS_TIER[ej.c];
+  e.name = ej.n;
+  e.ref = ej.r;
+  e.pl = std::move(pl);
+  e.len = e.pl.len;
+  e.lanesF = ej.lf;
+  e.lanesB = ej.lb;
+  e.laneW = ej.lw;
+  e.width = ej.w;
+  e.margin = ej.mg;
+  e.maxF = ej.mf;
+  e.maxB = ej.mb;
+  e.zone = ej.z;
+  e.surf = ej.s;
+  e.swL = ej.sl;
+  e.swR = ej.sr;
+  e.flags = ej.f;
+  e.access = ej.ac;
+  e.cutA = ej.ca;
+  e.cutB = ej.cb;
+  e.layer = ej.ly;
+  e.turnF = ej.tf;
+  e.turnB = ej.tb;
+  e.osm = ej.o;
+  e.blendA = 0;
+  e.blendB = 0;
+  e.minX = e.maxX = e.minZ = e.maxZ = 0;
+  e.xings.clear();
+  for (const auto& x : ej.x) {
+    CrossingJson c = x;
+    c.e = id;
+    e.xings.push_back(c);
+  }
+
+  auto newArm = [&](Node* node, bool out) {
+    Arm arm;
+    arm.node = node;
+    arm.edge = &e;
+    arm.out = out;
+    arm.idx = 0;
+    arm.role = ROLE_NONE;
+    arm.sg = -1;
+    arm.stopS = out ? e.cutA : e.cutB;
+    arm.cut = out ? e.cutA : e.cutB;
+    arm.dx = 1;
+    arm.dz = 0;
+    arm.ang = 0;
+    arm.half = e.width / 2;
+    arm.swL = out ? e.swL : e.swR;
+    arm.swR = out ? e.swR : e.swL;
+    arm.isApproach = out ? e.lanesB > 0 : e.lanesF > 0;
+    arm.isExit = out ? e.lanesF > 0 : e.lanesB > 0;
+    return arm;
+  };
+  // both ends carry their arm: a stub junction keeps it in its list until its
+  // own record arrives (which rebuilds the list from the stored order)
+  Arm armA = newArm(a, true);
+  Arm armB = newArm(b, false);
+  if (a->stub) {
+    a->arms.push_back(armA);
+    e.armA = &a->arms.back();
+  } else {
+    // its own record came first: the edge takes the arm of that list
+    e.armA = nullptr;
+    for (Arm& arm : a->arms)
+      if (arm.edge == &e && arm.out) e.armA = &arm;
+    if (!e.armA) {
+      a->arms.push_back(armA);
+      e.armA = &a->arms.back();
+    }
+  }
+  if (b->stub) {
+    b->arms.push_back(armB);
+    e.armB = &b->arms.back();
+  } else {
+    e.armB = nullptr;
+    for (Arm& arm : b->arms)
+      if (arm.edge == &e && !arm.out) e.armB = &arm;
+    if (!e.armB) {
+      b->arms.push_back(armB);
+      e.armB = &b->arms.back();
+    }
+  }
+  allEdges_.insert(&e);
+  indexEdge(e, true);
+  for (const auto& x : e.xings) crossings_.push_back(x);
+  if (!ej.bn.empty()) {
+    std::vector<int> list;
+    list.reserve(ej.bn.size());
+    for (double v : ej.bn) list.push_back(static_cast<int>(v));
+    banned_[id] = std::move(list);
+  }
+  return &e;
+}
+
+/** The junction `id` really is there: its geometry from the record. */
+Node* World::completeNode(int id, const NodeJson& nj) {
+  Node* node = nullptr;
+  if (id >= 0 && static_cast<size_t>(id) < nodes_.size() && nodes_[static_cast<size_t>(id)].id == id)
+    node = &nodes_[static_cast<size_t>(id)];
+  if (!node) node = stubNode(id, {}, -1);
+  finishNode(*node, nj);
+  allNodes_.insert(node);
+  return node;
+}
+
+/** The junction's arms in stored order, its area, its directions. */
+void World::finishNode(Node& node, const NodeJson& nj) {
+  node.x = nj.x;
+  node.y = nj.y;
+  node.z = nj.z;
+  node.gx = nj.gx;
+  node.gz = nj.gz;
+  node.ctrl = nj.t;
+  node.sc = nj.sc;
+  node.fr = nj.fr;
+  node.tc = nj.tc;
+  node.osm = nj.o;
+  node.stub = false;
+
+  // the arms in their stored (counter-clockwise) order
+  std::vector<Arm> arms;
+  arms.reserve(nj.arms.size());
+  std::set<Edge*> seen;
+  for (size_t k = 0; k < nj.arms.size(); k++) {
+    const ArmJson& aj = nj.arms[k];
+    if (aj.e < 0 || static_cast<size_t>(aj.e) >= edges_.size()) continue;
+    Edge& edge = edges_[static_cast<size_t>(aj.e)];
+    if (edge.id != aj.e) continue;
+    // A loop edge (a === b) appears twice: first occurrence is the "out" end.
+    bool out = edge.a == &node && !(edge.b == &node && seen.count(&edge) > 0);
+    seen.insert(&edge);
+    Arm arm;
+    arm.node = &node;
+    arm.edge = &edge;
+    arm.out = out;
+    arm.idx = static_cast<int>(k);
+    arm.role = aj.r;
+    arm.sg = aj.g;
+    arm.dx = 1;
+    arm.dz = 0;
+    arm.ang = 0;
+    arm.cut = out ? edge.cutA : edge.cutB;
+    arm.stopS = aj.sl;
+    if (arm.stopS < arm.cut) arm.stopS = arm.cut;
+    arm.half = edge.width / 2;
+    arm.swL = out ? edge.swL : edge.swR;
+    arm.swR = out ? edge.swR : edge.swL;
+    arm.isApproach = out ? edge.lanesB > 0 : edge.lanesF > 0;
+    arm.isExit = out ? edge.lanesF > 0 : edge.lanesB > 0;
+    arms.push_back(arm);
+  }
+  node.arms = std::move(arms);
+  // point the edge arms at the stored copies and set their directions
+  for (auto& arm : node.arms) {
+    if (arm.out) arm.edge->armA = &arm;
+    else arm.edge->armB = &arm;
+    computeArmDirection(arm);
+  }
+  // the junction's area, as before (the cut-backs come from the record)
+  std::unique_ptr<JunctionShape> sh = buildJunctionShape(node);
+  if (sh) {
+    nodeGrid_.insertBox(sh->minX, sh->minZ, sh->maxX, sh->maxZ, &node);
+    shapes_.push_back(std::move(*sh));
+    node.shape = &shapes_.back();
+  } else {
+    node.shape = nullptr;
+  }
+}
+
+WorldChange World::add(const WorldChunkJson& chunk) {
+  WorldChange change;
+  for (const auto& rec : chunk.signals) {
+    int id = rec.first;
+    if (id < 0) continue;
+    if (static_cast<size_t>(id) >= signals_.size()) {
+      signals_.resize(static_cast<size_t>(id) + 1);
+      signalsPresent_.resize(static_cast<size_t>(id) + 1, 0);
+    }
+    signals_[static_cast<size_t>(id)] = rec.second;
+    signalsPresent_[static_cast<size_t>(id)] = 1;
+  }
+  for (const auto& rec : chunk.edges) {
+    const int id = rec.first;
+    const bool have = id >= 0 && static_cast<size_t>(id) < edges_.size() &&
+                      edges_[static_cast<size_t>(id)].id == id;
+    if (have) continue;  // TS: `if (!this.edges[id])`
+    change.edges.push_back(addEdge(id, rec.second));
+  }
+  for (const auto& rec : chunk.nodes) {
+    const int id = rec.first;
+    Node* have = (id >= 0 && static_cast<size_t>(id) < nodes_.size() && nodes_[static_cast<size_t>(id)].id == id)
+                     ? &nodes_[static_cast<size_t>(id)]
+                     : nullptr;
+    if (have && !have->stub) continue;
+    change.nodes.push_back(completeNode(id, rec.second));
+  }
+  // (the far ends of the new roads: which way they leave, for whoever looks)
+  for (Edge* e : change.edges) {
+    if (e->a && e->a->stub)
+      for (auto& arm : e->a->arms)
+        if (arm.edge == e) computeArmDirection(arm);
+    if (e->b && e->b->stub)
+      for (auto& arm : e->b->arms)
+        if (arm.edge == e) computeArmDirection(arm);
+  }
+  return change;
+}
+
+WorldChange World::remove(const std::vector<int>& nodeIds) {
+  WorldChange change;
+  std::set<Node*> touched;
+  for (int id : nodeIds) {
+    if (id < 0 || static_cast<size_t>(id) >= nodes_.size()) continue;
+    Node& node = nodes_[static_cast<size_t>(id)];
+    if (node.id != id || node.stub) continue;
+    if (node.shape) nodeGrid_.removeBox(node.shape->minX, node.shape->minZ, node.shape->maxX,
+                                         node.shape->maxZ, &node);
+    node.shape = nullptr;
+    node.stub = true;
+    change.nodes.push_back(&node);
+    touched.insert(&node);
+  }
+  std::set<Edge*> doomed;
+  for (Node* node : touched) {
+    std::vector<Arm> arms = node->arms;
+    for (const Arm& arm : arms) {
+      Edge* e = arm.edge;
+      if (!e || e->id < 0 || static_cast<size_t>(e->id) >= edges_.size()) continue;
+      if (&edges_[static_cast<size_t>(e->id)] != e) continue;
+      if (!e->a->stub || !e->b->stub) continue;
+      if (doomed.count(e)) continue;
+      doomed.insert(e);
+    }
+  }
+  for (Edge* e : doomed) {
+    indexEdge(*e, false);
+    allEdges_.erase(e);
+    banned_.erase(e->id);
+    for (const auto& x : e->xings) {
+      for (size_t i = 0; i < crossings_.size(); i++) {
+        if (crossings_[i].e == x.e && crossings_[i].s == x.s && crossings_[i].k == x.k) {
+          crossings_[i] = crossings_.back();
+          crossings_.pop_back();
+          break;
+        }
+      }
+    }
+    for (Arm* end : {e->armA, e->armB}) {
+      if (!end || !end->node) continue;
+      auto& na = end->node->arms;
+      for (size_t i = 0; i < na.size(); i++) {
+        if (&na[i] == end) {
+          na.erase(na.begin() + static_cast<long>(i));
+          break;
+        }
+      }
+      touched.insert(end->node);
+    }
+    change.edges.push_back(e);
+  }
+  for (Node* node : touched) {
+    if (node->stub && node->arms.empty()) {
+      allNodes_.erase(node);
+      node->id = -1;  // the slot is free again (its number may come back)
+    }
+  }
+  return change;
+}
+
+/** Visit the junctions whose area touches the given box (each once). */
+void World::nodesInBox(double minX, double minZ, double maxX, double maxZ,
+                       const std::function<void(Node&)>& visit) {
+  std::set<int> seen;
+  nodeGrid_.queryBox(minX, minZ, maxX, maxZ, [&](Node* n) {
+    if (!n || !n->shape || seen.count(n->id)) return;
+    seen.insert(n->id);
+    if (n->shape->maxX < minX || n->shape->minX > maxX || n->shape->maxZ < minZ ||
+        n->shape->minZ > maxZ)
+      return;
+    visit(*n);
+  });
+}
+
+/** Visit the road segments whose padded box touches the given box (each segment once). */
+void World::segmentsInBox(double minX, double minZ, double maxX, double maxZ,
+                          const std::function<void(int)>& visit) const {
+  std::set<int> seen;
+  segGrid_.queryBox(minX, minZ, maxX, maxZ, [&](int code) {
+    if (!seen.insert(code).second) return;
+    visit(code);
+  });
 }
 
 }  // namespace fs

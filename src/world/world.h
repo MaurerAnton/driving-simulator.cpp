@@ -13,6 +13,7 @@
 
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
@@ -97,6 +98,8 @@ struct Edge {
   /** blend lengths over which the surface relaxes from junction plane to profile */
   double blendA = 0, blendB = 0;
   double minX = 0, maxX = 0, minZ = 0, maxZ = 0;
+  /** the crossings on this edge */
+  std::vector<CrossingJson> xings;
 };
 
 struct Node {
@@ -110,6 +113,12 @@ struct Node {
   double tc = 0;
   long long osm = 0;
   JunctionShape* shape = nullptr;
+  /**
+   * Only the roads that are loaded are known of this junction – its own
+   * piece of the map is not (the network comes in chunks).  It has no area
+   * and nothing leads through it yet; it is where the loaded network ends.
+   */
+  bool stub = false;
 };
 
 /** Where the ground is under a point: height, surface, edge and zone. */
@@ -144,19 +153,58 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node);
 /** Unit direction of an arm away from its node. */
 void computeArmDirection(Arm& arm);
 
+/** What changed when a piece of the network was added or taken away (listeners fire edges first). */
+struct WorldChange {
+  std::vector<Edge*> edges;
+  std::vector<Node*> nodes;
+};
+
 class World {
  public:
   explicit World(const WorldJson& json);
 
-  const WorldMetaJson& meta() const { return json_->meta; }
-  const WorldJson& json() const { return *json_; }
+  const WorldMetaJson& meta() const { return meta_; }
+  /**
+   * What the map build wrote in one piece (places, start points, tracks, the
+   * practice yard): the record parsers left it in `jsonDoc_`.  A map in
+   * pieces builds its copy from the index when it is read (loader.cpp), so
+   * this is the one place all of them are read from.
+   */
+  const WorldJson& json() const { return jsonDoc_; }
+  WorldJson& json() { return jsonDoc_; }
+  /** by their number in the whole map – with gaps where the map is not loaded */
   std::vector<Node>& nodes() { return nodes_; }
   std::vector<Edge>& edges() { return edges_; }
-  const std::vector<SignalControllerJson>& signals() const { return signals_; }
-  const std::vector<CrossingJson>& crossings() const { return crossings_; }
+  /** the controllers, by their number (slot empty until their piece arrives) */
+  std::vector<SignalControllerJson>& signals() { return signals_; }
+  /** every crossing of a road that is loaded */
+  std::vector<CrossingJson>& crossings() { return crossings_; }
+  /** which controller numbers really are there (the system runs those) */
+  const std::vector<char>& signalsPresent() const { return signalsPresent_; }
 
   /** True when the movement (fromEdge, viaNode, toEdge) is forbidden. */
   bool isBanned(int fromEdge, int viaNode, int toEdge) const;
+
+  /**
+   * A piece of the network arrives (a 4 km chunk): its roads, and the
+   * junctions that belong with them.  Returns what changed, in the order the
+   * listeners see it (roads first, then the junctions they meet at).
+   */
+  WorldChange add(const struct WorldChunkJson& chunk);
+
+  /** These junctions go: their roads with them, where nothing of them is left. */
+  WorldChange remove(const std::vector<int>& nodeIds);
+
+  /** Every junction that is really there (loaded), not a stub of the network's edge. */
+  std::set<Node*>& allNodes() { return allNodes_; }
+  std::set<Edge*>& allEdges() { return allEdges_; }
+
+  /** Visit the junctions whose area touches the given box (each once). */
+  void nodesInBox(double minX, double minZ, double maxX, double maxZ,
+                  const std::function<void(Node&)>& visit);
+  /** Visit the road segments whose padded box touches the given box (each segment once). */
+  void segmentsInBox(double minX, double minZ, double maxX, double maxZ,
+                     const std::function<void(int)>& visit) const;
 
   /** Nearest edge to (x, z) within `radius` metres, or nullptr. */
   Edge* nearestEdge(double x, double z, double radius = 30);
@@ -194,18 +242,34 @@ class World {
                   const std::function<void(Edge&)>& visit);
 
  private:
-  const WorldJson* json_;
-  std::vector<SignalControllerJson> signals_;   // declared before nodes_/edges_: the
-  std::vector<CrossingJson> crossings_;        // constructor copies them from the JSON
+  /** what the record parsers read (the pieces a map in pieces came in) */
+  WorldJson jsonDoc_;
+  WorldMetaJson meta_;       // the map's own copy: the index (map.json) has no WorldJson
+  std::vector<SignalControllerJson> signals_;   // by their number, with gaps (loader fills them)
+  std::vector<char> signalsPresent_;
+  std::vector<CrossingJson> crossings_;        // of the roads that are loaded
+  /** by their number in the whole map – with gaps where the map is not loaded */
   std::vector<Node> nodes_;
   std::vector<Edge> edges_;
+  /** every junction / road that is really there (loaded) */
+  std::set<Node*> allNodes_;
+  std::set<Edge*> allEdges_;
   /** forbidden turns: from edge → [via node, to edge, …] (few edges have any) */
   std::map<int, std::vector<int>> banned_;
   Grid2<int> segGrid_{40};   // edge id * 4096 + segment index
   Grid2<Node*> nodeGrid_{40};
   std::vector<JunctionShape> shapes_;
 
-  void finishEdge(Edge& e);
+  /** The junction `id` with only the road it is the end of (or nothing yet). */
+  Node* stubNode(int id, const std::vector<double>& p, int at);
+  /** A road of a chunk: its two ends, its crossings, its place in the index. */
+  Edge* addEdge(int id, const EdgeJson& ej);
+  /** The junction `id` really is there: its geometry from the record. */
+  Node* completeNode(int id, const NodeJson& nj);
+  /** A road into the segment index, or out of it (`on`). */
+  void indexEdge(Edge& e, bool on);
+  /** The junction's arms in stored order, its area, its directions. */
+  void finishNode(Node& node, const NodeJson& nj);
 };
 
 /** Is (x,z) on the sidewalk strip behind a junction kerb line? */
@@ -220,5 +284,11 @@ inline bool hasFlag(const Edge& e, int flag) { return (e.flags & flag) != 0; }
  * that document – the caller keeps what it has (as a failed fetch does).
  */
 bool parseWorldJson(const std::string& text, WorldJson& out);
+
+/** One piece of the road network (`w/<key>.json.gz`, parsed from its text). */
+bool parseWorldChunkJson(const std::string& text, WorldChunkJson& out);
+
+/** The index of a map in pieces (`map.json`). */
+bool parseMapIndexJson(const std::string& text, MapIndexJson& out);
 
 }  // namespace fs

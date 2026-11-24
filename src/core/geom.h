@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 
 #include "engine/math.h"
@@ -157,6 +158,25 @@ class Grid2 {
   }
 
   void insertPoint(double x, double z, T item) { insertBox(x, z, x, z, item); }
+
+  /** Take an item out of the cells the same box covered (TS: Grid2.removeBox). */
+  void removeBox(double minX, double minZ, double maxX, double maxZ, const T& item) {
+    double c = cell_;
+    long x0 = static_cast<long>(std::floor(minX / c));
+    long x1 = static_cast<long>(std::floor(maxX / c));
+    long z0 = static_cast<long>(std::floor(minZ / c));
+    long z1 = static_cast<long>(std::floor(maxZ / c));
+    for (long ix = x0; ix <= x1; ix++)
+      for (long iz = z0; iz <= z1; iz++) {
+        auto it = map_.find(key(ix, iz));
+        if (it == map_.end()) continue;
+        auto& v = it->second;
+        v.erase(std::remove(v.begin(), v.end(), item), v.end());
+        if (v.empty()) map_.erase(it);
+      }
+  }
+
+  void removePoint(double x, double z, const T& item) { removeBox(x, z, x, z, item); }
 
   /** Items whose cells overlap the query cell containing (x,z). */
   const std::vector<T>& at(double x, double z) const {

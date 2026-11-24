@@ -26,22 +26,35 @@ int codeOf(char c) {
 
 SignalSystem::SignalSystem(const std::vector<SignalControllerJson>& controllers_)
     : controllers(controllers_) {
-  cycle_.reserve(controllers.size());
-  state_.resize(controllers.size());
-  since_.resize(controllers.size());
+  std::vector<char> present(controllers.size(), 1);
+  sync(present);
+}
+
+void SignalSystem::sync(const std::vector<char>& present) {
+  bool fresh = false;
   for (size_t i = 0; i < controllers.size(); i++) {
+    if (i < state_.size() && !state_[i].empty()) continue;
+    if (i < present.size() && !present[i]) continue;
+    ids_.push_back(static_cast<int>(i));
+    if (i >= cycle_.size()) {
+      cycle_.resize(i + 1, 0);
+      state_.resize(i + 1);
+      since_.resize(i + 1);
+    }
     double total = 0;
     for (const auto& p : controllers[i].phases) total += p.d;
-    cycle_.push_back(total);
+    cycle_[i] = total;
     state_[i].assign(static_cast<size_t>(std::max(0, controllers[i].groups)), SIG_RED);
     since_[i].assign(static_cast<size_t>(std::max(0, controllers[i].groups)), 0);
+    fresh = true;
   }
-  update(0);
+  if (fresh) update(0);
 }
 
 void SignalSystem::update(double dt) {
   time += dt;
-  for (size_t i = 0; i < controllers.size(); i++) {
+  for (int idx : ids_) {
+    size_t i = static_cast<size_t>(idx);
     const auto& c = controllers[i];
     if (c.phases.empty() || cycle_[i] <= 0) continue;
     double t = std::fmod(time + c.off, cycle_[i]);
