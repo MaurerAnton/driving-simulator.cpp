@@ -790,7 +790,7 @@ struct Renderer::Impl {
     p.type = m.type;
     p.map = m.map != nullptr;
     p.alphaMap = m.alphaMap != nullptr;
-    p.emissiveMap = m.emissiveMap != nullptr;
+    p.emissiveMap = m.emissiveMap != nullptr && (m.type == MaterialType::Lambert || m.type == MaterialType::Phong);
     p.vertexColors = m.vertexColors;
     p.instancing = instanced;
     p.instancingColor = instColor;
