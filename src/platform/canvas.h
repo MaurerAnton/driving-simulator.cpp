@@ -21,9 +21,12 @@
 #include <string>
 #include <vector>
 
+#include "core/task.h"
 #include "platform/dom.h"
 
 namespace fs {
+
+using Bytes = std::vector<uint8_t>;
 
 class Ctx2D;
 
@@ -58,6 +61,16 @@ struct Image {
   int width = 0, height = 0;
   explicit operator bool() const { return handle != 0; }
 };
+
+/**
+ * `const img = new Image(); img.src = url; await img.decode()`: a picture from an
+ * address (a failed one has handle 0).  Natively there are no pictures: always 0.
+ */
+Task<Image> loadImage(std::string url);
+/** a picture from bytes that are a JPEG, PNG or WebP file (createImageBitmap of a Blob) */
+Task<Image> decodeImage(Bytes bytes, std::string mimeType = "image/jpeg");
+/** let the host forget a picture (its handle is dead afterwards) */
+void freeImage(Image& image);
 
 class Canvas {
  public:

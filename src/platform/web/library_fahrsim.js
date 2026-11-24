@@ -557,6 +557,36 @@ addToLibrary({
     }
   },
 
+  // pictures: an address or bytes become something drawImage and texImage2D take (handle → FSD.images)
+  fsc_image_load__deps: ['$FSD'],
+  fsc_image_load: function (id, url) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      FSD.images.push(img);
+      _fsc_image_done(id, FSD.images.length - 1, img.naturalWidth, img.naturalHeight);
+    };
+    img.onerror = () => _fsc_image_done(id, 0, 0, 0);
+    img.src = FSD.str(url);
+  },
+  fsc_image_decode__deps: ['$FSD'],
+  fsc_image_decode: function (id, ptr, n, mime) {
+    const blob = new Blob([HEAPU8.slice(ptr, ptr + n)], { type: FSD.str(mime) });
+    createImageBitmap(blob).then(
+      (bmp) => {
+        FSD.images.push(bmp);
+        _fsc_image_done(id, FSD.images.length - 1, bmp.width, bmp.height);
+      },
+      () => _fsc_image_done(id, 0, 0, 0),
+    );
+  },
+  fsc_image_free__deps: ['$FSD'],
+  fsc_image_free: function (h) {
+    const img = FSD.images[h];
+    if (img && img.close) img.close();
+    FSD.images[h] = null;
+  },
+
   // ---------------------------------------------------------------------------
   // OpenGL: what only the page has (a canvas's pixels, a decoded picture)
   // ---------------------------------------------------------------------------
