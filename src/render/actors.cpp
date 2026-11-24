@@ -108,9 +108,7 @@ void TrafficRenderer::update(const std::vector<TrafficCar*>& cars, const std::ve
         if (!busPool_.empty()) {
           made = std::move(busPool_.back());
           busPool_.pop_back();
-        } else if (PlayerBus::create) made = PlayerBus::create();
-        // (render/fleet is not translated yet: no bus is drawn)
-        if (!made) continue;
+        } else made = std::make_unique<PlayerBus>();
         made->root->traverse([](Object3D& o) {
           if (o.type == ObjectType::Mesh || o.type == ObjectType::InstancedMesh) o.castShadow = true;
         });

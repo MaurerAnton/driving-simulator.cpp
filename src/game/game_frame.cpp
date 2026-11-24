@@ -37,6 +37,7 @@
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "sim/trailer.h"
+#include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
 #include "ui/bigmap.h"
 #include "ui/hud.h"
@@ -389,7 +390,10 @@ void Game::frame(double now) {
     model.root->position.set(mpos[0], mpos[1], mpos[2]);
     model.root->quaternion.set(v.quat[0], v.quat[1], v.quat[2], v.quat[3]);
     model.root->updateMatrixWorld(true);
-    // (later: the truck's trailer and the box trailer placed; the motorcycle's lean; the aeroplane – game.ts:6605)
+    // (later: the truck's trailer and the box trailer placed – game.ts:6605)
+    // a motorcycle leans into the bend: as far as it must for the speed and the curve
+    if (PlayerBike* bike = dynamic_cast<PlayerBike*>(&model)) bike->setLean(bikeLean(v.speed, v.angVel[1]));
+    // (later: the aeroplane – game.ts:6610)
     const std::array<double, 2> f = focus();
     tiles.update(f[0], f[1]);
     props->update(f[0], f[1]);
@@ -722,10 +726,20 @@ void Game::updateCamera(double dt) {
     // (later: lessonWatch – game.ts:7372)
     const double want = demo && demo->active ? demo->look * 0.8 : 0;
     demoHead += std::max(-dt * 5, std::min(dt * 5, want - demoHead));
-    // (later: a rider's gaze and lean (PlayerBike), the aeroplane's – game.ts:7375)
-    const double gaze = 0;
+    // (a rider looks a little down the road: the instruments, the bar and the mirrors in view)
+    // (later: the aeroplane's – game.ts:7375)
+    PlayerBike* bike = dynamic_cast<PlayerBike*>(&model());
+    const double gaze = bike ? bike->gaze : 0;
     tmpQ.setFromEuler(Euler(c.lookPitch - gaze, c.lookYaw + demoHead, 0, Euler::YXZ));
     cam.quaternion.copy(car.quaternion).multiply(tmpQ);
+    if (bike) {
+      // the rider leans with the motorcycle: the eye swings round the line where the tyres touch the road
+      Quaternion bikeRoll;
+      bikeRoll.setFromAxisAngle(Vector3(0, 0, 1), -bike->leaning());
+      eyeWorld.copy(bike->eye).applyQuaternion(bikeRoll).applyMatrix4(car.matrixWorld);
+      cam.position.copy(eyeWorld);
+      cam.quaternion.copy(car.quaternion).multiply(bikeRoll).multiply(tmpQ);
+    }
   } else if (cameraMode == "chase") {
     cam.near = 0.3;
     cam.fov = 55;

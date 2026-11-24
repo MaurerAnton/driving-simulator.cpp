@@ -55,10 +55,14 @@
 
 namespace fs {
 
+/** The motorcycle of each class has its own build (render/bike.ts): moped, 125, 35 kW, the big one. */
+BikeVariant bikeVariant(const std::string& kind) {
+  return kind == "moped" ? "moped" : kind == "motorcycle125" ? "light" : kind == "motorcycle35" ? "mid" : "big";
+}
+
 /** Which model a vehicle is drawn with: its kind of model – for a motorcycle, the build of its class. */
 std::string modelKey(const VehicleDef& def) {
-  // (later: bikeVariant, the motorcycles' builds – game.ts:263)
-  return def.model;
+  return def.model == "motorcycle" ? "motorcycle:" + bikeVariant(def.kind) : def.model;
 }
 
 // ---- URLSearchParams ----
@@ -801,8 +805,12 @@ void Game::parkedVisual(Vehicle& v) {
 VehicleModel* Game::makeModel(const VehicleDef& def) {
   const ModelKind& mk = def.model;
   if (mk == "car") return &car;
+  if (mk == "motorcycle") {
+    bikes.push_back(std::make_unique<PlayerBike>(bikeVariant(def.kind)));
+    return bikes.back().get();
+  }
   // (later: the other vehicles' models: truck, truckLight, truckHeavy, semi, bus, minibus, tractor, tram, walker, plane,
-  //  motorcycle, the cranes, forklift – render/fleet.ts …, game.ts:1894)
+  //  the cranes, forklift – render/fleet.ts …, game.ts:1894)
   throw std::runtime_error("no model for the vehicle " + def.kind + " (" + mk + ") in this build");
 }
 

@@ -30,9 +30,11 @@
 #include "engine/engine.h"
 #include "game/app.h"
 #include "game/lessonplaces.h"
+#include "game/openplay.h"
 #include "game/settings.h"
 #include "game/vehicles.h"
 #include "platform/dom.h"
+#include "render/bike.h"
 #include "render/car.h"
 #include "render/navscreen.h"
 #include "render/tiles.h"
@@ -98,11 +100,10 @@ using CameraMode = std::string;
 
 inline constexpr double PHYS_DT = 1.0 / 240;
 
-/**
- * Which model a vehicle is drawn with (render/fleet.ts: VehicleModel is what all of them have in common).
- * (later: the other vehicles' models – render/fleet.ts; until then the car's is the only one)
- */
-using VehicleModel = PlayerCar;
+// (Which model a vehicle is drawn with: render/fleet.h VehicleModel is what all of them have in common.)
+
+/** The motorcycle of each class has its own build (render/bike.ts): moped, 125, 35 kW, the big one. */
+BikeVariant bikeVariant(const std::string& kind);
 
 /** Which model a vehicle is drawn with: its kind of model – for a motorcycle, the build of its class. */
 std::string modelKey(const VehicleDef& def);
@@ -505,10 +506,10 @@ class Game {
   double tipUntil = 0;
   void rememberGoodSpot(const PlayerState& p);
   Lane* currentLane();
-  // (later: walker, opens, markers, fadeEl, walkStart, doorT, doorWay, doorFrom – game.ts:4596)
+  // (later: walker, markers, fadeEl, walkStart, doorT, doorWay, doorFrom – game.ts:4596; opens: below, "bikes")
   /** when the driver last looked back over the shoulder */
   double lookedBackAt = -100;
-  // (later: parkedSteer, walkSince – game.ts:4610)
+  // (later: walkSince – game.ts:4610; parkedSteer: below, "bikes")
   void changeVehicle(const VehicleKind& kind);
   /** where the next start puts the car: a car of the traffic taken over (takeOverCar) – null: as usual */
   std::optional<Place> parkedAt;
@@ -564,6 +565,15 @@ class Game {
     double sim = 0, visuals = 0, scene = 0, mirrors = 0, render = 0, total = 0;
     int frames = 0;
   } frameTimes;
+  // --- bikes ---
+  /** the motorcycles made so far (render/bike.ts PlayerBike: each class its own build, in `models` by modelKey) */
+  std::vector<std::unique_ptr<PlayerBike>> bikes;
+  /** the parts that open, getting in and out, the seats (game/openplay.ts) */
+  OpenPlay opens;
+  /** the steering as it was left when the driver got out (game.ts:4610) */
+  double parkedSteer = 0;
+  /** The parts that open, and getting into the car or out of it: the door opens, one moves, the door shuts (game/openplay.ts). */
+  void stepOpen(double dt);
 };
 
 }  // namespace fs

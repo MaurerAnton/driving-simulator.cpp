@@ -599,6 +599,8 @@ class Object3D : public std::enable_shared_from_this<Object3D> {
   std::map<std::string, double> userData;
   /** `onBeforeRender`: called before the object is drawn (not for the shadow map) */
   std::function<void(Renderer&, Scene&, Camera&)> onBeforeRender;
+  /** `onAfterRender`: called after the object is drawn (not for the shadow map) */
+  std::function<void(Renderer&, Scene&, Camera&)> onAfterRender;
 
   Object3D();
   virtual ~Object3D();

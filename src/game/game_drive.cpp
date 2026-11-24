@@ -127,7 +127,8 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   demo = nullptr;
   routeWatch = nullptr;
   // (later: wrecked, explosion, leaveWalk, footAfterJump, clearPreview, menuPreview, recorder.clear, riding, busRide, busService, busNav,
-  //  railActors.hidden, passengerView, doorT, opens, fadeEl, planeDemoPending – game.ts:2818)
+  //  railActors.hidden, passengerView, doorT, fadeEl, planeDemoPending – game.ts:2818)
+  opens.reset(&car);
   // ("demo" and "tour" are free drives that begin with the map open, for planning – the tram's drives by itself at once)
   planDemo = mode == "demo" || mode == "tour";
   hud->canTeleport = !lesson;
@@ -588,6 +589,18 @@ bool Game::arcadeNow() {
   return settings.arcadeDrive;
 }
 
+void Game::stepOpen(double dt) {
+  PlayerCar* c = &model() == &car ? &car : nullptr;
+  const BoardStep r = opens.step(dt, [this](const std::string& k) { audio->click(k); });
+  const Boarding* b = opens.board.get();
+  if (r.start && b) {
+    // (later: the camera goes from where it is to the seat, or to the place beside the door: doorFrom; leaveWalk, enterWalk – game/onfoot.ts)
+    if (b->way == "in") opens.setSeat(c, b->seat);
+  }
+  // (later: a truck's box, the trailer's back – render/truck.ts, render/rearopen.ts)
+  opens.pose(c);
+}
+
 void Game::stepDrive(double dt) {
   // (arcade driving switched on in the middle of a drive: the automatic gearbox from here on)
   if (arcadeNow()) toAutomatic();
@@ -618,7 +631,9 @@ void Game::stepDrive(double dt) {
   }
   // a look back over the left shoulder: that is what is asked for before the door is opened
   if (c.lookYaw > 0.9) lookedBackAt = time;
-  // (later: stepDoor, stepOpen, the walker beside the vehicle, opens.idle – game.ts:4126)
+  // (later: stepDoor, the walker beside the vehicle – game.ts:4126)
+  stepOpen(dt);
+  opens.idle(c, d, demo && demo->active, parkedSteer);
   // Speed limiter: a key or a pedal on the screen is all or nothing, which makes it hard to hold
   // 30 or 50 km/h.  With the limiter the throttle eases off just below the current limit – the
   // driver still has to brake when the limit drops.
@@ -690,8 +705,8 @@ void Game::stepDrive(double dt) {
   }
   // arcade driving: the pedals choose D and R, the vehicle holds at a standstill, the engine runs (game/arcadedrive.ts) –
   // not while the autopilot drives, nor for a passenger
-  // (later: … && !lessonWatch && !opens.passenger – game.ts:4224)
-  const bool arcade = arcadeNow() && !(demo && demo->active && !demo->held) && autoDrive <= 0;
+  // (later: … && !lessonWatch – game.ts:4224)
+  const bool arcade = arcadeNow() && !(demo && demo->active && !demo->held) && autoDrive <= 0 && !opens.passenger();
   if (arcade) {
     arcadeDrive->step(c.throttle, c.brake, v.speed, dt, d, d.throttle, v.engineRunning);
     c.gear = d.gear;
@@ -816,8 +831,8 @@ void Game::stepDrive(double dt) {
   snap.hitScenery = impactNow;
   snap.length = v.spec.length.value_or(4.28);
   snap.front = def->outline.front;
-  // (later: a passenger does not drive: nothing to judge, opens.passenger – game.ts:4371)
-  rules->update(dt, snap, traffic->events);
+  // (a passenger does not drive: nothing to judge)
+  if (!opens.passenger()) rules->update(dt, snap, traffic->events);
   signalTips(dt);
   // (later: traffic.emergency.judging, its tip; roadEvents.takeTip – game.ts:4374)
   if (!flyParked) rememberGoodSpot(player);
