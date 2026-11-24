@@ -10,18 +10,9 @@
 #include "core/js.h"
 #include "engine/geometries.h"
 #include "render/carBody.h"
-#include "world/types.h"
-// emKind (sim/emergency.ts), CROWD_MAX (sim/pedestrians.ts) and the Cyclist (sim/cyclists.ts):
-// from their own headers once the simulation has them – or from wherever it declares them meanwhile
-#if __has_include("sim/cyclists.h")
-#include "sim/cyclists.h"
-#endif
-#if __has_include("sim/emergency.h")
 #include "sim/emergency.h"
-#endif
-#if __has_include("sim/pedestrians.h")
 #include "sim/pedestrians.h"
-#endif
+#include "world/types.h"
 
 namespace fs {
 
