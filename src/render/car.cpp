@@ -838,7 +838,8 @@ void buildSeat(Kit& kit, double x, double zFront, double width, double recline, 
 }  // namespace
 
 PlayerCar::PlayerCar()
-    : exterior(0xc9cdd2,
+    : VehicleModel(Vector3(-0.36, 1.2, 0.2)),
+      exterior(0xc9cdd2,
                CarExteriorOptions{
                    .plate = "KS FS 2026",
                    .seeThroughGlass = true,

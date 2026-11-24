@@ -25,6 +25,7 @@
 #include "render/carBody.h"
 #include "render/cardetail.h"
 #include "render/caropen.h"
+#include "render/fleet.h"
 #include "render/instruments.h"
 #include "render/mirrors.h"
 
@@ -124,14 +125,11 @@ struct DoorTrim {
 };
 
 /** The driving-school car with its interior and mirrors. */
-class PlayerCar {
+class PlayerCar : public VehicleModel {
  public:
-  const std::shared_ptr<Group> root = make<Group>();
+  // (root, eye – the driver's eye point in car coordinates, the seat position –, mirrors: render/fleet.h VehicleModel)
   CarExterior exterior;
   const std::shared_ptr<Group> cockpit = make<Group>();
-  /** driver's eye point in car coordinates (seat position) */
-  const Vector3 eye = Vector3(-0.36, 1.2, 0.2);
-  std::vector<std::unique_ptr<Mirror>> mirrors;
   /** the centre display: its picture of a map, or the live map (setMapOnScreen) drawn into `mapCanvas` */
   const Canvas mapCanvas = Canvas(512, 288);
   const TexturePtr mapTexture = canvasTexture(mapCanvas);
@@ -161,12 +159,12 @@ class PlayerCar {
    * wheel, stalks, levers) form a second layer of the same kind so that they
    * stand out against the dashboard behind them.
    */
-  void setCabinOpacity(double opacity);
+  void setCabinOpacity(double opacity) override;
 
-  void update(const CarVisualState& s, double dt, double now);
+  void update(const CarVisualState& s, double dt, double now) override;
 
   /** The finer model, outside and in the cockpit (true), or the plain one. */
-  void setDetail(bool on);
+  void setDetail(bool on) override;
 
   /**
    * The doors, the bonnet and the tailgate (render/caropen.ts) – cut out of the body the first time this is asked for.
