@@ -2452,5 +2452,12 @@ R"FSLANG({
 "worldBack":"Back to {name}",
 "worldHint":"Tap a region to choose it",
 "worldSize":"Download: {mb} MB",
-"worldRegion":"Region"
+"worldRegion":"Region",
+"map2.style":"Light map",
+"map2.online":"Online search",
+"map2.onlineCredit":"Search: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"outside the maps",
+"map2.loading":"Loading the map of {name} …",
+"map2.regionPlace":"Map: {name}",
+"map2.searching":"Searching online …"
 })FSLANG"

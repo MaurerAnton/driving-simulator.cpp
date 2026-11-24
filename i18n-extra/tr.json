@@ -4,5 +4,12 @@
   "worldBack": "Geri dön: {name}",
   "worldHint": "Seçmek için bir bölgeye dokunun",
   "worldSize": "İndirme: {mb} MB",
-  "worldRegion": "Bölge"
+  "worldRegion": "Bölge",
+  "map2.style": "Açık renkli harita",
+  "map2.online": "Çevrim içi arama",
+  "map2.onlineCredit": "Arama: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "haritaların dışında",
+  "map2.loading": "{name} haritası yükleniyor …",
+  "map2.regionPlace": "Harita: {name}",
+  "map2.searching": "Çevrim içi aranıyor …"
 }

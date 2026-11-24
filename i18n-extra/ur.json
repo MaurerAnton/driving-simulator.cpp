@@ -4,5 +4,12 @@
   "worldBack": "واپس: {name}",
   "worldHint": "منتخب کرنے کے لیے کسی علاقے پر ٹیپ کریں",
   "worldSize": "ڈاؤن لوڈ: {mb} MB",
-  "worldRegion": "علاقہ"
+  "worldRegion": "علاقہ",
+  "map2.style": "ہلکا نقشہ",
+  "map2.online": "آن لائن تلاش",
+  "map2.onlineCredit": "تلاش: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "نقشوں سے باہر",
+  "map2.loading": "{name} کا نقشہ لوڈ ہو رہا ہے …",
+  "map2.regionPlace": "نقشہ: {name}",
+  "map2.searching": "آن لائن تلاش جاری ہے …"
 }

@@ -2451,5 +2451,12 @@
 "worldBack":"{name} に戻る",
 "worldHint":"地域をタップして選択",
 "worldSize":"ダウンロード: {mb} MB",
-"worldRegion":"地域"
+"worldRegion":"地域",
+"map2.style":"明るい地図",
+"map2.online":"オンライン検索",
+"map2.onlineCredit":"検索: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"地図の範囲外",
+"map2.loading":"{name} の地図を読み込み中 …",
+"map2.regionPlace":"地図: {name}",
+"map2.searching":"オンラインで検索中 …"
 }

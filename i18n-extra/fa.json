@@ -4,5 +4,12 @@
   "worldBack": "بازگشت به {name}",
   "worldHint": "برای انتخاب، روی یک منطقه بزنید",
   "worldSize": "بارگیری: {mb} مگابایت",
-  "worldRegion": "ناحیه"
+  "worldRegion": "ناحیه",
+  "map2.style": "نقشهٔ روشن",
+  "map2.online": "جستجوی آنلاین",
+  "map2.onlineCredit": "جستجو: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "بیرون از نقشه‌ها",
+  "map2.loading": "در حال بارگیری نقشهٔ {name} …",
+  "map2.regionPlace": "نقشه: {name}",
+  "map2.searching": "در حال جستجوی آنلاین …"
 }

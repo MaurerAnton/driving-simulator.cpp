@@ -22,6 +22,7 @@
 
 #include "core/task.h"
 #include "platform/canvas.h"
+#include "ui/mapstyle.h"
 #include "ui/worldoutline.h"
 #include "world/regions.h"
 
@@ -80,9 +81,10 @@ class WorldLayer {
    * Draw the layer: sea, land, lakes, borders and coasts, the countries' names
    * when far out, and the regions.  `current`: the region that is loaded;
    * `chosen`: the one the player has tapped (drawn stronger); `roads`: the loaded
-   * region's roads are drawn by the map itself, so its box is only outlined.
+   * region's roads are drawn by the map itself, so its box is only outlined;
+   * `style`: the map's colours (ui/mapstyle.h).
    */
-  void draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang) const;
+  void draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang, const MapStyle& style = mapStyleOf("dark")) const;
   /** The region under a point of the picture: the smallest box that holds it, a dot within reach of a finger. */
   const Region* regionAt(const MapView& v, double px, double py) const;
   /** the view in which every region is seen / one region fills the picture */

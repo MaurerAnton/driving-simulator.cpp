@@ -38,6 +38,7 @@
 #include "ui/addresspicker.h"
 #include "ui/maphooks.h"
 #include "ui/maplayers.h"
+#include "ui/mapstyle.h"
 #include "ui/pathdraw.h"
 #include "ui/placesearch.h"
 #include "ui/worldlayer.h"
@@ -348,6 +349,15 @@ class BigMap {
   void fillRegion();
   /** the regions as the search field finds them */
   std::vector<RegionSource> regionSources() const;
+
+  // 2.0: the map's look (ui/mapstyle.h) -------------------------------------------------------
+  /** the style and the online search, as the player chose them (kept on this device) */
+  MapPrefs prefs = loadMapPrefs();
+  /** the button of the bar that switches between the dark and the light map */
+  dom::El styleBtn;
+  const MapStyle& style() const { return mapStyleOf(prefs.style); }
+  /** the light map or the dark one (kept) */
+  void setStyle(const std::string& name);
 };
 
 }  // namespace fs

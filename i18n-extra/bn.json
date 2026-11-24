@@ -4,5 +4,12 @@
   "worldBack": "ফিরে যান: {name}",
   "worldHint": "বেছে নিতে একটি অঞ্চলে ট্যাপ করুন",
   "worldSize": "ডাউনলোড: {mb} MB",
-  "worldRegion": "অঞ্চল"
+  "worldRegion": "অঞ্চল",
+  "map2.style": "হালকা মানচিত্র",
+  "map2.online": "অনলাইন অনুসন্ধান",
+  "map2.onlineCredit": "অনুসন্ধান: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "মানচিত্রের বাইরে",
+  "map2.loading": "{name}-এর মানচিত্র লোড হচ্ছে …",
+  "map2.regionPlace": "মানচিত্র: {name}",
+  "map2.searching": "অনলাইনে খোঁজা হচ্ছে …"
 }

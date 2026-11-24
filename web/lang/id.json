@@ -2451,5 +2451,12 @@
 "worldBack":"Kembali ke {name}",
 "worldHint":"Ketuk sebuah wilayah untuk memilihnya",
 "worldSize":"Unduhan: {mb} MB",
-"worldRegion":"Wilayah"
+"worldRegion":"Wilayah",
+"map2.style":"Peta terang",
+"map2.online":"Pencarian daring",
+"map2.onlineCredit":"Pencarian: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"di luar peta",
+"map2.loading":"Memuat peta {name} …",
+"map2.regionPlace":"Peta: {name}",
+"map2.searching":"Mencari secara daring …"
 }

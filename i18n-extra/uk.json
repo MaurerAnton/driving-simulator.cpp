@@ -4,5 +4,12 @@
   "worldBack": "Назад: {name}",
   "worldHint": "Торкніться регіону, щоб вибрати його",
   "worldSize": "Завантаження: {mb} МБ",
-  "worldRegion": "Регіон"
+  "worldRegion": "Регіон",
+  "map2.style": "Світла карта",
+  "map2.online": "Пошук в інтернеті",
+  "map2.onlineCredit": "Пошук: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "поза межами карт",
+  "map2.loading": "Завантажується карта {name} …",
+  "map2.regionPlace": "Карта: {name}",
+  "map2.searching": "Триває пошук в інтернеті …"
 }

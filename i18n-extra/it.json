@@ -4,5 +4,12 @@
   "worldBack": "Torna a {name}",
   "worldHint": "Tocca una regione per sceglierla",
   "worldSize": "Download: {mb} MB",
-  "worldRegion": "Regione"
+  "worldRegion": "Regione",
+  "map2.style": "Mappa chiara",
+  "map2.online": "Ricerca online",
+  "map2.onlineCredit": "Ricerca: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "fuori dalle mappe",
+  "map2.loading": "Caricamento della mappa di {name} …",
+  "map2.regionPlace": "Mappa: {name}",
+  "map2.searching": "Ricerca online …"
 }

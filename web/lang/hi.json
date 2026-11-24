@@ -2451,5 +2451,12 @@
 "worldBack":"वापस: {name}",
 "worldHint":"चुनने के लिए किसी क्षेत्र पर टैप करें",
 "worldSize":"डाउनलोड: {mb} MB",
-"worldRegion":"क्षेत्र"
+"worldRegion":"क्षेत्र",
+"map2.style":"हल्का नक्शा",
+"map2.online":"ऑनलाइन खोज",
+"map2.onlineCredit":"खोज: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"नक्शों के बाहर",
+"map2.loading":"{name} का नक्शा लोड हो रहा है …",
+"map2.regionPlace":"नक्शा: {name}",
+"map2.searching":"ऑनलाइन खोज जारी …"
 }

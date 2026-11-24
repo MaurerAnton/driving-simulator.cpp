@@ -2451,5 +2451,12 @@
 "worldBack":"Назад: {name}",
 "worldHint":"Коснитесь региона, чтобы выбрать его",
 "worldSize":"Загрузка: {mb} МБ",
-"worldRegion":"Регион"
+"worldRegion":"Регион",
+"map2.style":"Светлая карта",
+"map2.online":"Поиск в интернете",
+"map2.onlineCredit":"Поиск: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"за пределами карт",
+"map2.loading":"Загружается карта {name} …",
+"map2.regionPlace":"Карта: {name}",
+"map2.searching":"Идёт поиск в интернете …"
 }

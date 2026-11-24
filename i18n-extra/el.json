@@ -4,5 +4,12 @@
   "worldBack": "Πίσω: {name}",
   "worldHint": "Πατήστε μια περιοχή για να την επιλέξετε",
   "worldSize": "Λήψη: {mb} MB",
-  "worldRegion": "Περιοχή"
+  "worldRegion": "Περιοχή",
+  "map2.style": "Φωτεινός χάρτης",
+  "map2.online": "Αναζήτηση στο διαδίκτυο",
+  "map2.onlineCredit": "Αναζήτηση: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "εκτός των χαρτών",
+  "map2.loading": "Φόρτωση του χάρτη {name} …",
+  "map2.regionPlace": "Χάρτης: {name}",
+  "map2.searching": "Αναζήτηση στο διαδίκτυο …"
 }

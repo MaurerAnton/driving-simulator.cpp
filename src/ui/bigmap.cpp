@@ -192,6 +192,7 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
   spot.reset();
 
   El o = el("div", "overlay bigmap");
+  o.toggleClass("bm-light", prefs.style == "light");   // 2.0
   canvas = Canvas(el("canvas"));
   canvas.el().tabIndex(0);
   El top = el("div", "bm-top");
@@ -252,6 +253,10 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
   worldBtn.setAttribute("aria-pressed", "false");
   worldBtn.hidden(!worldOn());
   me.after(worldBtn);
+  // 2.0: the light map or the dark one
+  styleBtn = button("◐", t("map2.style"), [this] { setStyle(prefs.style == "light" ? "dark" : "light"); }, "bm-style");
+  styleBtn.setAttribute("aria-pressed", prefs.style == "light" ? "true" : "false");
+  worldBtn.after(styleBtn);
   top.append(title, search.node, tools);
 
   El bottom = el("div", "bm-bottom");
@@ -1200,7 +1205,9 @@ void BigMap::draw() {
   cz = std::min(lim[3], std::max(lim[1], cz));
   const double s = scale;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.fillStyle("#16202a");
+  // (2.0: the colours of the style chosen – ui/mapstyle.h; the dark one is 1.7.7's)
+  const MapStyle& st = style();
+  g.fillStyle(st.background);
   g.fillRect(0, 0, W, H);
   // 2.0: the world beneath the map's own roads: land and sea, the borders, every region there is.
   // Below WORLD_SCALE it is the whole picture – the roads of one region are no more than a speck there.
@@ -1216,7 +1223,7 @@ void BigMap::draw() {
     MapView v = view();
     v.width = W;
     v.height = H;
-    worldLayer->draw(g, v, current, chosen ? *chosen : current, host.lang());
+    worldLayer->draw(g, v, current, chosen ? *chosen : current, host.lang(), st);
     if (far) {
       drawScale(W, s, false);
       return;
@@ -1233,7 +1240,7 @@ void BigMap::draw() {
 
   // the area the map covers (2.0: with the world, the land is drawn already and the loaded region outlined)
   if (!withWorld) {
-    g.fillStyle("#1c2a36");
+    g.fillStyle(st.area);
     g.fillRect(m.minX, m.minZ, m.maxX - m.minX, m.maxZ - m.minZ);
   }
 
@@ -1302,8 +1309,19 @@ void BigMap::draw() {
       for (size_t i = 3; i + 2 < p.size(); i += 3) path->lineTo(p[i], p[i + 2]);
     });
   }
+  // (2.0: the style's colours for the four classes; the light map draws a rim round every road first)
+  const RoadKind KIND_OF[4] = {RoadKind::minor, RoadKind::tertiary, RoadKind::secondary, RoadKind::motorway};
   for (int ci = 0; ci < 4; ci++) {
-    g.strokeStyle(CLASSES[ci].color);
+    const char* rim = st.casing[static_cast<int>(KIND_OF[ci])];
+    if (!rim) continue;
+    g.strokeStyle(rim);
+    for (const auto& [w, path] : paths[ci]) {
+      g.lineWidth(w + 1.6 / s);
+      path.stroke(g);
+    }
+  }
+  for (int ci = 0; ci < 4; ci++) {
+    g.strokeStyle(st.road[static_cast<int>(KIND_OF[ci])]);
     for (const auto& [w, path] : paths[ci]) {
       g.lineWidth(w);
       path.stroke(g);
@@ -1416,7 +1434,7 @@ void BigMap::draw() {
   g.textAlign("center");
   g.textBaseline("middle");
   g.lineWidth(3);
-  g.strokeStyle("rgba(12, 18, 24, 0.85)");
+  g.strokeStyle(st.halo);
   struct Taken {
     double x, y, half;
   };
@@ -1447,7 +1465,7 @@ void BigMap::draw() {
     taken.push_back({x, y, half});
     g.font(std::string(r == 3 ? "700" : "600") + " " + std::to_string(size) + "px system-ui, sans-serif");
     g.strokeText(p->name, x, y);
-    g.fillStyle(r == 3 ? "#ffffff" : "#d5dde4");
+    g.fillStyle(r == 3 ? st.bigName : st.name);
     g.fillText(p->name, x, y);
   }
 
@@ -1767,6 +1785,14 @@ void BigMap::fillRegion() {
     back.onclick([this] { backToMap(); });
     bar.append(back);
   }
+}
+
+void BigMap::setStyle(const std::string& name) {
+  prefs.style = name == "light" ? "light" : "dark";
+  saveMapPrefs(prefs);
+  if (styleBtn) styleBtn.setAttribute("aria-pressed", prefs.style == "light" ? "true" : "false");
+  if (node) node.toggleClass("bm-light", prefs.style == "light");
+  redraw();
 }
 
 std::vector<RegionSource> BigMap::regionSources() const {

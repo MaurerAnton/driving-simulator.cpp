@@ -4,5 +4,12 @@
   "worldBack": "Назад към {name}",
   "worldHint": "Докоснете регион, за да го изберете",
   "worldSize": "Изтегляне: {mb} MB",
-  "worldRegion": "Регион"
+  "worldRegion": "Регион",
+  "map2.style": "Светла карта",
+  "map2.online": "Търсене онлайн",
+  "map2.onlineCredit": "Търсене: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "извън картите",
+  "map2.loading": "Зарежда се картата на {name} …",
+  "map2.regionPlace": "Карта: {name}",
+  "map2.searching": "Търсене онлайн …"
 }

@@ -2451,5 +2451,12 @@
 "worldBack":"Înapoi la {name}",
 "worldHint":"Atinge o regiune pentru a o alege",
 "worldSize":"Descărcare: {mb} MB",
-"worldRegion":"Regiune"
+"worldRegion":"Regiune",
+"map2.style":"Hartă luminoasă",
+"map2.online":"Căutare online",
+"map2.onlineCredit":"Căutare: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"în afara hărților",
+"map2.loading":"Se încarcă harta {name} …",
+"map2.regionPlace":"Hartă: {name}",
+"map2.searching":"Se caută online …"
 }

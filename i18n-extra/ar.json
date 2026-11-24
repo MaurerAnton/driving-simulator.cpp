@@ -4,5 +4,12 @@
   "worldBack": "العودة إلى {name}",
   "worldHint": "اضغط على منطقة لاختيارها",
   "worldSize": "التنزيل: {mb} ميغابايت",
-  "worldRegion": "منطقة"
+  "worldRegion": "منطقة",
+  "map2.style": "خريطة فاتحة",
+  "map2.online": "البحث عبر الإنترنت",
+  "map2.onlineCredit": "البحث: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "خارج الخرائط",
+  "map2.loading": "جارٍ تحميل خريطة {name} …",
+  "map2.regionPlace": "الخريطة: {name}",
+  "map2.searching": "جارٍ البحث عبر الإنترنت …"
 }

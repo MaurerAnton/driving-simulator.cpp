@@ -4,5 +4,12 @@
   "worldBack": "Vissza: {name}",
   "worldHint": "Koppints egy régióra a kiválasztásához",
   "worldSize": "Letöltés: {mb} MB",
-  "worldRegion": "Régió"
+  "worldRegion": "Régió",
+  "map2.style": "Világos térkép",
+  "map2.online": "Online keresés",
+  "map2.onlineCredit": "Keresés: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "a térképeken kívül",
+  "map2.loading": "{name} térképe betöltődik …",
+  "map2.regionPlace": "Térkép: {name}",
+  "map2.searching": "Online keresés folyamatban …"
 }

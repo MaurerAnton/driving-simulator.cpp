@@ -4,5 +4,12 @@
   "worldBack": "Kthehu te {name}",
   "worldHint": "Prek një rajon për ta zgjedhur",
   "worldSize": "Shkarkim: {mb} MB",
-  "worldRegion": "Rajon"
+  "worldRegion": "Rajon",
+  "map2.style": "Hartë e çelët",
+  "map2.online": "Kërkim në internet",
+  "map2.onlineCredit": "Kërkimi: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "jashtë hartave",
+  "map2.loading": "Po ngarkohet harta e {name} …",
+  "map2.regionPlace": "Harta: {name}",
+  "map2.searching": "Po kërkohet në internet …"
 }

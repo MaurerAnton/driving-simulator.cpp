@@ -2451,5 +2451,12 @@
 "worldBack":"Volver a {name}",
 "worldHint":"Toca una región para elegirla",
 "worldSize":"Descarga: {mb} MB",
-"worldRegion":"Región"
+"worldRegion":"Región",
+"map2.style":"Mapa claro",
+"map2.online":"Búsqueda en línea",
+"map2.onlineCredit":"Búsqueda: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"fuera de los mapas",
+"map2.loading":"Cargando el mapa de {name} …",
+"map2.regionPlace":"Mapa: {name}",
+"map2.searching":"Buscando en línea …"
 }

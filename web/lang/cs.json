@@ -2451,5 +2451,12 @@
 "worldBack":"Zpět: {name}",
 "worldHint":"Klepnutím vyberte region",
 "worldSize":"Stahování: {mb} MB",
-"worldRegion":"Region"
+"worldRegion":"Region",
+"map2.style":"Světlá mapa",
+"map2.online":"Hledání online",
+"map2.onlineCredit":"Hledání: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"mimo mapy",
+"map2.loading":"Načítá se mapa {name} …",
+"map2.regionPlace":"Mapa: {name}",
+"map2.searching":"Hledá se online …"
 }
