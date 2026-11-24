@@ -35,7 +35,6 @@
 #include "sim/collision.h"
 #include "sim/follow.h"
 #include "sim/ground.h"
-#include "sim/rail.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
@@ -336,9 +335,7 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: hud.arcade, the arcade mode's panel: the world at another moment, the time faster – ui/arcade.ts, game.ts:800)
   hud->onChangeVehicle = [this](const VehicleKind& kind) { changeVehicle(kind); };
   // (later: hud.onLiveLocation, toggleLiveGeo – game.ts:844)
-  hud->onNewVehicle = [this] {
-    if (state == "drive") newVehicle();
-  };
+  // (later: hud.onNewVehicle, a new vehicle after one went up in flames – game.ts:848)
   hud->onArcade = [this] {
     pause();
     if (state == "pause") hud->showArcade();
@@ -656,12 +653,7 @@ void Game::applySettings() {
   audio->setMusic(s.music, s.musicVolume);
   if (traffic) traffic->targetCount = static_cast<int>(jsRound(s.traffic * 34));
   // (later: traffic.crowd.target = crowdTarget(…), the people on foot – game.ts:1283)
-  // trams and trains come with the traffic: none when it is switched off
-  if (rail) {
-    rail->target = s.traffic > 0.02 ? 4 : 0;
-    rail->ringMax = std::min(620.0, app.tiles->viewRadius * 0.8);
-    rail->far = std::min(900.0, app.tiles->viewRadius * 1.1);
-  }
+  // (later: rail.target, ringMax, far: trams and trains come with the traffic – game.ts:1285)
   // (later: applyDevMap – game.ts:1290)
 }
 

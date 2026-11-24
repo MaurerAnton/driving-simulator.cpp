@@ -66,8 +66,6 @@ class ParkedCarRenderer;
 class PedLightRenderer;
 struct PedPole;
 class PropRenderer;
-class RailTraffic;
-struct RailObstacle;
 class RouteWatch;
 class RuleMonitor;
 class SceneryCollider;
@@ -246,11 +244,9 @@ class Game {
   bool lessonChosen = false;
   bool camSnap = false;
   double demoHead = 0;
-  /** trams and trains on the tracks around the player (null: none – the trams come later) */
-  std::unique_ptr<RailTraffic> rail;
-  // (later: railActors – game.ts:389)
+  // (later: rail, railActors, railOthers: trams and trains on the tracks around the player – game.ts:388)
+  /** what stands in the way of the traffic beside the player's vehicle (its trailer; later: the trams' cars) */
   std::vector<PlayerState> railBoxes;
-  std::vector<RailObstacle> railOthers;
   std::unique_ptr<SignalRenderer> signalHeads;
   // (later: signalTimers, queueLabels, extraSigns – game.ts:394)
   /** the pedestrian lights: their poles (with the buttons) and their heads */
@@ -513,12 +509,16 @@ class Game {
   void changeVehicle(const VehicleKind& kind);
   // (later: spawnCars, parkedAt, intoParked, makeSpawnCars, canSpawnCar, canEnterParked, enterParked – game.ts:4865)
   SpawnJson exactSpot(const std::string& name, double x, double z);
+  /** the places `exactSpot` made (x, z): a start place is a value here, the mark is kept beside it (the original's WeakSet exactSpots) */
+  std::vector<std::array<double, 2>> exactSpots;
+  bool isExactSpot(const SpawnJson& sp) const;
   std::optional<SpawnJson> startSpot(const AddressHit& hit);
   Place fitExact(const Place& sp, const Outline& o);
   // (later: menuSpot – game.ts:4982)
   void startWhereIAm();
-  void newVehicle();
+  // (later: newVehicle, a new vehicle after one went up in flames – game.ts:5017)
   void signsBesideRoad(std::vector<SignPost>& signs);
+  double footGround(double x, double z, double yRef);
   // (later: walkCtl – game.ts:5162)
   const std::unique_ptr<FlyCam> fly;
   std::unique_ptr<TouchStick> touchStick;
