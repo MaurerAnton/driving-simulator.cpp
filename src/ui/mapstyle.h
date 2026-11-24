@@ -48,7 +48,7 @@ struct MapStyle {
   const char* casing[ROAD_KINDS];
   /** the names of places: cities, the others, the halo around them */
   const char* bigName;
-  const char* name;
+  const char* placeName;
   const char* halo;
 };
 

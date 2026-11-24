@@ -456,13 +456,16 @@ Task<void> Game::boot(URLSearchParams q) {
       saveSettings(settings);
       plat::reload();
     };
-    host.regionFiles = [this](const std::string& id) { return id.empty() ? app.baseUrl : std::string(MAP_ASSETS_URL) + REGIONS_DIR + "/" + id + "/"; };
+    host.regionFiles = [this](const std::string& id) -> std::string {
+      if (id.empty()) return this->app.baseUrl;
+      return std::string(MAP_ASSETS_URL) + REGIONS_DIR + "/" + id + "/";
+    };
     bigMap = std::make_unique<BigMap>(std::move(host));
   }
   // 2.0: the names of the roads that come are kept for the map's search field
   app.map->listen({.added = [this](const WorldChange& c) {
     if (bigMap) bigMap->noteStreets(c.edges);
-  }});
+  }, .removed = nullptr});
   // the driven path is written down now and then; make sure the last stretch is, too
   dom::window().on("pagehide", [this](dom::Event&) { path->save(); });
   hud->onSettingsChanged = [this] { applySettings(); };

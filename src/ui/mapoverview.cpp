@@ -258,7 +258,7 @@ void MapOverview::drawNames(const Ctx2D& g, const MapView& v, const MapStyle& st
     }
     g.lineWidth(r >= 4 ? 4 : 3);
     g.strokeText(p.name, x, y);
-    g.fillStyle(r >= 4 ? st.bigName : st.name);
+    g.fillStyle(r >= 4 ? st.bigName : st.placeName);
     g.fillText(p.name, x, y);
   }
   g.restore();

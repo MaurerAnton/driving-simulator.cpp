@@ -2455,7 +2455,7 @@ R"FSLANG({
 "worldRegion":"Region",
 "map2.style":"Helle Karte",
 "map2.online":"Online-Suche",
-"map2.onlineCredit":"Suche: Photon by komoot, © OpenStreetMap -Mitwirkende",
+"map2.onlineCredit":"Suche: Photon by komoot, © OpenStreetMap-Mitwirkende",
 "map2.outside":"außerhalb der Karten",
 "map2.loading":"Karte {name} wird geladen …",
 "map2.regionPlace":"Karte: {name}",
