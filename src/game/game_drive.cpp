@@ -2,6 +2,7 @@
 // Origin: src/game/game.ts @ v1.7.7 (begin … stepDrive, the spots – game.ts:2730 … 5155)
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 #include "audio/audio.h"
 #include "audio/profiles.h"
@@ -12,6 +13,7 @@
 #include "game/clock.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
+#include "game/yardtask.h"
 #include "game/game.h"
 #include "game/lessonplaces.h"
 #include "game/nav.h"
@@ -26,6 +28,8 @@
 #include "render/far.h"
 #include "render/pedlights.h"
 #include "render/props.h"
+#include "render/yard.h"
+#include "render/semitruck.h"
 #include "render/signs.h"
 #include "sim/autodriver.h"
 #include "sim/collision.h"
@@ -34,6 +38,7 @@
 #include "sim/rules.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
+#include "sim/semitrailer.h"
 #include "sim/trailer.h"
 #include "sim/vehicle/index.h"
 #include "ui/bigmap.h"
@@ -147,9 +152,12 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   }
   // (a tractor may not go on the motorway: its lesson is driven with the car)
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
-  // (later: the other vehicles' models – render/fleet.ts – and the trailers behind them – sim/semitrailer.ts makeTrailer, render/semitruck.ts:
-  //  until they are there, a vehicle that is not drawn as the car alone is driven as the car)
-  if (def->model != "car" || def->trailer) def = &VEHICLES.at("car");
+  // (the vehicles whose models are not in this build yet – the motorcycle, the tram, on foot, the aeroplane, the cranes,
+  //  the forklift: Game::makeModel – are driven as the car meanwhile)
+  {
+    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor"};
+    if (!drawn.count(def->model)) def = &VEHICLES.at("car");
+  }
   // (later: the tram: tram, tramAt, tramWait – game.ts:2853)
   // (ways for the truck with its trailer avoid turns that double back within a few metres)
   lanes->longVehicle = def->long_;
@@ -163,16 +171,17 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   // the sound of this kind of vehicle (its engine's revs – the tram and the aeroplane have their own)
   audio->setVehicle(soundKindOf(def->kind), spec);
   ensureModel(*def);
-  // (later: trailer = makeTrailer(def.trailer, ground), linkTowed – game.ts:2869)
-  trailer = nullptr;
+  trailer = def->trailer ? makeTrailer(*def->trailer, *ground) : nullptr;
+  linkTowed(carTrailer.get(), trailer.get());
   hud->gearbox(spec.transmission == "automatic" && ((def->model != "car" && def->model != "motorcycle") || settings.arcadeDrive) ? std::optional<Transmission>("automatic") : std::nullopt);
-  // (later: endTasks – game.ts:2872)
+  endTasks();
   // the camera stands further back for 16 m of vehicle
   input->c.lookZoom = def->zoom;
   input->zoomMax = def->zoomMax;
   collider->setShape(def->circles, def->radius);
   rules->setVehicle(def->caps ? std::optional<RuleMonitor::Caps>(RuleMonitor::Caps{def->caps->rural, def->caps->motorway}) : std::nullopt, def->capFault, def->heavy, def->noMotorway);
-  // (later: taskFailed, lessonWatch: the car drives the lesson by itself – game.ts:2878)
+  taskFailed = false;
+  // (later: lessonWatch: the car drives the lesson by itself – game.ts:2879)
   // a lesson in a real place (game/lessonplaces.ts): from the district chosen – the place itself is looked for once the roads round it are there
   placeGoal = nullptr;
   placeSearch = lesson && !address && spawn ? lessonStart(*lesson, settings.lessonPlace, settings.lessonArea ? &*settings.lessonArea : nullptr, world.json.spawns, *spawn) : std::nullopt;
@@ -181,7 +190,11 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     if (placeSearch->kind == "area") placeSearch = std::nullopt;
   }
   roadSpawn = spawn;
-  // (later: tasksLeft, taskCount, nextTask, truckSpot; drill, drillBegin; crane; forklift – game.ts:2893)
+  tasksLeft = isTruck() && yardFrame && lesson && lesson->tasks ? *lesson->tasks : std::vector<TaskId>{};
+  taskCount = static_cast<int>(tasksLeft.size());
+  if (!tasksLeft.empty()) nextTask();
+  else if (def->long_ && !address && spawn) spawn = truckSpot(*spawn);
+  // (later: drill, drillBegin; crane; forklift – game.ts:2897)
   input->setSteering(spec.wheelbase, spec.maxWheelAngle, SteerSpec(spec));
   input->setAutomatic(spec.transmission == "automatic");
   Controls& c = input->c;
@@ -233,7 +246,7 @@ void Game::tryPlace() {
   // (the roads around the place: without them there is no lane to stand in, and nothing to drive on)
   if (!app.map->ready(sp.x, sp.z, 1500)) return;
   // a lesson in a real place: now that the roads round the district are there, the place itself (game/lessonplaces.ts)
-  if (placeSearch) {
+  if (placeSearch && !task) {
     const LessonStart ps = *placeSearch;
     const double radius = searchRadius(ps.kind);
     if (radius > 1500 && !app.map->ready(sp.x, sp.z, radius + 200)) return;
@@ -279,11 +292,12 @@ void Game::tryPlace() {
     spawn = sp;
   }
   double y = app.world->surfaceAt(sp.x, sp.z, ty + 3, hit) ? hit.y : ty;
-  // (later: the practice yard is laid out, task.laid – game.ts:3037)
+  // the practice yard is laid out over the field as soon as the ground under it is there
+  if (task && !task->laid) task->laid = yardScene->show(*yardFrame, task->run->layout, [this](double x, double z) { return app.tiles->heightAt(x, z); });
   Place place{sp.x, sp.z, sp.yaw};
   // (never into a wall or onto a post: then the nearest free place in a lane instead)
-  // (later: … or inside a building: inBuilding with spawnCars.footprints – game/spawncar.ts, game.ts:3040)
-  if (collider->blocked(sp.x, y, sp.z, sp.yaw, 0.05)) {
+  // (later: drill; … or inside a building: inBuilding with spawnCars.footprints – game/spawncar.ts, game.ts:3040)
+  if (!task && collider->blocked(sp.x, y, sp.z, sp.yaw, 0.05)) {
     const std::optional<Spot> freeAt = freeSpot(sp.x, sp.z, sp.yaw, 0);
     if (freeAt) {
       place = Place{freeAt->x, freeAt->z, freeAt->yaw};
@@ -387,9 +401,10 @@ void Game::finish() {
   demo = nullptr;
   const LessonDef* l = lesson;
   const bool exam = l && l->kind == "exam";
-  // (later: taskFailed, taskCount, drill: the tasks on the yard – game.ts:3586)
-  const bool failed = rules->failed() || rules->points() >= 10;
-  const bool judged = false;
+  const bool failed = rules->failed() || rules->points() >= 10 || taskFailed;
+  // (later: drill – game.ts:3587)
+  const bool judged = taskCount > 0;
+  endTasks();
   state = "result";
   input->enabled = false;
   audio->suspend();
@@ -708,7 +723,8 @@ void Game::stepDrive(double dt) {
   while (acc >= PHYS_DT) {
     v.step(PHYS_DT, d);
     if (trailer) trailer->step(PHYS_DT, v, d);
-    // (later: the semi-trailer swung round against the tractor's cab, semiJackknife – game.ts:4253)
+    // (the semi-trailer swung round against the tractor's cab)
+    if (const auto* semi = dynamic_cast<const SemiTrailer*>(trailer.get()); semi && semi->jackknifeEvent) rules->note("semiJackknife", "major");
     acc -= PHYS_DT;
     if (v.stalledEvent) stalled = true;
     if (v.gearGrind) grind = true;
@@ -751,9 +767,9 @@ void Game::stepDrive(double dt) {
   boxes.clear();
   if (trailer) {
     // the trailer is in the way of the traffic like the truck itself
-    // (later: … ?? TRAILER_OUTLINE, the trailer of the class CE truck – game/ce.ts, game.ts:4306)
     const Trailer& t = *trailer;
-    if (const std::optional<TrailerOutline> o = trailerOf(*def)) {
+    {
+      const std::optional<TrailerOutline> o = trailerOf(*def).value_or(TrailerOutline{TRAILER_OUTLINE.front, TRAILER_OUTLINE.rear, TRAILER_OUTLINE.hw, TRAILER_OUTLINE.hitch});
       const double off = (o->front - o->rear) / 2;
       PlayerState b;
       b.x = t.x - std::sin(t.yaw) * off;
@@ -821,8 +837,9 @@ void Game::stepDrive(double dt) {
   signalTips(dt);
   // (later: traffic.emergency.judging, its tip; roadEvents.takeTip – game.ts:4374)
   if (!flyParked) rememberGoodSpot(player);
-  // (later: updateTask, updateDrill – game.ts:4387)
-  if (demo) updateDemo(dt, player);
+  if (task) updateTask(dt);
+  // (later: updateDrill – game.ts:4388)
+  else if (demo) updateDemo(dt, player);
   else updateLesson(dt, player);
   // (later: a crane driven to its stand – game.ts:4392)
   if (failT > 0 && time > failT) finish();

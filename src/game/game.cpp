@@ -13,6 +13,7 @@
 #include "game/clock.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
+#include "game/yardtask.h"
 #include "game/nav.h"
 #include "game/netstats.h"
 #include "game/releases.h"
@@ -28,7 +29,10 @@
 #include "render/far.h"
 #include "render/pedlights.h"
 #include "render/props.h"
+#include "render/yard.h"
+#include "render/semitruck.h"
 #include "render/signs.h"
+#include "render/truck.h"
 #include "sim/arrows.h"
 #include "sim/autodriver.h"
 #include "sim/clearlanes.h"
@@ -39,6 +43,7 @@
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "sim/trailer.h"
+#include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
 #include "ui/bigmap.h"
 #include "ui/geoip.h"
@@ -145,7 +150,8 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       faultLog(std::make_unique<FaultLog>()),
       path(std::make_unique<DrivenPath>()),
       showNewsOnce(newsDue(playedBefore())),
-      fly(std::make_unique<FlyCam>()) {
+      fly(std::make_unique<FlyCam>()),
+      yardScene(std::make_unique<YardScene>()) {
   driver.steer = 0;
   driver.throttle = 0;
   driver.brake = 0;
@@ -293,8 +299,10 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: airfieldView, services, spawnCars – game.ts:664)
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
-  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group);
-  // (later: railActors, passengerView, transit, airfieldView, yardScene, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl; yardFrame – game.ts:671)
+  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group, yardScene->group);
+  // (later: railActors, passengerView, transit, airfieldView, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
+  if (world.json.yard) yardFrame.emplace(*world.json.yard);
+  else yardFrame.reset();
   // (later: rail = new RailTraffic(world.json.rails) – game.ts:676)
   // The road network may come in pieces around the car: lanes, traffic and signals follow it.
   followers = std::make_unique<MapFollowers>();
@@ -730,10 +738,14 @@ void Game::toMenu() {
   if (demo && demo->tour) endDemo("ended");
   state = "menu";
   demo = nullptr;
-  // (later: endTasks, services.end, crane, endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1464)
+  endTasks();
+  // (later: services.end, crane, endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1464)
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
-  // (later: carTrailer, truck.trailer – game.ts:1477)
+  if (carTrailer) carTrailer->group->visible = false;
+  if (truck) {
+    truck->trailer->visible = false;
+  }
   input->enabled = false;
   hud->setHudVisible(false);
   audio->suspend();
@@ -759,12 +771,19 @@ VehicleModel& Game::ensureModel(const VehicleDef& def) {
     m = makeModel(def);
     models[modelKey(def)] = m;
     app.scene->add(m->root);
-    // (later: truck.trailer – game.ts:1510)
+    if (truck && m == truck) app.scene->add(truck->trailer);
     for (const std::unique_ptr<Mirror>& mirror : m->mirrors) mirror->setEnabled(settings.mirrors != "off");
     m->setCabinOpacity(settings.cabinOpacity);
     m->setDetail(settings.graphics.vehicleDetail);
   }
-  // (later: towedModel, carTrailer: the box trailer behind it – render/semitruck.ts, game.ts:1517)
+  // (the truck of class CE has its own trailer)
+  // (and the semi-trailer of the articulated lorry its own: render/semitruck.ts)
+  const std::shared_ptr<TowedModel> towed = def.trailer && def.model != "truck" ? towedModel(def.trailer, carTrailer) : carTrailer;
+  if (towed != carTrailer) {
+    if (carTrailer) app.scene->remove(carTrailer->group);
+    carTrailer = towed;
+    if (towed) app.scene->add(towed->group);
+  }
   return *m;
 }
 
@@ -801,8 +820,22 @@ void Game::parkedVisual(Vehicle& v) {
 VehicleModel* Game::makeModel(const VehicleDef& def) {
   const ModelKind& mk = def.model;
   if (mk == "car") return &car;
-  // (later: the other vehicles' models: truck, truckLight, truckHeavy, semi, bus, minibus, tractor, tram, walker, plane,
-  //  motorcycle, the cranes, forklift – render/fleet.ts …, game.ts:1894)
+  std::unique_ptr<VehicleModel> made;
+  if (mk == "truck") {
+    auto t = std::make_unique<PlayerTruck>();
+    truck = t.get();
+    made = std::move(t);
+  } else if (mk == "truckLight") made = std::make_unique<PlayerTruck>(LIGHT_TRUCK);
+  else if (mk == "truckHeavy") made = std::make_unique<PlayerRigid>();
+  else if (mk == "semi") made = std::make_unique<PlayerSemi>();
+  else if (mk == "bus") made = std::make_unique<PlayerBus>();
+  else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
+  else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
+  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker, plane, motorcycle, the cranes, forklift – game.ts:1906)
+  if (made) {
+    vehicleModels.push_back(std::move(made));
+    return vehicleModels.back().get();
+  }
   throw std::runtime_error("no model for the vehicle " + def.kind + " (" + mk + ") in this build");
 }
 
@@ -818,7 +851,10 @@ void Game::showModel(bool on) {
   // (later: spawnCars.keeps, the vehicle left standing stays drawn – game/spawncar.ts, game.ts:1937)
   for (const auto& [k, model] : models)
     if (model != &car) model->root->visible = on && k == key;
-  // (later: carTrailer, truck.trailer – game.ts:1938)
+  if (carTrailer) carTrailer->group->visible = on && def->trailer && def->model != "truck";
+  if (truck) {
+    truck->trailer->visible = on && def->kind == "truck";
+  }
 }
 
 }  // namespace fs
