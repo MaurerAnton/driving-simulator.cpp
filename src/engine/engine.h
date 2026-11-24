@@ -399,6 +399,8 @@ struct MaterialParams {
   TexturePtr map{};
   /** `alphaMap`: the green channel is the opacity */
   TexturePtr alphaMap{};
+  /** `emissiveMap`: the emissive colour times this picture */
+  TexturePtr emissiveMap{};
   bool vertexColors = false;
   /** not given: the class's own (a SpriteMaterial is transparent, the others are not) */
   std::optional<bool> transparent{};
@@ -436,6 +438,8 @@ class Material {
   TexturePtr map;
   /** `alphaMap`: the green channel is the opacity */
   TexturePtr alphaMap;
+  /** `emissiveMap`: the emissive colour times this picture */
+  TexturePtr emissiveMap;
   /** `material.onBeforeRender`: called before an object with this material is drawn (not for the shadow map) */
   std::function<void(Renderer&, Scene&, Camera&)> onBeforeRender;
   bool vertexColors = false;

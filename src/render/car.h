@@ -23,6 +23,7 @@
 #include "engine/engine.h"
 #include "platform/canvas.h"
 #include "render/carBody.h"
+#include "render/cardetail.h"
 #include "render/instruments.h"
 #include "render/mirrors.h"
 
@@ -123,41 +124,12 @@ struct DoorTrim {
 
 // ------------------------------------------------------------------ hooks ----
 //
-// render/cardetail.ts (the much finer car of the "very high" graphics) and render/caropen.ts
-// (doors, bonnet and boot that open) are not translated yet.  Each stands here as a class of
-// the original's name with just the members the car calls, for the missing part to fill in;
-// `create` is its constructor (`new CarDetail(car)`, `new CarOpenings(host)`) and null until
-// then – the car is the plain one meanwhile, and nothing of it opens.  When a part is
-// translated its declaration here goes and the real class takes its place: nothing in car.cpp
-// changes but the two `create` calls.
-
-/** What the finer model is fixed to: the parts of the player's car (render/cardetail.ts CarParts). */
-struct CarParts {
-  CarExterior* exterior = nullptr;
-  std::shared_ptr<Group> cockpit;
-  std::vector<Mirror*> mirrors;
-  std::shared_ptr<Group> steering;
-  std::shared_ptr<Group> lever;
-  std::shared_ptr<Group> handbrake;
-  std::vector<std::shared_ptr<Group>> pedals;
-  std::shared_ptr<Group> stalk;
-  Vector3 eye;
-};
-
-/** render/cardetail.ts */
-class CarDetail {
- public:
-  static inline std::function<std::unique_ptr<CarDetail>(const CarParts& car)> create = nullptr;
-
-  virtual ~CarDetail() = default;
-  /** the meshes the see-through cabin is to take in, with their layer (1: the controls in front) */
-  std::vector<std::pair<std::shared_ptr<Mesh>, int>> ghosts;
-  /** What the finer model added (for the parts that open to take theirs: render/caropen.ts) – the original's getter `meshes`. */
-  virtual const std::vector<ObjectPtr>& meshes() const = 0;
-  virtual void show(bool on) = 0;
-  /** The moving parts: the wheels as the plain ones stand, the gear knob or the selector's display. */
-  virtual void update(const CarVisualState& s) = 0;
-};
+// render/caropen.ts (doors, bonnet and boot that open) is not translated yet.  It stands here
+// as a class of the original's name with just the members the car calls, for the missing part
+// to fill in; `create` is its constructor (`new CarOpenings(host)`) and null until then – nothing
+// of the car opens meanwhile.  When it is translated its declaration here goes and the real
+// class takes its place: nothing in car.cpp changes but the `create` call.
+// (The finer car of the "very high" graphics is render/cardetail.h.)
 
 /** What of the player's car the parts are taken from (render/caropen.ts OpeningsHost). */
 struct OpeningsHost {
