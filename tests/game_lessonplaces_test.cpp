@@ -35,7 +35,7 @@ static SpawnJson spawn(const std::string& name, double x, double z) {
   return s;
 }
 
-static const LessonDef& lesson(const std::string& id) {
+static const LessonDef& lesson(const char* id) {
   for (const LessonDef& l : LESSONS)
     if (l.id == id) return l;
   assert(false);
