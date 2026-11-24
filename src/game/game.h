@@ -529,6 +529,7 @@ class Game {
   // (later: on foot, in the tram, the bus line, the aeroplane, the tram driven – game.ts:5418 … 6247)
 
   // ---- game_frame.cpp ----
+  void footFlyFrame();
   void buildPedLights();
   /** the junction whose lights were last said to be out of order, and for how long the car has stood at a lit green arrow */
   Node* toldDark = nullptr;
@@ -537,6 +538,11 @@ class Game {
   double laneFront();
   void updateLesson(double dt, PlayerState& p);
   std::string lessonLine;
+  /** the route's lanes the HUD was last given (`hud.routeLanes !== nav.routeLanes`), and its roads for the rules (`rules.allowed`) */
+  std::shared_ptr<const std::vector<Lane*>> hudRouteLanes;
+  std::unordered_set<const Edge*> allowedEdges;
+  /** `window.__fs.ready`: a picture of the game stands (tools/dev/shot.mjs waits for it) */
+  bool ready = false;
   void frame(double now);
   CarVisualState visual;
   // (later: updateOutdoors, soundAt – game.ts:6842)
