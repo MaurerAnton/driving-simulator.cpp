@@ -11,6 +11,7 @@
 #include "game/address.h"
 #include "game/arcadedrive.h"
 #include "game/clock.h"
+#include "game/craneplay.h"
 #include "game/cockpit.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
@@ -24,6 +25,7 @@
 #include "platform/json.h"
 #include "platform/plat.h"
 #include "render/actors.h"
+#include "render/crane.h"
 #include "render/far.h"
 #include "render/mirrors.h"
 #include "render/pedlights.h"
@@ -399,7 +401,10 @@ void Game::frame(double now) {
     props->update(f[0], f[1]);
     // (later: grass.update – game.ts:6621)
     updateVisuals(dt);
-    // (later: crane.render, forklift.render; the drive written down for its replay – game.ts:6624)
+    // a crane posed as it works, the loads of its site where they are  (later: not on foot – game.ts:6624)
+    if (crane)
+      if (CraneModel* cm = dynamic_cast<CraneModel*>(&model)) crane->render(*cm, time, state == "drive");
+    // (later: forklift.render; the drive written down for its replay – game.ts:6626)
   }
   // (later: menuShow, the vehicle chosen behind the menu of rows – game.ts:6632)
   else if (state == "menu" || state == "loading") {
@@ -675,7 +680,10 @@ void Game::updateVisuals(double dt) {
   // (later: a lesson watched: the instructor says what the car does – game.ts:7082; the tram's line of the display – game.ts:7083;
   //  on the bus, riding along, on foot in the town, on foot round the vehicle – game.ts:7132; getting out is offered – game.ts:7200;
   //  a passenger, the buttons beside the person on foot – game.ts:7205; flying – game.ts:7217; watching – game.ts:7242;
-  //  services.hud, crane.hud, forklift.hud – game.ts:7247)
+  //  services.hud – game.ts:7247)
+  // (later: on foot below the tower crane: the walker's place – game.ts:7248)
+  if (crane) crane->hud(hs, touch);
+  // (later: forklift.hud – game.ts:7249)
   hud->update(hs, time);
 }
 
@@ -694,8 +702,8 @@ void Game::updateCamera(double dt) {
   // (later: footGlance, the head turned by the glance keys on foot – game.ts:7271)
   Camera& cam = *app.camera;
   // zooming the view (input/camzoom.ts): on foot and in the driver's seat – pinch, the wheel, + and −
-  // (later: watcher, crane, doorT, opens, walker – game.ts:7277)
-  const bool zoomable = cameraMode == "cockpit";
+  // (later: watcher, doorT, opens, walker – game.ts:7277)
+  const bool zoomable = !crane && cameraMode == "cockpit";
   input->viewZoom = zoomable;
   input->zoom.update(dt, settings.zoomRelease, zoomable);
   // (later: watcher.camera – game.ts:7280)
@@ -715,7 +723,11 @@ void Game::updateCamera(double dt) {
   Vector3& lean = tmpV.set(-v.accLat * 0.004, 0, v.accLong * 0.005);
   lean.clampLength(0, 0.06);
   eyeWorld.copy(model().eye).add(lean).applyMatrix4(car.matrixWorld);
-  // (later: working a crane – game/craneplay.ts, game.ts:7300)
+  // working a crane: from the operator's seat, or round the hook (game/craneplay.ts)  (later: not on foot – game.ts:7302)
+  if (CraneModel* cm = crane ? craneModel() : nullptr; cm && crane->camera(cam, cameraMode, c, dt, *cm)) {
+    cam.updateProjectionMatrix();
+    return;
+  }
   // (later: on foot, on the bus, a passenger, getting in and out – game.ts:7306)
   if (cameraMode == "cockpit") {
     cam.near = 0.06;
