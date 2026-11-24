@@ -9,8 +9,7 @@
  * wantNet, waysToMotorway, usableLane, routeGraphNow, roadSpot, edgeNear (game.ts:1092),
  * laneAt, planTour, startTrip, startPreset, endDemo, updateDemo (game.ts:2245),
  * takeOverCar (game.ts:3291), autopilotDriving (game.ts:3496), tourWishes (game.ts:6221).
- *
- * (later: apPhaseKey – what the aeroplane's autopilot is doing, of sim/autopilot.ts' AutopilotState – game.ts:216)
+ * (apPhaseKey, what the aeroplane's autopilot is doing – game.ts:216 –, is in game_plane.cpp)
  */
 #include <algorithm>
 #include <cmath>
@@ -42,6 +41,8 @@
 #include "platform/plat.h"
 #include "render/far.h"
 #include "sim/autodriver.h"
+#include "sim/autopilot.h"
+#include "sim/flight.h"
 #include "sim/jsmath.h"
 #include "sim/rules.h"
 #include "sim/traffic.h"
@@ -337,7 +338,30 @@ void Game::startTrip(const std::vector<SpawnJson>& stops_, bool self, const Tour
   routeWatch = nullptr;
   // (on foot beside the vehicle: back into the seat first; a tram is driven by hand only)
   // (later: walker, leaveWalk – game.ts:2350)
-  // (later: aircraft – the aeroplane by itself, flightAuto – game.ts:2351)
+  if (aircraft) {
+    Aircraft& plane = *aircraft;
+    // the aeroplane by itself: to the (first) place chosen, at least 300 m above the ground there, circling it –
+    // or down onto the runway of an airfield if the place is one
+    if (!self && !stops.empty()) {
+      const SpawnJson& to = stops[0];
+      const std::optional<LandingRunway> field = air ? landingRunway(air->airfields, to.x, to.z) : std::nullopt;
+      const double alt = std::max(plane.altitude(), groundHeight(to.x, to.z) + 300);
+      const std::optional<RunwayAt> rw = plane.onGround() && air ? runwayAt(air->airfields, plane.pos.x, plane.pos.z, plane.yaw()) : std::nullopt;
+      flightGoto.reset();
+      if (field && field->distance < 1500 && !plane.onGround()) flightAuto->land(*field->runway, field->fromSecond);
+      else if (rw) {
+        // on a runway: take off first, then there (stepFlight hands over once it climbs)
+        flightAuto->takeoff(*rw->runway, rw->fromSecond);
+        flightGoto = FlightGoto{to.x, to.z, alt};
+      } else flightAuto->goto_(to.x, to.z, alt);
+      flightAuto->takeOver({flight.throttle, flight.trim});
+      flightTake = 0;
+      hud->message(tr("apOn", settings.lang));
+    }
+    if (state == "map") closeMap();
+    else if (state == "pause") resume();
+    return;
+  }
   // (later: tram – tramAuto, the tram's demonstration drive – game.ts:2375)
   if (state == "map") {
     mapFrom = "drive";

@@ -44,7 +44,7 @@ enum class U : uint8_t {
   // once per object
   ModelMatrix, ModelViewMatrix, NormalMatrix, ReceiveShadow, Center,
   // once per material
-  Diffuse, Opacity, Emissive, Map, MapTransform, AlphaMap, AlphaMapTransform, UvTransform, AlphaTest, Specular, Shininess, Size, Scale, Rotation,
+  Diffuse, Opacity, Emissive, Map, MapTransform, AlphaMap, AlphaMapTransform, EmissiveMap, EmissiveMapTransform, UvTransform, AlphaTest, Specular, Shininess, Size, Scale, Rotation,
   // once per frame
   ProjectionMatrix, ViewMatrix, CameraPosition, IsOrthographic, FogColor, FogNear, FogFar, ToneMappingExposure, AmbientLightColor, LightProbe,
   DirDirection, DirColor, HemiDirection, HemiSky, HemiGround,
@@ -77,6 +77,8 @@ struct Program {
   int nextUnit = 2;
   /** the unit of the material's alpha map (-1: the program has none) */
   int alphaMapUnit = -1;
+  /** the unit of the material's emissive map (-1: the program has none) */
+  int emissiveMapUnit = -1;
 };
 
 /** The programs of one material: one per combination of what the object and the frame add. */
@@ -107,6 +109,8 @@ const NameKind PLAIN[] = {
     {"mapTransform", U::MapTransform, 1},
     {"alphaMap", U::AlphaMap, 1},
     {"alphaMapTransform", U::AlphaMapTransform, 1},
+    {"emissiveMap", U::EmissiveMap, 1},
+    {"emissiveMapTransform", U::EmissiveMapTransform, 1},
     {"uvTransform", U::UvTransform, 1},
     {"alphaTest", U::AlphaTest, 1},
     {"specular", U::Specular, 1},
@@ -281,6 +285,7 @@ Program* linkProgram(const std::string& vs, const std::string& fs, const std::st
       // (the diffuse map is unit 0, the shadow map unit 1, the game's own from 2 on)
       s.unit = s.kind == U::Map ? 0 : s.kind == U::ShadowMap ? 1 : p->nextUnit++;
       if (s.kind == U::AlphaMap) p->alphaMapUnit = s.unit;
+      if (s.kind == U::EmissiveMap) p->emissiveMapUnit = s.unit;
       glUniform1i(s.loc, s.unit);
     }
     if (s.kind == U::Custom && s.name.size() > 3 && s.name.compare(s.name.size() - 3, 3, "[0]") == 0) s.name.resize(s.name.size() - 3);
@@ -785,6 +790,7 @@ struct Renderer::Impl {
     p.type = m.type;
     p.map = m.map != nullptr;
     p.alphaMap = m.alphaMap != nullptr;
+    p.emissiveMap = m.emissiveMap != nullptr && (m.type == MaterialType::Lambert || m.type == MaterialType::Phong);
     p.vertexColors = m.vertexColors;
     p.instancing = instanced;
     p.instancingColor = instColor;
@@ -1026,6 +1032,14 @@ struct Renderer::Impl {
         case U::Emissive: setColor(s.loc, m.emissive, m.emissiveIntensity); break;
         case U::Map: break;   // (bound for every draw: bindMaterialTextures)
         case U::AlphaMap: break;
+        case U::EmissiveMap: break;
+        case U::EmissiveMapTransform:
+          if (m.emissiveMap) {
+            Matrix3 t;
+            t.setUvTransform(m.emissiveMap->offset.x, m.emissiveMap->offset.y, m.emissiveMap->repeat.x, m.emissiveMap->repeat.y, 0, 0, 0);
+            setMat3(s.loc, t);
+          }
+          break;
         case U::AlphaMapTransform:
           if (m.alphaMap) {
             Matrix3 t;
@@ -1070,6 +1084,7 @@ struct Renderer::Impl {
   void bindMaterialTextures(Program& p, Material& m) {
     if (m.map) useTexture(0, *m.map);
     if (m.alphaMap && p.alphaMapUnit >= 0) useTexture(p.alphaMapUnit, *m.alphaMap);
+    if (m.emissiveMap && p.emissiveMapUnit >= 0) useTexture(p.emissiveMapUnit, *m.emissiveMap);
     for (const Slot& s : p.custom) {
       if (s.unit < 0) continue;
       const Uniform* u = nullptr;
