@@ -585,7 +585,11 @@ Node* World::completeNode(int id, const NodeJson& nj) {
 
 WorldChange World::add(const WorldChunkJson& chunk) {
   WorldChange change;
-  for (const auto& [id, c] : chunk.signals) signals.set(id, std::make_unique<SignalControllerJson>(c));
+  for (const auto& [id, c] : chunk.signals) {
+    // (a controller that is known already – its chunk came once before – stays where it is: whoever points to it keeps a valid pointer)
+    if (SignalControllerJson* have = signals[id]) *have = c;
+    else signals.set(id, std::make_unique<SignalControllerJson>(c));
+  }
   for (const auto& [id, ej] : chunk.edges)
     if (!edges[id]) change.edges.push_back(addEdge(id, ej));
   for (const auto& [id, nj] : chunk.nodes) {

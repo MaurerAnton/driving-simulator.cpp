@@ -63,6 +63,16 @@ class BufferAttribute {
   int divisor = 0;
   /** goes up whenever the array was changed (`attr.needsUpdate = true` → needsUpdate()) */
   uint32_t version = 1;
+  /**
+   * addUpdateRange / clearUpdateRanges: the parts of the array that changed (in numbers, not items).
+   * three.js uploads only these; this renderer uploads the whole buffer, so they are kept but not needed.
+   */
+  struct UpdateRange {
+    int start = 0, count = 0;
+  };
+  std::vector<UpdateRange> updateRanges;
+  void addUpdateRange(int start, int count) { updateRanges.push_back({start, count}); }
+  void clearUpdateRanges() { updateRanges.clear(); }
 
   // (the array: the one of these that `type` names)
   std::vector<float> f32;
@@ -676,6 +686,8 @@ class InstancedMesh : public Mesh {
   void getColorAt(int i, Color& c) const;
   void computeBoundingSphere();
   int capacity() const { return capacity_; }
+  /** InstancedMesh.dispose(): the graphics card's buffers of the instances are given back (the geometry and material stay theirs) */
+  void dispose();
 
  private:
   int capacity_;

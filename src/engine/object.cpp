@@ -532,4 +532,19 @@ bool Frustum::intersectsSprite(const Sprite& sprite) const {
   return intersectsSphere(sphere);
 }
 
+void InstancedMesh::dispose() {
+  for (const AttrPtr& a : {instanceMatrix, instanceColor}) {
+    if (!a) continue;
+    gpu::release(gpu::Kind::Buffer, a->gpu);
+    a->gpu = 0;
+    a->gpuVersion = 0;
+  }
+  // (the vertex array names the instance buffers: it is made again on the next draw)
+  if (geometry) {
+    gpu::release(gpu::Kind::VertexArray, geometry->gpuVao);
+    geometry->gpuVao = 0;
+    geometry->gpuLayout = 0;
+  }
+}
+
 }  // namespace fs

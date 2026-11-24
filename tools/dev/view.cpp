@@ -16,6 +16,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <array>
+#include <functional>
+#include <map>
 #include <string>
 
 #include "game/app.h"
@@ -99,6 +102,44 @@ int main(int argc, char** argv) {
   std::printf("first frame %.0f ms; then %.1f ms a frame (worst %.1f) = %.0f fps; %d draw calls, %d triangles, %d culled, %d programs, %d geometries, %d textures\n", first,
               frames > 0 ? sum / frames : 0, worst, frames > 0 && sum > 0 ? 1000.0 * frames / sum : 0, info.calls, info.triangles, info.culled, info.programs, info.geometries,
               info.textures);
+  // what the picture is made of: triangles by the kind of mesh (those in the picture; "+" what else is loaded)
+  {
+    Matrix4 ps;
+    ps.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    Frustum fr;
+    fr.setFromProjectionMatrix(ps);
+    std::map<std::string, std::array<long, 4>> by;   // drawn meshes, drawn triangles, all meshes, all triangles
+    std::function<void(Object3D&, bool)> walk = [&](Object3D& o, bool shown) {
+      shown = shown && o.visible;
+      if (o.type == ObjectType::Mesh || o.type == ObjectType::InstancedMesh) {
+        Mesh& m = static_cast<Mesh&>(o);
+        if (m.geometry) {
+          BufferGeometry& g = *m.geometry;
+          long tris = static_cast<long>((g.index ? g.index->count() : (g.position() ? g.position()->count() : 0)) / 3);
+          if (o.type == ObjectType::InstancedMesh) tris *= static_cast<InstancedMesh&>(o).count;
+          std::string name = o.name.empty() ? (o.parent && o.parent->type == ObjectType::LOD ? "terrain" : "(unnamed)") : o.name;
+          auto& e = by[name];
+          e[2]++;
+          e[3] += tris;
+          bool in = shown;
+          if (in && o.frustumCulled) {
+            if (!g.boundingSphere) g.computeBoundingSphere();
+            Sphere sp = *g.boundingSphere;
+            sp.applyMatrix4(o.matrixWorld);
+            in = fr.intersectsSphere(sp);
+          }
+          if (in) {
+            e[0]++;
+            e[1] += tris;
+          }
+        }
+      }
+      for (const ObjectPtr& c : o.children) walk(*c, shown);
+    };
+    walk(*app.scene, true);
+    for (const auto& kv : by)
+      std::printf("  %-12s %4ld meshes %8ld triangles in the picture  (of %4ld, %8ld loaded)\n", kv.first.c_str(), kv.second[0], kv.second[1], kv.second[2], kv.second[3]);
+  }
   std::printf("%s: %s\n", out.c_str(), plat::gl::savePng(out, app.renderer.bufferWidth(), app.renderer.bufferHeight()) ? "written" : "NOT written");
   return 0;
 }
