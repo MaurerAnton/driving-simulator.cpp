@@ -2,6 +2,7 @@
 // Origin: three.js r187 src/cameras/{Camera,PerspectiveCamera,OrthographicCamera}.js,
 //         src/lights/*.js (the constructors), Vector3.project / unproject
 #include "engine/engine.h"
+#include "engine/lights.h"
 
 namespace fs {
 
@@ -180,6 +181,38 @@ LightPtr spotLight(const Color& color, double intensity, double distance, double
   light->decay = decay;
   light->shadow.camera = perspectiveCamera(50, 1, 0.5, 500);
   return light;
+}
+
+// LightShadow.updateMatrices (and SpotLightShadow's, with its focus and aspect of 1)
+void updateShadowMatrices(Light& light, Frustum* frustum) {
+  if (!light.shadow.camera || light.lightType == LightType::Point) return;
+  Camera& shadowCamera = *light.shadow.camera;
+  if (light.lightType == LightType::Spot) {
+    const double fov = MathUtils::RAD2DEG * 2 * light.angle;
+    const double aspect = light.shadow.mapSize.x / light.shadow.mapSize.y;
+    const double far = (light.distance != 0 && light.distance == light.distance) ? light.distance : shadowCamera.far;   // light.distance || camera.far
+    if (fov != shadowCamera.fov || aspect != shadowCamera.aspect || far != shadowCamera.far) {
+      shadowCamera.fov = fov;
+      shadowCamera.aspect = aspect;
+      shadowCamera.far = far;
+      shadowCamera.updateProjectionMatrix();
+    }
+  }
+  Vector3 lightPositionWorld, lookTarget;
+  lightPositionWorld.setFromMatrixPosition(light.matrixWorld);
+  shadowCamera.position.copy(lightPositionWorld);
+  if (light.target) lookTarget.setFromMatrixPosition(light.target->matrixWorld);
+  shadowCamera.lookAt(lookTarget);
+  shadowCamera.updateMatrixWorld();
+  // _updateMatrix
+  Matrix4 projScreenMatrix;
+  projScreenMatrix.multiplyMatrices(shadowCamera.projectionMatrix, shadowCamera.matrixWorldInverse);
+  if (frustum) frustum->setFromProjectionMatrix(projScreenMatrix);
+  light.shadow.matrix.set(0.5, 0.0, 0.0, 0.5,
+                          0.0, 0.5, 0.0, 0.5,
+                          0.0, 0.0, 0.5, 0.5,
+                          0.0, 0.0, 0.0, 1.0);
+  light.shadow.matrix.multiply(projScreenMatrix);
 }
 
 }  // namespace fs

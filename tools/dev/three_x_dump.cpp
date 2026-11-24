@@ -21,6 +21,8 @@
 
 #include "core/geom.h"
 #include "engine/engine.h"
+#include "engine/geometries.h"
+#include "engine/lights.h"
 
 using namespace fs;
 
@@ -1198,6 +1200,24 @@ static void sceneSection() {
     auto spot = spotLight(0xfff0c8, 40, 60, 0.5, 0.3, 1.2), spot2 = spotLight(0xffffff);
     P("light.spot", spot->color, spot->intensity, spot->distance, spot->angle, spot->penumbra, spot->decay, spot->position, spot->matrix, spot->target->position, spot->shadow.camera->projectionMatrix,
       spot2->intensity, spot2->distance, spot2->angle, spot2->penumbra, spot2->decay);
+    // before a shadow map is drawn: the shadow camera at the light, looking at its target, and the matrix into the map
+    dir->position.copy(V3());
+    dir->target->position.copy(V3());
+    dir->updateMatrixWorld();
+    dir->target->updateMatrixWorld();
+    Frustum frustum;
+    updateShadowMatrices(*dir, &frustum);
+    P("light.shadow.directional", dir->shadow.camera->position, dir->shadow.camera->quaternion, dir->shadow.camera->matrixWorldInverse, dir->shadow.matrix, frustum.planes[0], frustum.planes[5]);
+    spot->position.copy(V3());
+    spot->target->position.copy(V3());
+    spot->shadow.mapSize.set(1024, 512);
+    spot->updateMatrixWorld();
+    spot->target->updateMatrixWorld();
+    updateShadowMatrices(*spot);
+    P("light.shadow.spot", spot->shadow.camera->fov, spot->shadow.camera->aspect, spot->shadow.camera->far, spot->shadow.camera->projectionMatrix, spot->shadow.matrix);
+    spot2->updateMatrixWorld();
+    updateShadowMatrices(*spot2);
+    P("light.shadow.spot.endless", spot2->shadow.camera->fov, spot2->shadow.camera->aspect, spot2->shadow.camera->far, spot2->shadow.matrix);
   }
 
   // --- levels of detail
@@ -1600,13 +1620,387 @@ static void sceneSection() {
 }
 
 // ---------------------------------------------------------------------------
+// geometries, curves, shapes
+// ---------------------------------------------------------------------------
+
+/** a geometry with its bounding sphere */
+static void GS(const std::string& label, const GeometryPtr& g) {
+  g->computeBoundingSphere();
+  G(label, *g);
+}
+/** numbers in a row: how many, their sum, the sum of each times its place, and the first of them */
+static void row(const std::string& label, const std::vector<double>& a, size_t first = 24) {
+  double sum = 0, w = 0;
+  for (size_t i = 0; i < a.size(); i++) {
+    sum += a[i];
+    w += a[i] * static_cast<double>(i + 1);
+  }
+  P(label, a.size(), sum, w, std::vector<double>(a.begin(), a.begin() + static_cast<std::ptrdiff_t>(std::min(first, a.size()))));
+}
+static std::vector<double> flat2(const std::vector<Vector2>& pts) {
+  std::vector<double> a;
+  for (const Vector2& p : pts) {
+    a.push_back(p.x);
+    a.push_back(p.y);
+  }
+  return a;
+}
+static std::vector<double> flat3(const std::vector<Vector3>& pts) {
+  std::vector<double> a;
+  for (const Vector3& p : pts) {
+    a.push_back(p.x);
+    a.push_back(p.y);
+    a.push_back(p.z);
+  }
+  return a;
+}
+static void faces(const std::string& label, const std::vector<std::array<int, 3>>& f) {
+  std::vector<double> a;
+  for (const std::array<int, 3>& t : f)
+    for (int i : t) a.push_back(i);
+  row(label, a, 60);
+}
+static void outline(const Shape& s) {
+  const ShapePoints e = s.extractPoints(6);
+  row("shape.points", flat2(e.shape), 16);
+  for (const std::vector<Vector2>& h : e.holes) row("shape.hole", flat2(h), 16);
+}
+
+static void geomSection() {
+  seed(424242);
+
+  // --- the solids
+  GS("box", boxGeometry());
+  GS("box.2", boxGeometry(2, 3, 4));
+  GS("box.3", boxGeometry(1.5, 0.25, 3, 2, 3, 4));
+  GS("box.4", boxGeometry(0.13, 0.26, 0.1));
+  GS("plane", planeGeometry());
+  GS("plane.2", planeGeometry(4, 3));
+  GS("plane.3", planeGeometry(10, 5, 4, 3));
+  GS("cylinder", cylinderGeometry());
+  GS("cylinder.2", cylinderGeometry(0.5, 0.5, 2, 8));
+  GS("cylinder.3", cylinderGeometry(0.3, 0.6, 1.5, 12, 3, true));
+  GS("cylinder.4", cylinderGeometry(0, 1, 2, 6, 2));
+  GS("cylinder.5", cylinderGeometry(1, 0, 2, 6, 2));
+  GS("cylinder.6", cylinderGeometry(0.5, 0.5, 1, 8, 1, false, 0.3, 2.2));
+  GS("cylinder.7", cylinderGeometry(0.045, 0.05, 2.75, 8, 1, true));
+  GS("cone", coneGeometry());
+  GS("cone.2", coneGeometry(0.5, 1.2, 10));
+  GS("cone.3", coneGeometry(1, 2, 8, 3, true, 0.5, 4));
+  GS("sphere", sphereGeometry());
+  GS("sphere.2", sphereGeometry(0.5, 8, 6));
+  GS("sphere.3", sphereGeometry(1, 20, 8, PI * 1.5 - 1.1, 2.2, 1.12, 0.62));
+  GS("sphere.4", sphereGeometry(1, 12, 6, 0, PI * 2, 0, PI / 2));
+  GS("sphere.5", sphereGeometry(2, 5, 4, 1, 3, 0.5, 2));
+  GS("sphere.6", sphereGeometry(1, 6, 10, 0.3, 1, 0.02, 1.75));
+  GS("sphere.7", sphereGeometry(1, 2, 1));
+  GS("torus", torusGeometry());
+  GS("torus.2", torusGeometry(0.3, 0.02, 6, 24));
+  GS("torus.3", torusGeometry(1, 0.4, 8, 16, PI));
+  GS("torus.4", torusGeometry(1, 0.3, 6, 12, PI * 2, 0.5, 2));
+  GS("circle", circleGeometry());
+  GS("circle.2", circleGeometry(0.5, 12));
+  GS("circle.3", circleGeometry(1, 16, 0.3, 2.5));
+  GS("circle.4", circleGeometry(1, 2));
+  GS("ring", ringGeometry());
+  GS("ring.2", ringGeometry(0.2, 0.5, 12, 2));
+  GS("ring.3", ringGeometry(1, 2, 8, 3, 0.4, 3));
+  GS("ring.4", ringGeometry(1, 2, 2, 0));
+  const std::vector<Vector2> profile = {Vector2(0.2, -0.11), Vector2(0.27, -0.12), Vector2(0.32, -0.09), Vector2(0.34, 0), Vector2(0.32, 0.09), Vector2(0.27, 0.12), Vector2(0.2, 0.11)};
+  GS("lathe", latheGeometry({Vector2(0, -0.5), Vector2(0.5, 0), Vector2(0, 0.5)}));
+  GS("lathe.2", latheGeometry(profile, 22));
+  GS("lathe.3", latheGeometry(profile, 10, 0.5, 4));
+  GS("lathe.4", latheGeometry({Vector2(0.5, 0), Vector2(0.25, 1)}, 5, 0, 9));
+  GS("icosahedron", icosahedronGeometry());
+  GS("icosahedron.2", icosahedronGeometry(0.5, 1));
+  GS("icosahedron.3", icosahedronGeometry(1, 2));
+  GS("icosahedron.4", icosahedronGeometry(2, 3));
+  const std::vector<double> tetra = {1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, -1};
+  const std::vector<int> tetraFaces = {2, 1, 0, 0, 3, 2, 1, 3, 0, 2, 3, 1};
+  GS("polyhedron", polyhedronGeometry(tetra, tetraFaces));
+  GS("polyhedron.2", polyhedronGeometry(tetra, tetraFaces, 1.5, 2));
+  // … as the game makes them: turned, moved, merged, without an index, with normals of their own
+  {
+    const GeometryPtr a = cylinderGeometry(0.03, 0.03, 0.02, 12);
+    a->rotateX(PI / 2).translate(0, 1.2, -0.09);
+    GS("game.cylinder", a);
+    const GeometryPtr b = sphereGeometry(0.235, 16, 4, 0, PI * 2, 0, PI / 2);
+    b->scale(1, 0.32, 1).translate(0, 0.87, 0);
+    GS("game.sphere", b);
+    const GeometryPtr c = latheGeometry(profile, 22);
+    c->rotateZ(-PI / 2);
+    GS("game.lathe", c);
+    const GeometryPtr d = boxGeometry(0.13, 0.26, 0.1);
+    d->translate(0, 1.4, -0.09);
+    GS("game.box", d->toNonIndexed());
+  }
+  {
+    const GeometryPtr g = boxGeometry(1, 2, 3, 2, 1, 1)->toNonIndexed();
+    g->deleteAttribute("normal");
+    g->computeVertexNormals();
+    GS("box.flat", g);
+    const GeometryPtr smooth = sphereGeometry(1, 8, 6);
+    smooth->deleteAttribute("normal");
+    smooth->computeVertexNormals();
+    GS("sphere.computeVertexNormals", smooth);
+  }
+
+  // --- curves
+  std::vector<Vector3> pts3;
+  for (int i = 0; i < 6; i++) pts3.push_back(V3(-3, 3));
+  const std::vector<std::pair<std::string, std::shared_ptr<Curve<Vector3>>>> curves3 = {
+      {"line3", std::make_shared<LineCurve3>(pts3[0], pts3[1])},
+      {"quadratic3", std::make_shared<QuadraticBezierCurve3>(pts3[0], pts3[1], pts3[2])},
+      {"cubic3", std::make_shared<CubicBezierCurve3>(pts3[0], pts3[1], pts3[2], pts3[3])},
+      {"catmull", std::make_shared<CatmullRomCurve3>(pts3)},
+      {"catmull.closed", std::make_shared<CatmullRomCurve3>(pts3, true)},
+      {"catmull.chordal", std::make_shared<CatmullRomCurve3>(pts3, false, "chordal")},
+      {"catmull.uniform", std::make_shared<CatmullRomCurve3>(pts3, true, "catmullrom", 0.7)},
+      {"catmull.two", std::make_shared<CatmullRomCurve3>(std::vector<Vector3>{pts3[4], pts3[5]}, false, CatmullRomCurve3::Centripetal)},
+  };
+  for (const auto& [name, c] : curves3) {
+    P("curve." + name, c->getPoint(0), c->getPoint(0.37), c->getPoint(1), c->getPointAt(0.37), c->getTangent(0.37), c->getTangentAt(0.37), c->getTangent(0), c->getTangentAt(1), c->getLength());
+    row("curve." + name + ".points", flat3(c->getPoints(7)));
+    row("curve." + name + ".spaced", flat3(c->getSpacedPoints(7)));
+    row("curve." + name + ".lengths", c->getLengths(10), 11);
+    P("curve." + name + ".mapping", c->getUtoTmapping(0.25), c->getUtoTmapping(0, c->getLength() * 0.6), c->getUtoTmapping(0), c->getUtoTmapping(1));
+    for (bool closed : {false, true}) {
+      const FrenetFrames f = c->computeFrenetFrames(9, closed);
+      std::vector<double> all3 = flat3(f.tangents);
+      const std::vector<double> n3 = flat3(f.normals), b3 = flat3(f.binormals);
+      all3.insert(all3.end(), n3.begin(), n3.end());
+      all3.insert(all3.end(), b3.begin(), b3.end());
+      row("curve." + name + ".frenet", all3, 9);
+    }
+  }
+  {
+    std::vector<double> a = flat3(CatmullRomCurve3(pts3).getPoints());
+    const std::vector<double> b = flat3(CatmullRomCurve3(pts3).getSpacedPoints());
+    a.insert(a.end(), b.begin(), b.end());
+    row("curve.default", a, 6);
+  }
+  std::vector<Vector2> pts2;
+  for (int i = 0; i < 5; i++) pts2.push_back(V2(-3, 3));
+  const std::vector<std::pair<std::string, std::shared_ptr<Curve<Vector2>>>> curves2 = {
+      {"line", std::make_shared<LineCurve>(pts2[0], pts2[1])},
+      {"quadratic", std::make_shared<QuadraticBezierCurve>(pts2[0], pts2[1], pts2[2])},
+      {"cubic", std::make_shared<CubicBezierCurve>(pts2[0], pts2[1], pts2[2], pts2[3])},
+      {"spline", std::make_shared<SplineCurve>(pts2)},
+      {"ellipse", std::make_shared<EllipseCurve>()},
+      {"ellipse.arc", std::make_shared<EllipseCurve>(1, 2, 3, 1.5, 0.4, 2.9, false, 0.6)},
+      {"ellipse.clockwise", std::make_shared<EllipseCurve>(1, 2, 3, 1.5, 0.4, 2.9, true)},
+      {"ellipse.back", std::make_shared<EllipseCurve>(0, 0, 2, 2, 3, 1, false)},
+      {"ellipse.full", std::make_shared<EllipseCurve>(0, 0, 2, 2, 1, 1 + PI * 2, true)},
+      {"ellipse.none", std::make_shared<EllipseCurve>(0, 0, 2, 2, 1, 1, false)},
+  };
+  for (const auto& [name, c] : curves2) {
+    P("curve." + name, c->getPoint(0), c->getPoint(0.37), c->getPoint(1), c->getPointAt(0.37), c->getTangent(0.37), c->getTangentAt(0.37), c->getLength());
+    row("curve." + name + ".points", flat2(c->getPoints(7)));
+    row("curve." + name + ".spaced", flat2(c->getSpacedPoints(7)));
+  }
+
+  // --- paths and shapes
+  Path path;
+  path.moveTo(0, 0).lineTo(4, 0).quadraticCurveTo(5, 0, 5, 1).lineTo(5, 3).bezierCurveTo(5, 4, 4, 5, 3, 4.5).absarc(2, 4, 1, 0.4, 2.6, false).lineTo(0, 3).absellipse(0, 2, 0.5, 1, PI / 2, -PI / 2, true, 0.2);
+  P("path", path.curves.size(), path.currentPoint, path.getLength(), path.getCurveLengths(), path.getPoint(0), path.getPoint(0.5), path.getPoint(1), path.getPointAt(0.3), path.getTangent(0.3));
+  row("path.points", flat2(path.getPoints()), 16);
+  row("path.points.4", flat2(path.getPoints(4)), 16);
+  row("path.spaced", flat2(path.getSpacedPoints()), 16);
+  row("path.spaced.9", flat2(path.getSpacedPoints(9)), 16);
+  path.autoClose = true;
+  {
+    std::vector<double> a = flat2(path.getPoints(3));
+    const std::vector<double> b = flat2(path.getSpacedPoints(5));
+    a.insert(a.end(), b.begin(), b.end());
+    row("path.autoClose", a, 8);
+  }
+  path.autoClose = false;
+  path.closePath();
+  P("path.closePath", path.curves.size(), path.getLength(), path.currentPoint);
+  path.closePath();
+  P("path.closePath.again", path.curves.size());
+  Path rel;
+  rel.moveTo(1, 1).arc(1, 0, 1, PI, 0, true).ellipse(1, 0, 1, 0.5, PI, 0, false, 0).splineThru({Vector2(5, 2), Vector2(6, 0), Vector2(7, 1)});
+  P("path.arc", rel.curves.size(), rel.currentPoint, rel.getLength());
+  row("path.arc.points", flat2(rel.getPoints(5)), 16);
+  const Path fromPoints(pts2);
+  P("path.fromPoints", fromPoints.curves.size(), fromPoints.currentPoint, fromPoints.getLength());
+  Path copy = fromPoints;
+  copy.lineTo(9, 9);
+  P("path.clone", copy.curves.size(), fromPoints.curves.size(), copy.curves[0] != fromPoints.curves[0], copy.getLength());
+
+  Shape triangle({Vector2(-0.3, 0), Vector2(0, 0.52), Vector2(0.3, 0)});
+  triangle.holes.push_back(make<Path>(std::vector<Vector2>{Vector2(-0.15, 0.05), Vector2(0, 0.31), Vector2(0.15, 0.05)}));
+  const Shape rect({Vector2(0, 0), Vector2(2, 0), Vector2(2, 1), Vector2(0, 1)});
+  const Shape rectCw({Vector2(0, 0), Vector2(0, 1), Vector2(2, 1), Vector2(2, 0), Vector2(0, 0)});
+  Shape rounded;
+  rounded.moveTo(0.2, 0).lineTo(1.8, 0).quadraticCurveTo(2, 0, 2, 0.2).lineTo(2, 0.8).quadraticCurveTo(2, 1, 1.8, 1).lineTo(0.2, 1).quadraticCurveTo(0, 1, 0, 0.8).lineTo(0, 0.2).quadraticCurveTo(0, 0, 0.2, 0);
+  Shape disc;
+  disc.absarc(0, 0, 1, 0, PI * 2, false);
+  auto hole1 = make<Path>();
+  hole1->absarc(0.3, 0.2, 0.25, 0, PI * 2, true);
+  auto hole2 = make<Path>();
+  hole2->moveTo(-0.6, -0.2).lineTo(-0.2, -0.2).lineTo(-0.2, 0.2).lineTo(-0.6, 0.2).closePath();
+  disc.holes.push_back(hole1);
+  disc.holes.push_back(hole2);
+  Shape blob;
+  blob.moveTo(0, 0).bezierCurveTo(1, -1, 3, -1, 4, 0).bezierCurveTo(5, 1, 5, 3, 4, 4).lineTo(2, 3).lineTo(0, 4).bezierCurveTo(-1, 3, -1, 1, 0, 0);
+  // a long profile: so many points that the triangulation sorts them along a curve
+  Shape longShape;
+  longShape.moveTo(0, 0);
+  for (int i = 1; i <= 60; i++) longShape.lineTo(i * 0.5, std::sin(i * 0.7) * 0.4 + (i % 2) * 0.3);
+  longShape.lineTo(30, 3);
+  for (int i = 60; i >= 0; i--) longShape.lineTo(i * 0.5, 3 + std::cos(i * 0.4) * 0.5 + (i % 3) * 0.2);
+  auto longHole = make<Path>();
+  longHole->absellipse(15, 1.6, 6, 0.3, 0, PI * 2, true, 0);
+  longShape.holes.push_back(longHole);
+  const std::vector<std::pair<std::string, const Shape*>> shapes = {{"triangle", &triangle}, {"rect", &rect}, {"rectCw", &rectCw}, {"rounded", &rounded}, {"disc", &disc}, {"blob", &blob}, {"long", &longShape}};
+  for (const auto& [name, sp] : shapes) {
+    const Shape& s = *sp;
+    P("shape." + name, s.curves.size(), s.holes.size(), s.getLength(), ShapeUtils::area(s.getPoints()), ShapeUtils::isClockWise(s.getPoints()));
+    outline(s);
+    GS("shape." + name + ".geometry", shapeGeometry(s));
+    GS("shape." + name + ".geometry.4", shapeGeometry(s, 4));
+    GS("shape." + name + ".extrude", extrudeGeometry(s, {.depth = 0.6, .bevelEnabled = false}));
+    GS("shape." + name + ".extrude.bevel", extrudeGeometry(s));
+  }
+  GS("shape.several", shapeGeometry(std::vector<Shape>{triangle, rect, disc}, 5));
+  {
+    const GeometryPtr g = shapeGeometry(rounded);
+    g->rotateX(PI / 2);
+    GS("shape.rotated", g);
+  }
+  GS("extrude.several", extrudeGeometry(std::vector<Shape>{triangle, rect}, {.curveSegments = 3, .steps = 3, .depth = 2, .bevelEnabled = false}));
+  GS("extrude.steps", extrudeGeometry(rounded, {.curveSegments = 5, .steps = 4, .depth = 1.5, .bevelEnabled = false}));
+  GS("extrude.bevel", extrudeGeometry(disc, {.curveSegments = 8, .depth = 0.4, .bevelEnabled = true, .bevelThickness = 0.05, .bevelSize = 0.04, .bevelOffset = -0.01, .bevelSegments = 2}));
+  GS("extrude.bevel.default", extrudeGeometry(rect, {.bevelThickness = 0.3}));
+  {
+    const CatmullRomCurve3 open(pts3), closed(pts3, true);
+    const LineCurve3 line(pts3[0], pts3[1]);
+    GS("extrude.path", extrudeGeometry(rect, {.steps = 12, .extrudePath = &open}));
+    GS("extrude.path.closed", extrudeGeometry(triangle, {.curveSegments = 4, .steps = 16, .extrudePath = &closed}));
+    GS("extrude.path.line", extrudeGeometry(disc, {.curveSegments = 6, .steps = 2, .extrudePath = &line}));
+  }
+  {
+    Shape copyShape = disc;
+    copyShape.holes.pop_back();
+    P("shape.clone", copyShape.holes.size(), disc.holes.size(), copyShape.holes[0] != disc.holes[0], copyShape.curves.size());
+  }
+
+  // --- tubes
+  GS("tube", tubeGeometry(CatmullRomCurve3(pts3), 16, 0.017, 5, false));
+  GS("tube.closed", tubeGeometry(CatmullRomCurve3(pts3, true), 20, 0.2, 6, true));
+  GS("tube.line", tubeGeometry(LineCurve3(pts3[2], pts3[3]), 3, 0.5, 4));
+  GS("tube.default", tubeGeometry(QuadraticBezierCurve3(Vector3(-1, -1, 0), Vector3(-1, 1, 0), Vector3(1, 1, 0))));
+
+  // --- triangulation
+  {
+    std::vector<Vector2> square = {Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)};
+    faces("tri.square", ShapeUtils::triangulateShape(square));
+    // the end like the beginning: taken off; points in a line; a point twice
+    std::vector<Vector2> closed = {Vector2(0, 0), Vector2(1, 0), Vector2(2, 0), Vector2(2, 1), Vector2(2, 2), Vector2(1, 2), Vector2(1, 2), Vector2(0, 2), Vector2(0, 1), Vector2(0, 0)};
+    faces("tri.closed", ShapeUtils::triangulateShape(closed));
+    P("tri.closed.length", closed.size());
+    std::vector<Vector2> lShape = {Vector2(0, 0), Vector2(3, 0), Vector2(3, 1), Vector2(1, 1), Vector2(1, 3), Vector2(0, 3)};
+    faces("tri.L", ShapeUtils::triangulateShape(lShape));
+    std::vector<Vector2> lReversed(lShape.rbegin(), lShape.rend());
+    faces("tri.L.reversed", ShapeUtils::triangulateShape(lReversed));
+    std::vector<Vector2> frame = {Vector2(0, 0), Vector2(4, 0), Vector2(4, 4), Vector2(0, 4)};
+    std::vector<std::vector<Vector2>> frameHoles = {{Vector2(1, 1), Vector2(1, 2), Vector2(2, 2), Vector2(2, 1)},
+                                                    {Vector2(2.5, 2.5), Vector2(2.5, 3.5), Vector2(3.5, 3.5), Vector2(3.5, 2.5), Vector2(2.5, 2.5)},
+                                                    {Vector2(1, 2.5), Vector2(1.5, 3.5), Vector2(2, 2.5)}};
+    faces("tri.frame", ShapeUtils::triangulateShape(frame, frameHoles));
+    P("tri.frame.holes", frameHoles[0].size(), frameHoles[1].size(), frameHoles[2].size(), ShapeUtils::area(frame), ShapeUtils::area(frameHoles[0]), ShapeUtils::isClockWise(frameHoles[0]));
+    std::vector<Vector2> two = {Vector2(0, 0), Vector2(1, 1)};
+    faces("tri.degenerate", ShapeUtils::triangulateShape(two));
+    // stars: an outline that goes in and out about a middle, with two holes; the larger ones are sorted along a curve first
+    for (int n : {7, 30, 30, 120, 120, 400}) {
+      std::vector<Vector2> star;
+      for (int i = 0; i < n; i++) {
+        const double a = (i + rnd_() * 0.8) / n * PI * 2;
+        const double rad = r(5, 10);
+        star.push_back(Vector2(std::cos(a) * rad, std::sin(a) * rad));
+      }
+      std::vector<std::vector<Vector2>> holes;
+      const double centres[2][2] = {{-2, 0}, {2, 0.5}};
+      for (const auto& centre : centres) {
+        std::vector<Vector2> hole;
+        const int m = 5 + (n % 7);
+        for (int i = 0; i < m; i++) {
+          const double a = -(i + rnd_() * 0.8) / m * PI * 2;
+          const double rad = r(0.3, 1);
+          hole.push_back(Vector2(centre[0] + std::cos(a) * rad, centre[1] + std::sin(a) * rad));
+        }
+        holes.push_back(hole);
+      }
+      const std::string label = "tri.star." + std::to_string(n);
+      std::vector<Vector2> alone = star;
+      faces(label, ShapeUtils::triangulateShape(alone));
+      std::vector<Vector2> snapped;
+      for (const Vector2& p : star) snapped.push_back(Vector2(jsRound(p.x), jsRound(p.y)));
+      faces(label + ".holes", ShapeUtils::triangulateShape(star, holes));
+      // on a grid: many points in lines and with the same x
+      faces(label + ".grid", ShapeUtils::triangulateShape(snapped));
+    }
+    const auto ints = [](const std::vector<int>& v) { return std::vector<double>(v.begin(), v.end()); };
+    row("tri.earcut", ints(Earcut::triangulate({0, 0, 10, 0, 10, 10, 0, 10, 2, 2, 2, 4, 4, 4, 4, 2, 6, 6, 6, 8, 8, 8, 8, 6}, {4, 8})), 60);
+    row("tri.earcut.steiner", ints(Earcut::triangulate({0, 0, 10, 0, 10, 10, 0, 10, 5, 5, 3, 3}, {4, 5})), 60);
+    row("tri.earcut.empty", ints(Earcut::triangulate({})), 6);
+  }
+
+  // --- merging
+  {
+    const std::vector<GeometryPtr> parts = {boxGeometry(1, 2, 3), cylinderGeometry(0.5, 0.5, 2, 8), sphereGeometry(0.7, 8, 6)};
+    parts[0]->translate(0, 1, 0);
+    parts[1]->rotateZ(PI / 2);
+    parts[2]->translate(2, 0, 0);
+    GS("merge", mergeGeometries(parts, false));
+    GS("merge.groups", mergeGeometries(parts, true));
+    std::vector<GeometryPtr> bare;
+    for (const GeometryPtr& g : parts) bare.push_back(g->toNonIndexed());
+    GS("merge.bare", mergeGeometries(bare, false));
+    GS("merge.bare.groups", mergeGeometries(bare, true));
+    {
+      const GeometryPtr noUv = boxGeometry(), noUv2 = boxGeometry();
+      noUv->deleteAttribute("uv");
+      noUv2->deleteAttribute("uv");
+      P("merge.null", mergeGeometries({parts[0], bare[1]}) == nullptr, mergeGeometries({parts[0], noUv}) == nullptr, mergeGeometries({noUv2, parts[0]}) == nullptr);
+    }
+    // more than 65535 vertices: an index of 32 bits
+    std::vector<GeometryPtr> many;
+    for (int i = 0; i < 8; i++) many.push_back(planeGeometry(1, 1, 95, 95));
+    const GeometryPtr big = mergeGeometries(many);
+    {
+      double sum = 0, squares = 0;
+      for (size_t i = 0; i < big->index->length(); i++) {
+        const double x = big->index->at(i);
+        sum += x;
+        squares += x * x;
+      }
+      P("merge.big", arrayName(big->index->type), big->index->count(), big->position()->count(), sum, squares);
+    }
+    // vertices that are alike become one
+    const GeometryPtr welded = mergeVertices(boxGeometry(1, 2, 3));
+    GS("mergeVertices", welded);
+    const GeometryPtr positionsOnly = boxGeometry(1, 2, 3, 2, 2, 2)->toNonIndexed();
+    positionsOnly->deleteAttribute("normal");
+    positionsOnly->deleteAttribute("uv");
+    GS("mergeVertices.positions", mergeVertices(positionsOnly));
+    GS("mergeVertices.tolerance", mergeVertices(sphereGeometry(1, 12, 8), 0.3));
+    const GeometryPtr smoothed = mergeVertices(positionsOnly);
+    smoothed->computeVertexNormals();
+    GS("mergeVertices.normals", smoothed);
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 int main(int argc, char** argv) {
   struct Section {
     const char* name;
     void (*run)();
   };
-  const Section sections[] = {{"math", mathSection}, {"scene", sceneSection}};
+  const Section sections[] = {{"math", mathSection}, {"scene", sceneSection}, {"geom", geomSection}};
   for (const Section& s : sections) {
     bool wanted = argc < 2;
     for (int i = 1; i < argc; i++) wanted = wanted || std::strcmp(argv[i], s.name) == 0;
