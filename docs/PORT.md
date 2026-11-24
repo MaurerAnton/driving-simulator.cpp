@@ -92,6 +92,10 @@ for another agent's build – that is not a hang.  Always build through the tool
 `cmake --build`, `ninja` or `g++` yourself: that would run beside the queue), and prefer
 `tools/cc.sh` while writing.
 
+Do not use `__has_include` to switch code on when another layer's header appears: the compiler cache
+(ccache) does not notice a header that comes into being, and keeps serving the object built without it.
+Include the header as the original imports the file; until it is merged, check with `FS_CC_FLAGS` (tools/cc.sh).
+
 Tests are plain programs with `assert()` (live in every native build). Mirror the original's
 test file where there is one (`tests/world/lanes.test.ts` → `tests/lanes_test.cpp`): the same
 cases, the same numbers.

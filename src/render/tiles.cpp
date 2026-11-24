@@ -338,9 +338,12 @@ std::unique_ptr<LoadedTile> TileManager::build(const std::string& key, UnpackedT
     strct->castShadow = true;
     strct->receiveShadow = true;
   }
+  // (the facades' section is worked out from the buildings' corners when it is first asked for:
+  // ask before mesh() moves the corners into the geometry – the original moves nothing)
+  SectionArray* bldgA16 = data.get("bldg_a16");
   auto bldg = mesh("bldg", facades_ ? bldgMat_ : plainMat_, [&](BufferGeometry& g) {
     g.setAttribute("astyle", attrOf(a8("bldg"), 4));
-    g.setAttribute("auvd", attrOf(data.get("bldg_a16"), 4));
+    g.setAttribute("auvd", attrOf(bldgA16, 4));
   });
   if (bldg) {
     bldg->castShadow = true;

@@ -32,8 +32,6 @@ using namespace fs;
 
 namespace {
 
-const double DEG = 3.14159265358979323846 / 180;
-
 /** `new URLSearchParams(location.search).get(name)` ('' when it is not there) */
 std::string param(const std::string& name) {
   std::string q = plat::locationSearch();
@@ -109,8 +107,11 @@ void frame() {
     stats.textContent(std::to_string(static_cast<int>(std::round(frames / acc))) + " fps (worst frame " + std::to_string(static_cast<int>(worst * 1000)) + " ms) · " +
                       std::to_string(i.calls) + " draw calls · " + std::to_string(i.triangles) + " triangles · " + std::to_string(tiles) + " tiles · " + std::to_string(roads) +
                       " roads");
-    EM_ASM({ window.__fs.stats = { fps: $0, worstMs: $1, calls: $2, triangles: $3, tiles: $4, roads: $5, x: $6, z: $7 }; }, frames / acc, worst * 1000, i.calls, i.triangles,
-           tiles, roads, view.x, view.z);
+    // (for tools/dev/shot.mjs)
+    const std::string json = "{\"fps\":" + jsStr(frames / acc) + ",\"worstMs\":" + jsStr(worst * 1000) + ",\"calls\":" + std::to_string(i.calls) +
+                             ",\"triangles\":" + std::to_string(i.triangles) + ",\"tiles\":" + std::to_string(tiles) + ",\"roads\":" + std::to_string(roads) +
+                             ",\"x\":" + jsStr(view.x) + ",\"z\":" + jsStr(view.z) + "}";
+    EM_ASM({ window.__fs.stats = JSON.parse(UTF8ToString($0)); }, json.c_str());
     frames = 0;
     acc = 0;
     worst = 0;
@@ -265,7 +266,7 @@ Task<void> boot() {
   hands(app->canvas);
   lastFrame = plat::nowMs();
   emscripten_set_main_loop(frame, 0, 0);
-  EM_ASM({ window.__fs.ready = true; });
+  EM_ASM(window.__fs.ready = true);
   co_await regionList(box, app->regionId);
 }
 

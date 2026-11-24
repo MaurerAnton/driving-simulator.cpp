@@ -65,6 +65,10 @@ if(FAHRSIM_WASM)
     list(FILTER FAHRSIM_SOURCES INCLUDE REGEX "/src/(${layer_regex})/")
   endif()
   add_executable(fahrsim "${CMAKE_CURRENT_SOURCE_DIR}/src/app/main_web.cpp" ${FAHRSIM_SOURCES} ${FAHRSIM_WEB_SOURCES})
+  # Emscripten 3.1.74's clang (20.0.0git) crashes (signal 11) optimising render/tiles.cpp at -O2,
+  # here and on GitHub's machines alike; at -O1 it compiles.  The file loads tiles: it is not what
+  # a frame costs.  (Try again with the next Emscripten.)
+  set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/render/tiles.cpp" PROPERTIES COMPILE_OPTIONS "-O1")
   target_include_directories(fahrsim PRIVATE ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim PRIVATE ${FAHRSIM_OPT} ${FAHRSIM_WARN} -fwasm-exceptions -sUSE_ZLIB=1)
   target_precompile_headers(fahrsim PRIVATE ${FAHRSIM_PCH})
