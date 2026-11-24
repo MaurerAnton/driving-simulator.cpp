@@ -235,7 +235,7 @@ std::string tr(std::string_view key, std::string_view lang, const TrParams& para
   // (a value is put in as it is: it may contain "$&" – a file name, a street name)
   for (const TrParam& p : params) s = replaceAll(std::move(s), "{" + p.name + "}", p.value);
   // (inside a sentence also kept on one line)
-  if (isRtl(lang) && s.find(SECTION) != std::string::npos) {
+  if (s.find(SECTION) != std::string::npos && isRtl(lang)) {
     const std::u32string u = i18n::decodeUtf8(s);
     std::string out;
     for (size_t i = 0; i < u.size();) {

@@ -98,6 +98,21 @@ std::unordered_map<std::string, ExamTexts>& loaded() {
   static std::unordered_map<std::string, ExamTexts> map;
   return map;
 }
+/** … and those on their way (asked for again meanwhile: the same request, as a module is imported once) */
+std::unordered_map<std::string, Task<bool>>& arriving() {
+  static std::unordered_map<std::string, Task<bool>> map;
+  return map;
+}
+
+/** `await load()`: the file of a language; false – it has not come, or is not of the shape */
+Task<bool> fetchExamTexts(std::string lang) {
+  plat::Response r = co_await plat::fetch(i18n::langUrl("exam/" + lang + ".json"));
+  ExamTexts own;
+  const bool ok = r.ok() && i18n::parseExamTexts(r.text(), own);
+  if (ok) loaded().insert_or_assign(lang, std::move(own));
+  arriving().erase(lang);
+  co_return ok;
+}
 
 }  // namespace
 
@@ -134,13 +149,18 @@ Task<ExamTexts> loadExamTexts(std::string lang) {
   bool known = false;
   for (const std::string& l : detail::examLangs()) known = known || l == lang;
   if (!known || lang == "en") co_return detail::examEn();
-  auto have = loaded().find(lang);
-  if (have != loaded().end()) co_return withFallback(&have->second);
-  plat::Response r = co_await plat::fetch(i18n::langUrl("exam/" + lang + ".json"));
-  ExamTexts own;
-  if (!r.ok() || !i18n::parseExamTexts(r.text(), own)) co_return detail::examEn();
-  const ExamTexts& kept = loaded().insert_or_assign(lang, std::move(own)).first->second;
-  co_return withFallback(&kept);
+  if (loaded().find(lang) == loaded().end()) {
+    Task<bool> task;
+    auto on = arriving().find(lang);
+    if (on != arriving().end()) task = on->second;
+    else {
+      task = fetchExamTexts(lang);
+      if (!task.done()) arriving().emplace(lang, task);
+    }
+    const bool ok = co_await task;
+    if (!ok) co_return detail::examEn();
+  }
+  co_return withFallback(&loaded().at(lang));
 }
 
 }  // namespace fs

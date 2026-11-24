@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -420,7 +421,7 @@ void loadsOnlyWhatIsThere() {
   // asked for twice at once: one answer for both
   Task<bool> first = loadLang("fr");
   Task<bool> second = loadLang("fr");
-  OK(!first.done() && !second.done(), "the file arrives later");
+  OK(!first.done() && !second.done() && plat::native::pending() == 1, "the file arrives later, by one request");
   OK(await(first) && await(second));
   OK(dictOf("fr") != nullptr);
   OK(loadLang("fr").done(), "what has arrived is there at once");
@@ -955,6 +956,13 @@ void theWordsOfTheLearningModes() {
     for (size_t i = 1; i < numbers; i++) OK(std::stoi(keys[i - 1]) < std::stoi(keys[i]));
     for (size_t i = numbers; i < keys.size(); i++) OK(keys[i].find_first_not_of("0123456789") != std::string::npos, keys[i]);
   }
+  // asked for twice at once: both get the words (and the file is fetched once)
+  {
+    Task<ExamTexts> first = loadExamTexts("fr");
+    Task<ExamTexts> second = loadExamTexts("fr");
+    OK(!first.done() && !second.done() && plat::native::pending() == 1, "one request for both");
+    OK(await(first).questions == await(second).questions && first.get().signs.at("205") != EXAM_EN.signs.at("205"));
+  }
   // every language has the words of every question, sign and danger, answer by answer
   for (const std::string& lang : EXAM_LANGS) {
     const ExamTexts t = await(loadExamTexts(lang));
@@ -1119,6 +1127,49 @@ void theNativeHostsIntl() {
   EQ(formatNumber(22, "ru-RU", {.style = "unit", .unit = "kilometer", .unitDisplay = "long"}), "22 километра");
   EQ(formatNumber(25, "ru-RU", {.style = "unit", .unit = "kilometer", .unitDisplay = "long"}), "25 километров");
   EQ(formatNumber(5.1, "zh-CN", {.style = "unit", .unit = "kilometer"}), "5.1公里");
+  // … in every language of the game: a length in words, for numbers of each plural form the language has
+  // (what a browser's Intl answers – CLDR; the plural rules themselves are written out in intl_native.cpp)
+  {
+    const double lengths[] = {0, 1, 2, 3, 5, 11, 12, 21, 22, 25, 100, 101, 102, 111, 1.5, 0.5, 2.5, 1000000};
+    const std::pair<const char*, const char*> METRES[] = {
+      {"de-DE", "0 Meter|1 Meter|2 Meter|3 Meter|5 Meter|11 Meter|12 Meter|21 Meter|22 Meter|25 Meter|100 Meter|101 Meter|102 Meter|111 Meter|1,5 Meter|0,5 Meter|2,5 Meter|1.000.000 Meter"},
+      {"en-GB", "0 metres|1 metre|2 metres|3 metres|5 metres|11 metres|12 metres|21 metres|22 metres|25 metres|100 metres|101 metres|102 metres|111 metres|1.5 metres|0.5 metres|2.5 metres|1,000,000 metres"},
+      {"id-ID", "0 meter|1 meter|2 meter|3 meter|5 meter|11 meter|12 meter|21 meter|22 meter|25 meter|100 meter|101 meter|102 meter|111 meter|1,5 meter|0,5 meter|2,5 meter|1.000.000 meter"},
+      {"cs-CZ", "0 metrů|1 metr|2 metry|3 metry|5 metrů|11 metrů|12 metrů|21 metrů|22 metrů|25 metrů|100 metrů|101 metrů|102 metrů|111 metrů|1,5 metru|0,5 metru|2,5 metru|1\302\240000\302\240000 metrů"},
+      {"es-ES", "0 metros|1 metro|2 metros|3 metros|5 metros|11 metros|12 metros|21 metros|22 metros|25 metros|100 metros|101 metros|102 metros|111 metros|1,5 metros|0,5 metros|2,5 metros|1.000.000 metros"},
+      {"fr-FR", "0\302\240mètre|1\302\240mètre|2\302\240mètres|3\302\240mètres|5\302\240mètres|11\302\240mètres|12\302\240mètres|21\302\240mètres|22\302\240mètres|25\302\240mètres|100\302\240mètres|101\302\240mètres|102\302\240mètres|111\302\240mètres|1,5\302\240mètre|0,5\302\240mètre|2,5\302\240mètres|1\342\200\257000\342\200\257000\302\240mètres"},
+      {"hr-HR", "0 metara|1 metar|2 metra|3 metra|5 metara|11 metara|12 metara|21 metar|22 metra|25 metara|100 metara|101 metar|102 metra|111 metara|1,5 metara|0,5 metara|2,5 metara|1.000.000 metara"},
+      {"it-IT", "0 metri|1 metro|2 metri|3 metri|5 metri|11 metri|12 metri|21 metri|22 metri|25 metri|100 metri|101 metri|102 metri|111 metri|1,5 metri|0,5 metri|2,5 metri|1.000.000 metri"},
+      {"hu-HU", "0 méter|1 méter|2 méter|3 méter|5 méter|11 méter|12 méter|21 méter|22 méter|25 méter|100 méter|101 méter|102 méter|111 méter|1,5 méter|0,5 méter|2,5 méter|1\302\240000\302\240000 méter"},
+      {"nl-NL", "0 meter|1 meter|2 meter|3 meter|5 meter|11 meter|12 meter|21 meter|22 meter|25 meter|100 meter|101 meter|102 meter|111 meter|1,5 meter|0,5 meter|2,5 meter|1.000.000 meter"},
+      {"pl-PL", "0 metrów|1 metr|2 metry|3 metry|5 metrów|11 metrów|12 metrów|21 metrów|22 metry|25 metrów|100 metrów|101 metrów|102 metry|111 metrów|1,5 metra|0,5 metra|2,5 metra|1\302\240000\302\240000 metrów"},
+      {"pt-PT", "0 metros|1 metro|2 metros|3 metros|5 metros|11 metros|12 metros|21 metros|22 metros|25 metros|100 metros|101 metros|102 metros|111 metros|1,5 metros|0,5 metros|2,5 metros|1\302\240000\302\240000 metros"},
+      {"ro-RO", "0 metri|1 metru|2 metri|3 metri|5 metri|11 metri|12 metri|21 de metri|22 de metri|25 de metri|100 de metri|101 metri|102 metri|111 metri|1,5 metri|0,5 metri|2,5 metri|1.000.000 de metri"},
+      {"sq-AL", "0 metra|1 metër|2 metra|3 metra|5 metra|11 metra|12 metra|21 metra|22 metra|25 metra|100 metra|101 metra|102 metra|111 metra|1,5 metra|0,5 metra|2,5 metra|1\302\240000\302\240000 metra"},
+      {"vi-VN", "0 mét|1 mét|2 mét|3 mét|5 mét|11 mét|12 mét|21 mét|22 mét|25 mét|100 mét|101 mét|102 mét|111 mét|1,5 mét|0,5 mét|2,5 mét|1.000.000 mét"},
+      {"tr-TR", "0 metre|1 metre|2 metre|3 metre|5 metre|11 metre|12 metre|21 metre|22 metre|25 metre|100 metre|101 metre|102 metre|111 metre|1,5 metre|0,5 metre|2,5 metre|1.000.000 metre"},
+      {"el-GR", "0 μέτρα|1 μέτρο|2 μέτρα|3 μέτρα|5 μέτρα|11 μέτρα|12 μέτρα|21 μέτρα|22 μέτρα|25 μέτρα|100 μέτρα|101 μέτρα|102 μέτρα|111 μέτρα|1,5 μέτρα|0,5 μέτρα|2,5 μέτρα|1.000.000 μέτρα"},
+      {"bg-BG", "0 метра|1 метър|2 метра|3 метра|5 метра|11 метра|12 метра|21 метра|22 метра|25 метра|100 метра|101 метра|102 метра|111 метра|1,5 метра|0,5 метра|2,5 метра|1\302\240000\302\240000 метра"},
+      {"ru-RU", "0 метров|1 метр|2 метра|3 метра|5 метров|11 метров|12 метров|21 метр|22 метра|25 метров|100 метров|101 метр|102 метра|111 метров|1,5 метра|0,5 метра|2,5 метра|1\302\240000\302\240000 метров"},
+      {"uk-UA", "0 метрів|1 метр|2 метри|3 метри|5 метрів|11 метрів|12 метрів|21 метр|22 метри|25 метрів|100 метрів|101 метр|102 метри|111 метрів|1,5 метра|0,5 метра|2,5 метра|1\302\240000\302\240000 метрів"},
+      {"ar", "0 متر|متر|2 متر|3 أمتار|5 أمتار|11 مترًا|12 مترًا|21 مترًا|22 مترًا|25 مترًا|100 متر|101 متر|102 متر|111 مترًا|1.5 متر|0.5 متر|2.5 متر|1,000,000 متر"},
+      {"fa-IR", "0 متر|1 متر|2 متر|3 متر|5 متر|11 متر|12 متر|21 متر|22 متر|25 متر|100 متر|101 متر|102 متر|111 متر|1.5 متر|0.5 متر|2.5 متر|1,000,000 متر"},
+      {"ur-PK", "0 میٹر|1 میٹر|2 میٹر|3 میٹر|5 میٹر|11 میٹر|12 میٹر|21 میٹر|22 میٹر|25 میٹر|100 میٹر|101 میٹر|102 میٹر|111 میٹر|1.5 میٹر|0.5 میٹر|2.5 میٹر|1,000,000 میٹر"},
+      {"hi-IN", "0 मीटर|1 मीटर|2 मीटर|3 मीटर|5 मीटर|11 मीटर|12 मीटर|21 मीटर|22 मीटर|25 मीटर|100 मीटर|101 मीटर|102 मीटर|111 मीटर|1.5 मीटर|0.5 मीटर|2.5 मीटर|10,00,000 मीटर"},
+      {"bn-BD", "0 মিটার|1 মিটার|2 মিটার|3 মিটার|5 মিটার|11 মিটার|12 মিটার|21 মিটার|22 মিটার|25 মিটার|100 মিটার|101 মিটার|102 মিটার|111 মিটার|1.5 মিটার|0.5 মিটার|2.5 মিটার|10,00,000 মিটার"},
+      {"zh-CN", "0米|1米|2米|3米|5米|11米|12米|21米|22米|25米|100米|101米|102米|111米|1.5米|0.5米|2.5米|1,000,000米"},
+      {"ja-JP", "0 メートル|1 メートル|2 メートル|3 メートル|5 メートル|11 メートル|12 メートル|21 メートル|22 メートル|25 メートル|100 メートル|101 メートル|102 メートル|111 メートル|1.5 メートル|0.5 メートル|2.5 メートル|1,000,000 メートル"},
+      {"ko-KR", "0미터|1미터|2미터|3미터|5미터|11미터|12미터|21미터|22미터|25미터|100미터|101미터|102미터|111미터|1.5미터|0.5미터|2.5미터|1,000,000미터"},
+    };
+    OK(std::size(METRES) == LANGS.size(), "a language without its line here");
+    for (size_t i = 0; i < std::size(METRES); i++) {
+      const auto& [locale, wanted] = METRES[i];
+      EQ(locale, LANGS[i].locale);
+      std::string is;
+      for (double v : lengths) is += (is.empty() ? "" : "|") + formatNumber(v, locale, {.style = "unit", .unit = "meter", .unitDisplay = "long", .maximumFractionDigits = 2, .numberingSystem = "latn"});
+      EQ(is, wanted, locale);
+    }
+  }
   OK(refused([] { formatNumber(1, "de", {.style = "unit", .unit = "parsec"}); }) != "");
   OK(refused([] { formatNumber(1, "de", {.style = "unit"}); }) != "");
   OK(refused([] { formatNumber(1, "de_DE"); }) == "Invalid language tag: de_DE");
