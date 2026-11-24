@@ -458,7 +458,11 @@ void aWeighting() {
 
 // ---------------------------------------------------------------- the numbers of the original
 
-/** What the original (v1.7.7) works out, by node: waves, filters, the gains and the targets of every vehicle. */
+/**
+ * What the original (v1.7.7) works out, by node: waves, filters, the gains and the targets of every vehicle.
+ * (Made by the lines of numbersOfTheOriginal() below, written in TypeScript against the original's
+ * src/audio/waves.ts and profiles.ts and run in its tree; each number to thirteen places.)
+ */
 struct Ref {
   const char* name;
   std::vector<double> v;
@@ -727,8 +731,10 @@ std::vector<double> hissesOf(const AudioContext& ctx) {
 }
 
 /**
- * The same drive as the original's GameAudio was given on its stand-in for the Web Audio API (node,
- * v1.7.7, Math.random and the clock as here): the same nodes made, the same number of settings sent.
+ * The same drive as the original's GameAudio was given on its stand-in for the Web Audio API: the same
+ * nodes made, the same number of settings sent.  (The numbers in the comments are the original's – node,
+ * v1.7.7, its tests/game/audiomock.ts, this function line by line, with `Math.random = seeded(1)` of
+ * waves.ts and the clock as the native host has it: `ctx.currentTime = (ms += 1000 / 60) / 1000`.)
  */
 void asTheOriginalOnItsDevice() {
   plat::native::manualClock(true);
