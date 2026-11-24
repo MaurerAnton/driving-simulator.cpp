@@ -3,7 +3,7 @@
 // print the same lines, tools/diff/compare.py compares them.
 //
 //   node tools/diff/three-x.mjs [math] [scene] [geom] > /tmp/a.txt      (no section named: all)
-//   tools/t.sh three_x_dump [math] [scene] [geom] > /tmp/b.txt
+//   FS_JOBS=1 tools/t.sh three_x_dump > /dev/null && build/three_x_dump [math] [scene] [geom] > /tmp/b.txt
 //   tools/diff/compare.py /tmp/a.txt /tmp/b.txt
 //
 // three.js is taken from the original's node_modules (THREE_DIR names another place).
