@@ -63,6 +63,7 @@ libraries it needs in a comment, so it builds even while another layer is being 
 | `async`/`await`, `Promise<T>` | `Task<T>` with `co_await` (src/core/task.h) |
 | `Math.random()` | `fs::rnd()` (src/core/random.h): one stream, seedable for tests |
 | `performance.now()`, `Date.now()` | `plat::nowMs()`, `plat::dateMs()` |
+| `new Date(ms).getHours()` … | `plat::localFields(ms).hours` …; `utcFields(ms)` for getUTC… (src/core/date.h) |
 | `console.warn` | `plat::warn(...)` |
 | `fetch`, `localStorage` | `plat::fetch…`, `plat::storage()` (src/platform/plat.h) |
 | DOM (`document.createElement`, `el(...)`) | `dom::El` (src/platform/dom.h): the same calls by nearly the same names |

@@ -75,21 +75,8 @@ Task<void> App::loadWorld(std::function<void(std::string)> onProgress) {
   bool asked = false;
   const double share0 = jsNumber(searchParam("lightsout", &asked));
   const double share = asked && std::isfinite(share0) ? std::max(0.0, std::min(1.0, share0)) : LIGHTS_OUT;
-  // (the day as the original counts it: year × 372 + month × 31 + day of the month, in local time)
-  const double now = plat::dateMs();
-  const double local = now - plat::timezoneOffsetMin(now) * 60000.0;
-  const long days = static_cast<long>(std::floor(local / 86400000.0));
-  long z = days + 719468;
-  const long era = (z >= 0 ? z : z - 146096) / 146097;
-  const unsigned doe = static_cast<unsigned>(z - era * 146097);
-  const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-  long year = static_cast<long>(yoe) + era * 400;
-  const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-  const unsigned mp = (5 * doy + 2) / 153;
-  const unsigned dom = doy - (153 * mp + 2) / 5 + 1;
-  const unsigned month = mp < 10 ? mp + 3 : mp - 9;
-  if (month <= 2) year++;
-  const int day = static_cast<int>(year * 372 + (month - 1) * 31 + dom);
+  const DateFields today = plat::localFields(plat::dateMs());
+  const int day = today.year * 372 + today.month * 31 + today.date;
   WorldOptions options;
   options.lightsOut = lightsOutBy(day, share);
   map = co_await MapLoader::open(files, options);

@@ -6,6 +6,8 @@
 
 namespace fs::plat {
 
+DateFields localFields(double ms) { return utcFields(ms - timezoneOffsetMin(ms) * 60000.0); }
+
 Bytes gunzip(const Bytes& gz) {
   Bytes out;
   if (!isGzip(gz)) return out;
