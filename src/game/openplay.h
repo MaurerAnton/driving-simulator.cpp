@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "game/cardoors.h"
+#include "game/onfoot.h"
 #include "platform/dom.h"
 #include "ui/openbuttons.h"
 
@@ -37,24 +38,6 @@ namespace fs {
 class PlayerCar;
 struct Controls;
 struct DriverInput;
-
-// ------------------------------------------------------------------ hooks ----
-// game/onfoot.ts (walking) is not translated yet: the person on foot and the vehicle as one walks
-// round it stand here with just the members OpenPlay reads.  When it is translated these two go and
-// `#include "game/onfoot.h"` takes their place (OpenPlay reads only x, z of OnFoot and x, z, yaw,
-// front, rear, hw of a WalkUnit, and door – the same names there).
-
-/** game/onfoot.ts OnFoot: where the person on foot stands. */
-struct OnFoot {
-  double x = 0;
-  double z = 0;
-};
-
-/** game/onfoot.ts WalkVehicle: the vehicle's parts in the plan, and the driver's door ahead of the origin. */
-struct WalkVehicle {
-  std::vector<SpotUnit> units;
-  double door = 0;
-};
 
 /** What can be done where the person stands: the tip line, the key it names, and the buttons. */
 struct WalkHud {
