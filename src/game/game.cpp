@@ -865,11 +865,13 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
   else if (mk == "bus") made = std::make_unique<PlayerBus>();
   else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
   else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
+  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker; motorcycle – game.ts:1906)
+  // (the aeroplane's model is kept beside these: planeAdapter)
   else if (mk == "towerCrane" || mk == "mobileCrane" || mk == "loaderCrane") {
     craneModels.push_back(makeCraneModel(def.crane.value_or("tower"), settings.quality == "low" ? "low" : "full"));
     return craneModels.back().get();
   }
-  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker, plane, motorcycle, forklift – game.ts:1906)
+  // (later: forklift – game.ts:1919)
   if (made) {
     vehicleModels.push_back(std::move(made));
     return vehicleModels.back().get();
