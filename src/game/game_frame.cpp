@@ -234,6 +234,7 @@ void Game::updateLesson(double dt, PlayerState& p) {
 
 // ------------------------------------------------------------------ frame
 void Game::frame(double now) {
+  const double tFrame = plat::nowMs();
   // (never backwards: the time stamp of a frame that was held up by a long task can lie before
   // the moment the clock was last read, and a clock running backwards freezes everything timed)
   const double dt = std::min(0.1, std::max(0.0, (now - last) / 1000));
@@ -289,6 +290,7 @@ void Game::frame(double now) {
       gameClock.setRate(1);
       if (gameClock.real()) clockJumped();
     }
+    const double tSim = plat::nowMs();
     if (rate > 1) {
       // (in as few steps as the world's parts allow – none of them is stepped by more than a tenth of a second)
       const int n = std::max(1, static_cast<int>(std::ceil((dt * rate) / 0.1)));
@@ -309,6 +311,7 @@ void Game::frame(double now) {
       gameClock.tick(dt);
       // (later: faceBoard, stepLiveGeo, hud.liveOffer, hud.liveOn – game.ts:6518)
     }
+    frameTimes.sim += plat::nowMs() - tSim;
     if (!autoNotice.empty() && time - startTime > 0.3) {
       const std::string kind = autoNotice;
       autoNotice = "";
@@ -370,6 +373,12 @@ void Game::frame(double now) {
     // (later: ?reality= – game.ts:6580)
   }
 
+  double tPart = plat::nowMs();
+  const auto lap = [&tPart](double& into) {
+    const double now = plat::nowMs();
+    into += now - tPart;
+    tPart = now;
+  };
   VehicleModel& model = this->model();
   // (in the menu the vehicle shown stands still: it is not driven)
   const bool haveCar = vehicle && model.root->visible && state != "menu" && state != "loading";
@@ -406,6 +415,7 @@ void Game::frame(double now) {
     app.camera->updateProjectionMatrix();
     signals->update(dt);
   }
+  lap(frameTimes.visuals);
   // (later: a theory lesson on the practice yard – game.ts:6650)
   signs->flush();
   // (later: the test place, buildShowroom; the replay's lights, traffic and trains – game.ts:6656)
@@ -415,6 +425,7 @@ void Game::frame(double now) {
     static const std::vector<Cyclist*> noCyclists;
     actors->update(traffic->cars, traffic->peds(), time, traffic->cyclists ? traffic->cyclists->list : noCyclists);
   }
+  lap(frameTimes.scene);
   // (later: wildView, railActors, transit, the lines of the trams, roadworks, crossingView, explosion – game.ts:6682)
   // (later: headlights – game/beamplay.ts, game.ts:6714)
   // (later: online.frame – game.ts:6716)
@@ -444,8 +455,10 @@ void Game::frame(double now) {
         render(*mirrors[static_cast<size_t>(mirrorTurn++) % mirrors.size()]);
       }
     }
+    lap(frameTimes.mirrors);
     // (later: the watcher's place as the middle of the picture – game.ts:6748)
     app.render(model.root->position);
+    lap(frameTimes.render);
     // (later: windscreen.frame, hud.setWipers, the fault noView – game.ts:6750)
   } else {
     app.render(menuFocus);
@@ -459,6 +472,10 @@ void Game::frame(double now) {
     if (!autoMap.empty()) {
       /* the map is about to open */
     } else if (state != "drive" || time - startTime > jsNumber(URLSearchParams(plat::locationSearch()).get("wait").value_or("0"))) ready = true;
+  }
+  if (state == "drive") {
+    frameTimes.total += plat::nowMs() - tFrame;
+    frameTimes.frames++;
   }
   if (looping) plat::requestAnimationFrame([this](double t) { frame(t); });
 }
@@ -887,6 +904,21 @@ std::string Game::debugInfo() {
     w.endObject();
   } else {
     w.null();
+  }
+  // 2.0: where a frame's time goes (ms a frame, averaged while driving)
+  {
+    const FrameTimes& f = frameTimes;
+    const double n = f.frames > 0 ? f.frames : 1;
+    w.key("ms");
+    w.beginObject();
+    for (const auto& [k, v] : std::initializer_list<std::pair<const char*, double>>{
+             {"sim", f.sim}, {"visuals", f.visuals}, {"scene", f.scene}, {"mirrors", f.mirrors}, {"render", f.render}, {"total", f.total}}) {
+      w.key(k);
+      w.number(fixed1(v / n));
+    }
+    w.key("frames");
+    w.number(f.frames);
+    w.endObject();
   }
   w.endObject();
   return w.take();

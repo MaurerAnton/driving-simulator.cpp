@@ -118,7 +118,24 @@ Task<void> App::loadWorld(std::function<void(std::string)> onProgress, std::opti
   if (region) {
     // 2.0: its tiles are fetched one at a time out of the parts (1.7.7 downloads whole parts)
     auto parts = std::make_shared<RegionTiles>(plat::locationBase() + "parts/", MAP_ASSETS_URL);
-    if (co_await parts->open(region->tiles)) {
+    // (a few regions' index names the wrong parts: parts/regions.json says which really hold their tiles –
+    // tools/build-region-parts.mjs)
+    std::vector<std::string> partFiles = region->tiles;
+    {
+      plat::Response fixes = co_await plat::fetch(plat::locationBase() + "parts/regions.json");
+      if (fixes.ok()) {
+        // (no correction for it, or none readable: the index's own list)
+        Json j;
+        if (Json::parse(fixes.text(), j) && j.isObject()) {
+          const Json& f = j.at("fixes").at(region->id);
+          if (f.isArray() && !f.array.empty()) {
+            partFiles.clear();
+            for (const Json& p : f.array) partFiles.push_back(p.str);
+          }
+        }
+      }
+    }
+    if (co_await parts->open(partFiles)) {
       regionTiles = parts;
       regionId = region->id;
       map = co_await MapLoader::open(std::make_shared<RegionFiles>(MAP_ASSETS_URL, region->id), options);

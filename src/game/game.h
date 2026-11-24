@@ -559,6 +559,11 @@ class Game {
   void updateCamera(double dt);
   /** what tools/dev/shot.mjs and the tests ask of the game, as JSON */
   std::string debugInfo();
+  /** 2.0: where a frame's time goes (milliseconds, summed over `frames`; debugInfo shows the averages) */
+  struct FrameTimes {
+    double sim = 0, visuals = 0, scene = 0, mirrors = 0, render = 0, total = 0;
+    int frames = 0;
+  } frameTimes;
 };
 
 }  // namespace fs

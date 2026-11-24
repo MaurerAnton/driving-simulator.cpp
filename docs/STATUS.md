@@ -67,6 +67,14 @@ multiplayer and the server, map packs, developer map modes, old-version switch.
 6. Autopilot trips, big map, the world layer with all regions; region switching; a tool that opens every region.
 7. Speed work on real phones; README progress table; release notes; 2.0.0.
 
+## Regions (checked 24.11. with `tools/t.sh regions_check`, every region opened natively)
+
+307 of 308 regions open and draw.  Köln's entry in 1.7.7's `regions.json` names the wrong part (62, its tiles are in
+32) – corrected on the port's side by `web/parts/regions.json` (`node tools/build-region-parts.mjs`, run it again when
+map-assets changes).  **Duisburg (`nrw-duisburg`): its tiles are in no part of map-assets at all** – its roads load,
+the ground does not; only a new map build can mend it.  (The check tool itself crashes after ~150 regions in one
+process – something of the App is not given back; run it in batches with `--from N --count 20`.)
+
 ## Notes for whoever continues
 
 - Merge helper branches with `git merge` (never `pull --rebase` over a merge: it replays the branch).
