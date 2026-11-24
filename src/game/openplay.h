@@ -40,8 +40,9 @@ struct DriverInput;
 
 // ------------------------------------------------------------------ hooks ----
 // game/onfoot.ts (walking) is not translated yet: the person on foot and the vehicle as one walks
-// round it stand here with just the members OpenPlay reads.  When it is translated these go and
-// its own classes take their place.
+// round it stand here with just the members OpenPlay reads.  When it is translated these two go and
+// `#include "game/onfoot.h"` takes their place (OpenPlay reads only x, z of OnFoot and x, z, yaw,
+// front, rear, hw of a WalkUnit, and door – the same names there).
 
 /** game/onfoot.ts OnFoot: where the person on foot stands. */
 struct OnFoot {

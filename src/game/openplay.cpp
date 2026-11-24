@@ -35,13 +35,18 @@ void OpenPlay::setSeat(PlayerCar* car, const SeatId& s) {
 }
 
 void OpenPlay::walk(OnFoot& w, const WalkVehicle& wv, PlayerCar* car, bool truck) {
-  const SpotUnit* u = !wv.units.empty() ? &wv.units[0] : nullptr;
+  // (a unit of the walk as the spots need it: where it stands, which way, its outline)
+  const auto unit = [&wv](size_t i) {
+    const auto& w = wv.units[i];
+    return SpotUnit{.x = w.x, .z = w.z, .yaw = w.yaw, .front = w.front, .rear = w.rear, .hw = w.hw};
+  };
+  const std::optional<SpotUnit> u = !wv.units.empty() ? std::optional<SpotUnit>(unit(0)) : std::nullopt;
   std::vector<OpeningSpot> spots;
   if (u && car) {
     const CarShell& sh = car->exterior.shell;
     for (const OpeningSpot& s : carSpots(*u, {.frontAhead = wv.door, .rearDoorRear = sh.zAxleR - 0.255, .nose = sh.zFront, .tail = sh.zRear})) spots.push_back(s);
   } else if (u && truck) spots.push_back(rearSpot("body", *u));
-  if (wv.units.size() > 1) spots.push_back(rearSpot("trailer", wv.units[1]));
+  if (wv.units.size() > 1) spots.push_back(rearSpot("trailer", unit(1)));
   spots_ = spots;
   spotsFor_ = &w;
   const Boarding* b = board.get();
