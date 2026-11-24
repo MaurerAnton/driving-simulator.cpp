@@ -4,7 +4,6 @@
 
 // The texts are made speakable by src/i18n (speakable, splitForSpeech) and read in the locale
 // it names for a language (localeOf): the speaker is there once those headers are.
-#if __has_include("i18n/index.h") && __has_include("i18n/speechtext.h")
 
 #include <algorithm>
 #include <memory>
@@ -189,4 +188,3 @@ Speech speech;
 
 }  // namespace fs
 
-#endif

@@ -11,7 +11,6 @@
  */
 #include <cstdio>
 
-#if __has_include("i18n/index.h") && __has_include("i18n/speechtext.h")
 
 #include <cassert>
 #include <map>
@@ -220,11 +219,3 @@ int main() {
   return 0;
 }
 
-#else
-
-int main() {
-  std::printf("audio_speech_test: nothing tested – the speaker waits for src/i18n (speakable, splitForSpeech, localeOf)\n");
-  return 0;
-}
-
-#endif
