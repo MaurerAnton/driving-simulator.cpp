@@ -107,8 +107,11 @@ void frame() {
     stats.textContent(std::to_string(static_cast<int>(std::round(frames / acc))) + " fps (worst frame " + std::to_string(static_cast<int>(worst * 1000)) + " ms) · " +
                       std::to_string(i.calls) + " draw calls · " + std::to_string(i.triangles) + " triangles · " + std::to_string(tiles) + " tiles · " + std::to_string(roads) +
                       " roads");
-    // (for tools/dev/shot.mjs: fps, worst frame in ms, draw calls, triangles, tiles, roads, x, z)
-    EM_ASM({ window.__fs.stats = [ $0, $1, $2, $3, $4, $5, $6, $7 ]; }, frames / acc, worst * 1000, i.calls, i.triangles, tiles, roads, view.x, view.z);
+    // (for tools/dev/shot.mjs)
+    const std::string json = "{\"fps\":" + jsStr(frames / acc) + ",\"worstMs\":" + jsStr(worst * 1000) + ",\"calls\":" + std::to_string(i.calls) +
+                             ",\"triangles\":" + std::to_string(i.triangles) + ",\"tiles\":" + std::to_string(tiles) + ",\"roads\":" + std::to_string(roads) +
+                             ",\"x\":" + jsStr(view.x) + ",\"z\":" + jsStr(view.z) + "}";
+    EM_ASM({ window.__fs.stats = JSON.parse(UTF8ToString($0)); }, json.c_str());
     frames = 0;
     acc = 0;
     worst = 0;
