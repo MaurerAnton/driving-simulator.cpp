@@ -10,7 +10,9 @@
 #include "core/js.h"
 #include "game/address.h"
 #include "game/arcadedrive.h"
+#include "game/ce.h"
 #include "game/clock.h"
+#include "game/craneplay.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/yardtask.h"
@@ -25,6 +27,7 @@
 #include "input/input.h"
 #include "platform/plat.h"
 #include "render/actors.h"
+#include "render/crane.h"
 #include "render/far.h"
 #include "render/pedlights.h"
 #include "render/props.h"
@@ -152,11 +155,11 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   }
   // (a tractor may not go on the motorway: its lesson is driven with the car)
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
-  // (the vehicles whose models are not in this build yet – the motorcycle, the tram, on foot, the aeroplane, the cranes,
+  // (the vehicles whose models are not in this build yet – the motorcycle, the tram, on foot, the aeroplane,
   //  the forklift: Game::makeModel – are driven as the car meanwhile)
   {
     static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor"};
-    if (!drawn.count(def->model)) def = &VEHICLES.at("car");
+    if (!drawn.count(def->model) && !def->crane) def = &VEHICLES.at("car");
   }
   // (later: the tram: tram, tramAt, tramWait – game.ts:2853)
   // (ways for the truck with its trailer avoid turns that double back within a few metres)
@@ -194,7 +197,19 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   taskCount = static_cast<int>(tasksLeft.size());
   if (!tasksLeft.empty()) nextTask();
   else if (def->long_ && !address && spawn) spawn = truckSpot(*spawn);
-  // (later: drill, drillBegin; crane; forklift – game.ts:2897)
+  // (later: drill, drillBegin – game.ts:2897)
+  // a crane: its free drive is the work on the construction site (game/craneplay.ts) – from the depot, the tower crane on its base
+  if (crane) crane->dispose();
+  crane = nullptr;
+  if (def->crane && !lesson && (mode == "free" || mode == "crane" || *def->crane == "tower")) {
+    crane = makeCraneWork(*def->crane);
+    const std::optional<CranePlace> at = craneStart(*def->crane, yardFrame ? &*yardFrame : nullptr);
+    if (at) spawn = SpawnJson{.name = tr("craneSite", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street"};
+    // (later: showOn – game.ts:2907)
+    rules->yard = true;
+    hud->canTeleport = false;
+  }
+  // (later: forklift – game.ts:2912)
   input->setSteering(spec.wheelbase, spec.maxWheelAngle, SteerSpec(spec));
   input->setAutomatic(spec.transmission == "automatic");
   Controls& c = input->c;
@@ -410,8 +425,10 @@ void Game::finish() {
   audio->suspend();
   hud->setHudVisible(false);
   lastResult = std::make_unique<ResultSummary>();
-  // (later: craneWork, forkWork as the title; crane, forklift, drill: their resultNode – game.ts:3594)
-  lastResult->title = l ? lessonTitle(l->id, settings.lang) : tr("free", settings.lang);
+  // (later: forkWork as the title; forklift, drill: their resultNode – game.ts:3594)
+  lastResult->title = l ? lessonTitle(l->id, settings.lang) : tr(crane ? "craneWork" : "free", settings.lang);
+  if (crane)
+    if (std::optional<dom::El> extra = crane->resultNode()) lastResult->extra = *extra;
   lastResult->exam = exam || judged;
   lastResult->passed = !failed;
   lastResult->log = rules->log;
@@ -436,8 +453,13 @@ void Game::onAction(const std::string& a) {
     else if (state == "map") closeMap();
     // (later: the reality view, the replay, the theory – game.ts:3844)
   }
-  // (later: 'open', 'door': on foot, the flaps, the bus's and the tram's doors, the forklift, the cranes, the test place – game.ts:3847;
-  //  'view' in the replay, on foot, on the forklift; 'panto' – game.ts:3893)
+  // (later: 'open', 'door': on foot, the flaps, the bus's and the tram's doors, the forklift – game.ts:3847;
+  //  the tower crane's: its operator climbs down and up again, on foot – towerDoor, game.ts:3867)
+  else if (a == "door" && state == "drive" && crane && crane->type != "tower") {
+    // the crane: from driving to working it, and back  (later: not while on foot – game.ts:3870)
+    craneToggle();
+  }
+  // (later: 'door': the test place, getting out – game.ts:3873; 'view' in the replay, on foot, on the forklift; 'panto' – game.ts:3893)
   else if (a == "view" && state == "drive") {
     // the driver's seat → behind the car → the free camera → …
     cameraMode = cameraMode == "cockpit" ? "chase" : cameraMode == "chase" ? "free" : "cockpit";
@@ -599,8 +621,8 @@ void Game::toAutomatic() {
 
 /** Arcade driving for the road vehicle driven now (not the tram, the aeroplane, the forklift, a crane at work, nor on foot or watching). */
 bool Game::arcadeNow() {
-  // (later: … !watcher, !tram, !aircraft, !forklift, !crane.operating, not on foot, !wrecked – game.ts:4068)
-  return settings.arcadeDrive;
+  // (later: … !watcher, !tram, !aircraft, !forklift, not on foot, !wrecked – game.ts:4068)
+  return settings.arcadeDrive && !(crane && crane->operating);
 }
 
 void Game::stepDrive(double dt) {
@@ -612,7 +634,12 @@ void Game::stepDrive(double dt) {
     c.lookYaw = (*debugLook)[0];
     c.lookPitch = (*debugLook)[1];
   }
-  // (later: stepWatch, stepTram, stepFoot, stepFlight, stepCrane, stepForklift – game.ts:4080)
+  // (later: stepWatch, stepTram, stepFoot, stepFlight – game.ts:4080)
+  if (crane && crane->operating) {
+    stepCrane(dt);
+    return;
+  }
+  // (later: stepForklift – game.ts:4102)
   DriverInput& d = driver;
   d.steer = c.steer;
   d.throttle = c.throttle;
@@ -841,7 +868,14 @@ void Game::stepDrive(double dt) {
   // (later: updateDrill – game.ts:4388)
   else if (demo) updateDemo(dt, player);
   else updateLesson(dt, player);
-  // (later: a crane driven to its stand – game.ts:4392)
+  // a crane driven to its stand: the site, the guide
+  if (crane) {
+    crane->drive(dt, v, c.handbrake > 0.5);
+    if (crane->over) {
+      finish();
+      return;
+    }
+  }
   if (failT > 0 && time > failT) finish();
 }
 

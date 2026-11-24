@@ -10,7 +10,9 @@
 #include "core/js.h"
 #include "game/address.h"
 #include "game/arcadedrive.h"
+#include "game/ce.h"
 #include "game/clock.h"
+#include "game/craneplay.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/yardtask.h"
@@ -26,6 +28,7 @@
 #include "platform/frame.h"
 #include "platform/plat.h"
 #include "render/actors.h"
+#include "render/crane.h"
 #include "render/far.h"
 #include "render/pedlights.h"
 #include "render/props.h"
@@ -382,7 +385,7 @@ Task<void> Game::boot(URLSearchParams q) {
       return roadSpot(x, z, "", 160);
     };
     // (later: loadedArea, canSpawnCar, spawnCar – game/spawncar.ts, game.ts:910)
-    host.canTeleport = [this] { return mapFrom != "menu" && !lesson; };
+    host.canTeleport = [this] { return mapFrom != "menu" && !lesson && !crane; };
     host.teleport = [this](const SpawnJson& spot) {
       if (mapFrom != "menu") return teleportSpot(spot);
       hud->menuStartAt(spot);
@@ -739,7 +742,10 @@ void Game::toMenu() {
   state = "menu";
   demo = nullptr;
   endTasks();
-  // (later: services.end, crane, endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1464)
+  // (later: services.end – game.ts:1464)
+  if (crane) crane->dispose();
+  crane = nullptr;
+  // (later: endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1468)
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
   if (carTrailer) carTrailer->group->visible = false;
@@ -831,7 +837,11 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
   else if (mk == "bus") made = std::make_unique<PlayerBus>();
   else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
   else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
-  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker, plane, motorcycle, the cranes, forklift – game.ts:1906)
+  else if (mk == "towerCrane" || mk == "mobileCrane" || mk == "loaderCrane") {
+    craneModels.push_back(makeCraneModel(def.crane.value_or("tower"), settings.quality == "low" ? "low" : "full"));
+    return craneModels.back().get();
+  }
+  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker, plane, motorcycle, forklift – game.ts:1906)
   if (made) {
     vehicleModels.push_back(std::move(made));
     return vehicleModels.back().get();

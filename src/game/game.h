@@ -55,6 +55,10 @@ class AddressIndex;
 using AddressHit = StartAddress;
 class ArcadeDrive;
 class AutoDriver;
+class CraneModel;
+class CraneWork;
+/** (sim/crane.h: 'tower' | 'mobile' | 'loader') */
+using CraneType = std::string;
 class DrivenPath;
 class FarTerrain;
 class FaultLog;
@@ -177,7 +181,7 @@ class Game {
   const CarVisualState* lastVisual = nullptr;
   /** the truck with the trailer of the class CE (its yard tasks, the coupling) */
   bool isTruck() const { return def->model == "truck" || def->model == "semi"; }
-  // (later: yardScene, yardFrame, task, tasksLeft, taskCount, taskFailed, taskSub, drill, drillScene, drillPos, laidTry – game.ts:320)
+  // (later: yardScene, task, tasksLeft, taskCount, taskFailed, taskSub, drill, drillScene, drillPos, laidTry – game.ts:320)
   /** where the drive in traffic begins once the tasks on the yard are done */
   std::optional<SpawnJson> roadSpawn;
   /**
@@ -567,6 +571,25 @@ class Game {
     int frames = 0;
   } frameTimes;
 
+  // --- the cranes ---
+  /** the practice yard's frame (game/ce.ts YardFrame; null: the map has none) – the cranes' construction site is laid on it */
+  std::optional<YardFrame> yardFrame;
+  /** the work with a crane on the construction site (game/craneplay.ts; null: no crane is worked) */
+  std::unique_ptr<CraneWork> crane;
+  /** the cranes' models made so far (`models` points at them) */
+  std::vector<std::unique_ptr<CraneModel>> craneModels;
+  /** The work with a crane (game/craneplay.ts), told what it needs of the game. */
+  std::unique_ptr<CraneWork> makeCraneWork(const CraneType& type);
+  /** The crane: from driving it to working it, and back (the door key, or the button). */
+  void craneToggle();
+  /**
+   * A step of a crane at work: its controls, the crane and its hook, the
+   * loads, the tasks (game/craneplay.ts) – its vehicle stands meanwhile –
+   * and the traffic beyond the site.
+   */
+  void stepCrane(double dt);
+  /** `isCraneModel(this.model)`: the model of the vehicle driven now as a crane's (render/crane.ts) – null: it is none */
+  CraneModel* craneModel();
   // --- vehicles ---
   /** the box trailer behind a car (class BE) – or the semi-trailer of the articulated lorry (render/semitruck.ts TowedModel) */
   std::shared_ptr<TowedModel> carTrailer;
@@ -574,7 +597,7 @@ class Game {
   std::vector<std::unique_ptr<VehicleModel>> vehicleModels;
   // class CE: the practice yard and its tasks (game/ce.ts, game/yardtask.ts; game_ce.cpp)
   const std::unique_ptr<YardScene> yardScene;
-  std::optional<YardFrame> yardFrame;
+  // (the yard's frame `yardFrame` is in the cranes' block)
   /** the task on the yard now: its run, whether the yard is laid out, the order its steps on foot are offered in, a second try */
   struct YardTaskNow {
     std::unique_ptr<YardTask> run;
