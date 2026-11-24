@@ -196,8 +196,8 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
   // (later: the other vehicles' models – render/fleet.ts – and the trailers behind them – sim/semitrailer.ts makeTrailer, render/semitruck.ts:
   //  until they are there, a vehicle that is not drawn as the car alone is driven as the car)
-  // (the aeroplane is drawn and flown: render/plane.h, sim/flight.h; the cranes: render/crane.h)
-  if ((def->model != "car" && def->model != "plane" && !def->crane) || def->trailer) def = &VEHICLES.at("car");
+  // (the aeroplane is drawn and flown: render/plane.h, sim/flight.h; the cranes: render/crane.h; the motorcycles: render/bike.h)
+  if ((def->model != "car" && def->model != "plane" && def->model != "motorcycle" && !def->crane) || def->trailer) def = &VEHICLES.at("car");
   // (later: the tram: tram, tramAt, tramWait – game.ts:2853)
   // (ways for the truck with its trailer avoid turns that double back within a few metres)
   lanes->longVehicle = def->long_;
