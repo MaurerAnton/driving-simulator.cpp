@@ -27,6 +27,7 @@
 #include "core/geom.h"
 #include "core/js.h"
 #include "sim/insertion_map.h"
+#include "sim/pedestrians.h"
 #include "sim/playerstate.h"
 #include "world/lanes.h"
 #include "world/types.h"
@@ -39,53 +40,34 @@ struct TrafficEvent;
 struct PlayerSnapshot;
 class RuleMonitor;
 
-// ---- src/sim/pedestrians.ts ---------------------------------------------------------------
+// ---- src/sim/pedestrians.ts: translated (sim/pedestrians.h) ------------------------------
 
-/** One of the people on foot (interface Walker). */
-struct Walker {
-  int id = 0;
-  /** what they look like: the look number of render/people (a replay records it as the "colour") */
-  int colour = 0;
+// ---- src/world/stops.ts -------------------------------------------------------------------
+
+struct StopPlace;
+
+/** A pole of a stop (interface StopPole: what the people read of it). */
+struct StopPole {
+  StopPlace* place = nullptr;
   double x = 0;
-  double y = 0;
   double z = 0;
-  /** the way they face (0 = north, + = to the left) */
-  double yaw = 0;
-  /** metres walked (the gait follows it) – −1 while they stand */
-  double phase = 0;
-  /** 'walk' | 'wait' | 'cross' | 'gone' */
-  std::string state = "walk";
-  /** the crossing they wait at or walk over – null: none (also where they cross without one) */
-  const CrossingJson* crossing = nullptr;
-  /** how long they have been waiting at its kerb (s) */
-  double waited = 0;
-  /** how fast they walk now (m/s) */
-  double speed = 0;
-  /** for the picture: the head turned (rad, + to the left), a start (0 … 1), leaning into the walk (rad), an umbrella up */
-  double head = 0;
-  double startle = 0;
-  double lean = 0;
-  bool umbrella = false;
+  int flags = 0;
 };
 
-struct Cyclist;
+/** A stop place (interface StopPlace: what the people read of it). */
+struct StopPlace {
+  int id = 0;
+  double x = 0;
+  double z = 0;
+  std::vector<StopPole> poles;
+};
 
-/** The people on foot in the town (class Crowd). */
-class Crowd {
+/** The stops of the map (class Stops). */
+class Stops {
  public:
-  virtual ~Crowd() = default;
-  /** how many walk around near the player */
-  int target = 0;
-  /** the people (the original's getter `people`) */
-  virtual const std::vector<Walker*>& people() = 0;
-  virtual void clear() = 0;
-  virtual void removeRoads(const InsertionSet<Edge*>& gone) = 0;
-  /** those who are on the carriageway, as the cars see them (added to `out`) */
-  virtual void addBlocks(std::vector<PlayerState*>& out) = 0;
-  /** is somebody crossing the road `lane` leads into at the junction's mouth, where no crossing is drawn? */
-  virtual bool crossingLane(const Lane& lane) = 0;
-  virtual void update(double dt, const PlayerState& player, const std::vector<TrafficCar*>& cars, const std::vector<Cyclist*>& cyclists,
-                      const std::vector<PlayerState*>& obstacles, std::vector<TrafficEvent>& events) = 0;
+  virtual ~Stops() = default;
+  /** the places within r metres of (x, z) */
+  virtual std::vector<const StopPlace*> near(double x, double z, double r) const = 0;
 };
 
 // ---- src/sim/cyclists.ts ------------------------------------------------------------------
@@ -316,9 +298,6 @@ class TimedRules {
 };
 
 // --- what other files use of the parts that are not ported ---------------------------
-
-/** the most people the crowd has at once (src/sim/pedestrians.ts CROWD_MAX) */
-inline constexpr int CROWD_MAX = 180;
 
 /** the first style of the emergency vehicles (src/sim/emergency.ts EM_STYLE) */
 inline constexpr int EM_STYLE = 8;

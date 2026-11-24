@@ -246,8 +246,8 @@ class Traffic {
    * what was said about it in this step – the events – still points at something.)
    */
   std::vector<TrafficCar*> cars;
-  /** the people on foot in the town (src/sim/pedestrians; `crowd.target` says how many) – a hook: null until that is translated */
-  Crowd* crowd = nullptr;
+  /** the people on foot in the town (src/sim/pedestrians; `crowd.target` says how many) */
+  std::unique_ptr<Crowd> crowd;
   /** people on bicycles (src/sim/cyclists) – a hook: null until that is translated (give it `lanesAt` of this traffic) */
   Cyclists* cyclists = nullptr;
   /**

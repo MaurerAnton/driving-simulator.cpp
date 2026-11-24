@@ -83,7 +83,7 @@ CarVisualState busStateAtRest() {
 }  // namespace
 
 TrafficRenderer::TrafficRenderer()
-    : people(PeopleRenderer::create ? PeopleRenderer::create(CROWD_MAX) : nullptr),
+    : people(std::make_unique<PeopleRenderer>(CROWD_MAX)),
       emergency_(EmergencyFleet::create ? EmergencyFleet::create() : nullptr),
       busState_(busStateAtRest()) {
   group->name = "traffic";

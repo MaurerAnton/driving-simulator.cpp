@@ -51,6 +51,7 @@ Traffic::Traffic(World& world_, LaneGraph& graph_, SignalSystem& signals_) : wor
   probe.temper = 1;
   box.length = 4.3;
   box.width = 1.8;
+  crowd = std::make_unique<Crowd>(world, signals);
   addRoads(world.allEdges);
 }
 

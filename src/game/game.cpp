@@ -300,7 +300,10 @@ Task<void> Game::boot(URLSearchParams q) {
   signalHeads = std::make_unique<SignalRenderer>(world, signals.get());
   collider->add({.key = "signals", .rings = nullptr, .ringCounts = nullptr, .segments = nullptr, .discs = signalHeads->poles});
   buildPedLights();
-  // (later: transit, traffic.crowd's blocked, toStop, standing – game.ts:656)
+  // (later: transit, its toStop, onAlight and standing – game.ts:656)
+  // the people on foot in the town (sim/pedestrians): posts and walls in their way – and the hour of the game's clock in Kassel
+  traffic->crowd->blocked = [this](double x, double y, double z, double r) { return collider->circleBlocked(x, y, z, r); };
+  traffic->crowd->clock = [] { return berlinSeconds(gameNow()) / 3600; };
   actors->view = app.camera.get();
   // (later: actors.highOf, the traffic's main beam – game/beamplay.ts, game.ts:663)
   airfieldView = std::make_unique<AirfieldRenderer>([this](double x, double z) { return groundHeight(x, z); },
@@ -684,7 +687,8 @@ void Game::applySettings() {
   // the music: off, now and then, or more often (made as it plays: audio/music.ts)
   audio->setMusic(s.music, s.musicVolume);
   if (traffic) traffic->targetCount = static_cast<int>(jsRound(s.traffic * 34));
-  // (later: traffic.crowd.target = crowdTarget(…), the people on foot – game.ts:1283)
+  // the people on foot: with the traffic, as many as the graphics allow
+  if (traffic) traffic->crowd->target = crowdTarget(s.traffic, s.quality);
   // (later: rail.target, ringMax, far: trams and trains come with the traffic – game.ts:1285)
   // (later: applyDevMap – game.ts:1290)
 }
