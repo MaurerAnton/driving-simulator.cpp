@@ -4,7 +4,9 @@
  * The map layer of the port, printed as numbers – to be compared with what
  * tools/diff/world.ts prints from the original (tools/diff/compare.py):
  *
- *   tools/t.sh world_dump [--map /home/user/driving-simulator/public/map] [--part all|net|tiles] > port.txt
+ *   FS_JOBS=1 tools/t.sh world_dump --part none        (builds it; prints nothing)
+ *   build/world_dump [--map /home/user/driving-simulator/public/map] [--part all|net|tiles] > port.txt
+ *   tools/diff/compare.py original.txt port.txt
  *
  * It follows tools/diff/world.ts line for line: what is printed, and in which
  * order, is described there.
@@ -18,6 +20,7 @@
 
 #include "core/geom.h"
 #include "core/js.h"
+#include "platform/json.h"
 #include "platform/native/native.h"
 #include "platform/plat.h"
 #include "world/far.h"
@@ -47,8 +50,8 @@ void put(const std::string& text) {
   line += ' ';
   line += text;
 }
-void fmt(double v) { put(jsStr(v)); }
-void fmt(float v) { put(jsStr(static_cast<double>(v))); }
+void fmt(double v) { put(jsNumberText(v)); }
+void fmt(float v) { put(jsNumberText(static_cast<double>(v))); }
 void fmt(int v) { put(std::to_string(v)); }
 void fmt(long v) { put(std::to_string(v)); }
 void fmt(long long v) { put(std::to_string(v)); }
@@ -162,6 +165,25 @@ struct Dump {
       if (c) signals++;
     out("counts", what, world->allNodes.size(), stubs, world->allEdges.size(), laneCount, lanes->connectors.size(), world->crossings.size(), signals, world->nodes.size(), world->edges.size(),
         lanes->lanes.size());
+    // the order things are kept in (it decides which lane and which path gets which number, and who is asked first)
+    size_t i = 0;
+    double edgeOrder = 0;
+    for (const Edge* e : world->allEdges) edgeOrder += static_cast<double>((i++ % 97) + 1) * e->id;
+    i = 0;
+    double nodeOrder = 0;
+    for (const Node* n : world->allNodes) nodeOrder += static_cast<double>((i++ % 97) + 1) * n->id;
+    double crossingOrder = 0;
+    for (i = 0; i < world->crossings.size(); i++) crossingOrder += static_cast<double>((i % 97) + 1) * (world->crossings[i]->e + world->crossings[i]->s);
+    double pathOrder = 0;
+    for (i = 0; i < lanes->connectors.size(); i++) pathOrder += static_cast<double>((i % 97) + 1) * lanes->connectors[i]->id;
+    double signalSum = 0;
+    for (i = 0; i < world->signals.size(); i++) {
+      const SignalControllerJson* c = world->signals[static_cast<int64_t>(i)];
+      if (!c) continue;
+      signalSum += static_cast<double>(i) + c->x + 2 * c->z + c->groups + c->off + static_cast<double>(c->phases.size()) + (c->ped ? 1 : 0);
+      for (const SignalPhaseJson& ph : c->phases) signalSum += ph.d + static_cast<double>(utf16Length(ph.s));
+    }
+    out("orders", edgeOrder, nodeOrder, crossingOrder, pathOrder, signalSum);
   }
 
   void dumpNetwork(const std::string& name, double px, double pz) {
@@ -263,8 +285,12 @@ struct Dump {
         if (!np) continue;
         const Node& n = *np;
         const JunctionShape* sh = n.shape.get();
+        // (the area of the junction is taken around the junction: around the map's origin the big numbers would swallow the small ones)
+        std::vector<double> local;
+        if (sh)
+          for (size_t i = 0; i < sh->ring.size(); i++) local.push_back(sh->ring[i] - (i % 2 == 0 ? n.x : n.z));
         out("node", id, n.x, n.y, n.z, n.gx, n.gz, n.ctrl, n.sc, n.dark, n.stub, n.tc, static_cast<long long>(n.osm), n.arms.size(), n.fr.size(), sumOf(n.fr), sh ? static_cast<long>(sh->ring.size()) : -1L,
-            sh ? ringArea(sh->ring) : 0.0, sh ? sh->corners.size() : static_cast<size_t>(0), sh ? sh->minX : 0.0, sh ? sh->maxX : 0.0, sh ? sh->minZ : 0.0, sh ? sh->maxZ : 0.0);
+            sh ? ringArea(local) : 0.0, sh ? sh->corners.size() : static_cast<size_t>(0), sh ? sh->minX : 0.0, sh ? sh->maxX : 0.0, sh ? sh->minZ : 0.0, sh ? sh->maxZ : 0.0);
         if (sh) {
           const std::vector<double>& r = sh->ring;
           double s = 0;
@@ -419,6 +445,15 @@ Task<void> run(std::string mapDir, std::string part) {
       for (int i = 0; i < 60; i++) map.update(x + 6000, z, JS_INF);
       d.counts("moved");
       out("ready", map.ready(x + 6000, z), map.ready(x, z), map.progress(x, z, 9000));
+      // the lanes of what is loaded now made anew, all at once: in the order the world keeps its roads and junctions
+      {
+        LaneGraph again(world);
+        double laneSum = 0;
+        for (const Lane* l : again.lanes) laneSum += static_cast<double>(l->id) * 7 + l->edge->id;
+        double pathSum = 0;
+        for (const Connector* c : again.connectors) pathSum += static_cast<double>(c->id) * 3 + c->from->id + 2.0 * c->to->id + c->node->id;
+        out("regraph", again.lanes.size(), again.connectors.size(), laneSum, pathSum);
+      }
       std::fflush(stdout);
     }
   }

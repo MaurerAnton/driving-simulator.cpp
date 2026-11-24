@@ -194,6 +194,18 @@ std::vector<double> offsetPolyline(const std::vector<double>& pts, double off, d
 /** Cut a stride-3 polyline to the arc-length window [s0, s1]. */
 std::vector<double> slicePolyline(const Polyline3& pl, double s0, double s1);
 
+/**
+ * `Math.floor(v / cell)` as a whole number for the grids – false for a place that is no number
+ * (or lies beyond anything a map can hold): the original finds nothing in a cell "NaN", and
+ * neither may the port stumble there.
+ */
+inline bool gridCell(double v, double cell, int64_t& out) {
+  const double f = std::floor(v / cell);
+  if (!(f >= -1e12 && f <= 1e12)) return false;
+  out = static_cast<int64_t>(f);
+  return true;
+}
+
 /** Uniform spatial hash over the ground plane for coarse neighbourhood queries. */
 template <typename T>
 class Grid2 {
@@ -204,10 +216,8 @@ class Grid2 {
 
   void insertBox(double minX, double minZ, double maxX, double maxZ, const T& item) {
     const double c = cell;
-    const int64_t x0 = static_cast<int64_t>(std::floor(minX / c));
-    const int64_t x1 = static_cast<int64_t>(std::floor(maxX / c));
-    const int64_t z0 = static_cast<int64_t>(std::floor(minZ / c));
-    const int64_t z1 = static_cast<int64_t>(std::floor(maxZ / c));
+    int64_t x0, x1, z0, z1;
+    if (!gridCell(minX, c, x0) || !gridCell(maxX, c, x1) || !gridCell(minZ, c, z0) || !gridCell(maxZ, c, z1)) return;
     for (int64_t ix = x0; ix <= x1; ix++) {
       for (int64_t iz = z0; iz <= z1; iz++) map_[key(ix, iz)].push_back(item);
     }
@@ -218,10 +228,8 @@ class Grid2 {
   /** Take an item out again – with the box it was put in with. */
   void removeBox(double minX, double minZ, double maxX, double maxZ, const T& item) {
     const double c = cell;
-    const int64_t x0 = static_cast<int64_t>(std::floor(minX / c));
-    const int64_t x1 = static_cast<int64_t>(std::floor(maxX / c));
-    const int64_t z0 = static_cast<int64_t>(std::floor(minZ / c));
-    const int64_t z1 = static_cast<int64_t>(std::floor(maxZ / c));
+    int64_t x0, x1, z0, z1;
+    if (!gridCell(minX, c, x0) || !gridCell(maxX, c, x1) || !gridCell(minZ, c, z0) || !gridCell(maxZ, c, z1)) return;
     for (int64_t ix = x0; ix <= x1; ix++) {
       for (int64_t iz = z0; iz <= z1; iz++) {
         auto it = map_.find(key(ix, iz));
@@ -240,8 +248,9 @@ class Grid2 {
   /** Items whose cells overlap the query cell containing (x,z). */
   const std::vector<T>& at(double x, double z) const {
     static const std::vector<T> EMPTY;
-    const double c = cell;
-    auto it = map_.find(key(static_cast<int64_t>(std::floor(x / c)), static_cast<int64_t>(std::floor(z / c))));
+    int64_t ix, iz;
+    if (!gridCell(x, cell, ix) || !gridCell(z, cell, iz)) return EMPTY;
+    auto it = map_.find(key(ix, iz));
     return it == map_.end() ? EMPTY : it->second;
   }
 
@@ -249,10 +258,8 @@ class Grid2 {
   template <class Visit>
   void queryBox(double minX, double minZ, double maxX, double maxZ, Visit&& visit) const {
     const double c = cell;
-    const int64_t x0 = static_cast<int64_t>(std::floor(minX / c));
-    const int64_t x1 = static_cast<int64_t>(std::floor(maxX / c));
-    const int64_t z0 = static_cast<int64_t>(std::floor(minZ / c));
-    const int64_t z1 = static_cast<int64_t>(std::floor(maxZ / c));
+    int64_t x0, x1, z0, z1;
+    if (!gridCell(minX, c, x0) || !gridCell(maxX, c, x1) || !gridCell(minZ, c, z0) || !gridCell(maxZ, c, z1)) return;
     for (int64_t ix = x0; ix <= x1; ix++) {
       for (int64_t iz = z0; iz <= z1; iz++) {
         auto it = map_.find(key(ix, iz));

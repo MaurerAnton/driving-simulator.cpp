@@ -37,7 +37,7 @@ jobs:
       - name: Build
         run: |
           # (while the port is brought up, only the layers that are complete are built; see docs/PORT.md)
-          emcmake cmake -S . -B build-web -G Ninja -DFAHRSIM_LAYERS="core;platform;engine"
+          emcmake cmake -S . -B build-web -G Ninja -DFAHRSIM_LAYERS="core;platform;engine;world;render;game;geo"
           cmake --build build-web
           # on GitHub Pages the map is the one the 1.7.7 site serves (the same host, the folder beside this one)
           sed -i 's|<meta name="fahrsim-map" content="map/" />|<meta name="fahrsim-map" content="../driving-simulator/map/" />|' build-web/site/index.html

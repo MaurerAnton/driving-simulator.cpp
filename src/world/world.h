@@ -362,6 +362,9 @@ class World {
   }
 
  private:
+  /** (a test looks into the grids to ask them as the lookup before this one did: tests/groundlookup_test.cpp) */
+  friend struct WorldInside;
+
   /** forbidden turns: from edge → [via node, to edge, …] (few edges have any) */
   std::unordered_map<int, std::vector<int>> banned_;
   /**

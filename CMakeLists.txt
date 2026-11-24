@@ -25,9 +25,18 @@ else()
   set(FAHRSIM_OPT "-O1" CACHE STRING "optimisation level")
 endif()
 
+# The compiler's results are kept (ccache) and shared by every copy of the repository on the
+# machine: paths are taken relative to the copy's root, so that a file compiled in one worktree
+# is not compiled again in the next (several agents work in worktrees of their own, and each
+# merge of main would otherwise rebuild everything in each of them).
 find_program(CCACHE ccache)
 if(CCACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
-  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER env "CCACHE_BASEDIR=${CMAKE_SOURCE_DIR}" CCACHE_NOHASHDIR=1
+      "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" "${CCACHE}")
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # (what ccache needs to keep results of files that use the precompiled header)
+    add_compile_options(-fpch-preprocess)
+  endif()
 endif()
 
 # --- sources -----------------------------------------------------------------
@@ -56,6 +65,10 @@ if(FAHRSIM_WASM)
     list(FILTER FAHRSIM_SOURCES INCLUDE REGEX "/src/(${layer_regex})/")
   endif()
   add_executable(fahrsim "${CMAKE_CURRENT_SOURCE_DIR}/src/app/main_web.cpp" ${FAHRSIM_SOURCES} ${FAHRSIM_WEB_SOURCES})
+  # Emscripten 3.1.74's clang (20.0.0git) crashes (signal 11) optimising render/tiles.cpp at -O2,
+  # here and on GitHub's machines alike; at -O1 it compiles.  The file loads tiles: it is not what
+  # a frame costs.  (Try again with the next Emscripten.)
+  set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/render/tiles.cpp" PROPERTIES COMPILE_OPTIONS "-O1")
   target_include_directories(fahrsim PRIVATE ${FAHRSIM_INCLUDE_DIRS})
   target_compile_options(fahrsim PRIVATE ${FAHRSIM_OPT} ${FAHRSIM_WARN} -fwasm-exceptions -sUSE_ZLIB=1)
   target_precompile_headers(fahrsim PRIVATE ${FAHRSIM_PCH})

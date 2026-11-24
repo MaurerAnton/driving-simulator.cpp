@@ -35,6 +35,13 @@
 
 namespace fs {
 
+/**
+ * A number as JavaScript writes it (`String(x)`): the shortest digits that read back as the same
+ * number, laid out plainly up to 21 digits before the point and 6 zeros after it, with an
+ * exponent beyond – 123456789012345680000, 1e+21, 0.000001, 1e-7; NaN, Infinity, -Infinity.
+ */
+std::string jsNumberText(double x);
+
 // ---------------------------------------------------------------------------
 // Reading without building anything
 // ---------------------------------------------------------------------------

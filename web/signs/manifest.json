@@ -1,0 +1,1433 @@
+{
+  "101": {
+    "title": "Gefahrstelle",
+    "commonsFile": "File:Zeichen 101 - Gefahrstelle, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_101_-_Gefahrstelle,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "102": {
+    "title": "Kreuzung oder Einmündung",
+    "commonsFile": "File:Zeichen 102 - Kreuzung oder Einmündung mit Vorfahrt von rechts, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_102_-_Kreuzung_oder_Einm%C3%BCndung_mit_Vorfahrt_von_rechts,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "103-10": {
+    "title": "Kurve – links",
+    "commonsFile": "File:Zeichen 103-10 - Kurve (links), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_103-10_-_Kurve_(links),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "103-20": {
+    "title": "Kurve – rechts",
+    "commonsFile": "File:Zeichen 103-20 - Kurve (rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_103-20_-_Kurve_(rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "105-10": {
+    "title": "Doppelkurve – zunächst links",
+    "commonsFile": "File:Zeichen 105-10 - Doppelkurve (zunächst links), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_105-10_-_Doppelkurve_(zun%C3%A4chst_links),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "105-20": {
+    "title": "Doppelkurve – zunächst rechts",
+    "commonsFile": "File:Zeichen 105-20 - Doppelkurve (zunächst rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_105-20_-_Doppelkurve_(zun%C3%A4chst_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "108-10": {
+    "title": "Gefälle 10 %",
+    "commonsFile": "File:Zeichen 108-10 - Gefälle, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_108-10_-_Gef%C3%A4lle,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "110-12": {
+    "title": "Steigung 12 %",
+    "commonsFile": "File:Zeichen 110-12 - Steigung, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_110-12_-_Steigung,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "112": {
+    "title": "Unebene Fahrbahn",
+    "commonsFile": "File:Zeichen 112 – Unebene Fahrbahn, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_112_%E2%80%93_Unebene_Fahrbahn,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "114": {
+    "title": "Schleuder- oder Rutschgefahr",
+    "commonsFile": "File:Zeichen 114 - Schleuder- oder Rutschgefahr, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_114_-_Schleuder-_oder_Rutschgefahr,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "120": {
+    "title": "Verengte Fahrbahn",
+    "commonsFile": "File:Zeichen 120 - Verengte Fahrbahn, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_120_-_Verengte_Fahrbahn,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "121-10": {
+    "title": "Einseitig verengte Fahrbahn – Verengung rechts",
+    "commonsFile": "File:Zeichen 121-10 - einseitig (rechts) verengte Fahrbahn, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_121-10_-_einseitig_(rechts)_verengte_Fahrbahn,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "121-20": {
+    "title": "Einseitig verengte Fahrbahn – Verengung links",
+    "commonsFile": "File:Zeichen 121-20 - einseitig (links) verengte Fahrbahn, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_121-20_-_einseitig_(links)_verengte_Fahrbahn,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "123": {
+    "title": "Arbeitsstelle",
+    "commonsFile": "File:Zeichen 123 - Arbeitsstelle, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_123_-_Arbeitsstelle,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "124": {
+    "title": "Stau",
+    "commonsFile": "File:Zeichen 124 - Stau, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_124_-_Stau,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "125": {
+    "title": "Gegenverkehr",
+    "commonsFile": "File:Zeichen 125 - Gegenverkehr, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_125_-_Gegenverkehr,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "131": {
+    "title": "Lichtzeichenanlage",
+    "commonsFile": "File:Zeichen 131 - Lichtzeichenanlage, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_131_-_Lichtzeichenanlage,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "133-10": {
+    "title": "Fußgänger – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 133-10 - Fußgänger (Aufstellung rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_133-10_-_Fu%C3%9Fg%C3%A4nger_(Aufstellung_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "136-10": {
+    "title": "Kinder – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 136-10 - Kinder, Aufstellung rechts, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_136-10_-_Kinder,_Aufstellung_rechts,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "138-10": {
+    "title": "Radverkehr – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 138-10 - Radverkehr, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_138-10_-_Radverkehr,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "142-10": {
+    "title": "Wildwechsel – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 142-10 - Wildwechsel, Aufstellung rechts, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_142-10_-_Wildwechsel,_Aufstellung_rechts,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "151": {
+    "title": "Bahnübergang",
+    "commonsFile": "File:Zeichen 151 - Bahnübergang, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_151_-_Bahn%C3%BCbergang,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "156-10": {
+    "title": "Bahnübergang mit dreistreifiger Bake – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 156-10 - Bahnübergang mit dreistreifiger Bake, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_156-10_-_Bahn%C3%BCbergang_mit_dreistreifiger_Bake,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 1758,
+    "shape": "other"
+  },
+  "159-10": {
+    "title": "Zweistreifige Bake – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 159-10 - zweistreifige Bake (Aufstellung rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_159-10_-_zweistreifige_Bake_(Aufstellung_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 301,
+    "height": 1001,
+    "shape": "rect"
+  },
+  "162-10": {
+    "title": "Einstreifige Bake – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 162-10 - einstreifige Bake (Aufstellung rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_162-10_-_einstreifige_Bake_(Aufstellung_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 301,
+    "height": 1001,
+    "shape": "rect"
+  },
+  "201-50": {
+    "title": "Andreaskreuz – stehend",
+    "commonsFile": "File:Andreaskreuz (ohne Maße) 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Andreaskreuz_(ohne_Ma%C3%9Fe)_1970.svg",
+    "license": "Public domain",
+    "width": 831,
+    "height": 1259,
+    "shape": "other"
+  },
+  "205": {
+    "title": "Vorfahrt gewähren",
+    "commonsFile": "File:Zeichen 205 - Vorfahrt gewähren! StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_205_-_Vorfahrt_gew%C3%A4hren!_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "206": {
+    "title": "Halt. Vorfahrt gewähren",
+    "commonsFile": "File:Zeichen 206 - Halt! Vorfahrt gewähren! StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_206_-_Halt!_Vorfahrt_gew%C3%A4hren!_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 901,
+    "height": 901,
+    "shape": "octagon"
+  },
+  "208": {
+    "title": "Vorrang des Gegenverkehrs",
+    "commonsFile": "File:Zeichen 208 - Dem Gegenverkehr Vorrang gewähren! 600x600, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_208_-_Dem_Gegenverkehr_Vorrang_gew%C3%A4hren!_600x600,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "209": {
+    "title": "Vorgeschriebene Fahrtrichtung – rechts",
+    "commonsFile": "File:Zeichen 209 - Vorgeschriebene Fahrtrichtung, rechts, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_209_-_Vorgeschriebene_Fahrtrichtung,_rechts,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "209-10": {
+    "title": "Vorgeschriebene Fahrtrichtung – links",
+    "commonsFile": "File:Zeichen 209-10 - Vorgeschriebene Fahrtrichtung, links, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_209-10_-_Vorgeschriebene_Fahrtrichtung,_links,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "209-30": {
+    "title": "Vorgeschriebene Fahrtrichtung – geradeaus",
+    "commonsFile": "File:Zeichen 209-30 - Vorgeschriebene Fahrtrichtung, Geradeaus, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_209-30_-_Vorgeschriebene_Fahrtrichtung,_Geradeaus,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "211": {
+    "title": "Vorgeschriebene Fahrtrichtung – hier rechts",
+    "commonsFile": "File:Zeichen 211 - Vorgeschriebene Fahrtrichtung, hier rechts, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_211_-_Vorgeschriebene_Fahrtrichtung,_hier_rechts,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "211-10": {
+    "title": "Vorgeschriebene Fahrtrichtung – hier links",
+    "commonsFile": "File:Zeichen 211-10 - Vorgeschriebene Fahrtrichtung, hier links, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_211-10_-_Vorgeschriebene_Fahrtrichtung,_hier_links,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "214": {
+    "title": "Vorgeschriebene Fahrtrichtung – geradeaus oder rechts",
+    "commonsFile": "File:Zeichen 214 - Vorgeschriebene Fahrtrichtung, Geradeaus oder rechts, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_214_-_Vorgeschriebene_Fahrtrichtung,_Geradeaus_oder_rechts,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "214-10": {
+    "title": "Vorgeschriebene Fahrtrichtung – geradeaus oder links",
+    "commonsFile": "File:Zeichen 214-10 - Vorgeschriebene Fahrtrichtung, Geradeaus oder links, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_214-10_-_Vorgeschriebene_Fahrtrichtung,_Geradeaus_oder_links,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "215": {
+    "title": "Kreisverkehr",
+    "commonsFile": "File:Zeichen 215 - Kreisverkehr, StVO 2000.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_215_-_Kreisverkehr,_StVO_2000.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "220-10": {
+    "title": "Einbahnstraße – linksweisend",
+    "commonsFile": "File:Zeichen 220-10 - Einbahnstraße, linksweisend, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_220-10_-_Einbahnstra%C3%9Fe,_linksweisend,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 727,
+    "height": 269,
+    "shape": "rect"
+  },
+  "220-20": {
+    "title": "Einbahnstraße – rechtsweisend",
+    "commonsFile": "File:Zeichen 220-20 - Einbahnstraße, rechtsweisend, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_220-20_-_Einbahnstra%C3%9Fe,_rechtsweisend,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 727,
+    "height": 269,
+    "shape": "rect"
+  },
+  "222": {
+    "title": "Vorgeschriebene Vorbeifahrt – rechts vorbei",
+    "commonsFile": "File:Zeichen 222 - Vorgeschriebene Vorbeifahrt, Rechts vorbei, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_222_-_Vorgeschriebene_Vorbeifahrt,_Rechts_vorbei,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "222-10": {
+    "title": "Vorgeschriebene Vorbeifahrt – links vorbei",
+    "commonsFile": "File:Zeichen 222-10 - Vorgeschriebene Vorbeifahrt, Links vorbei, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_222-10_-_Vorgeschriebene_Vorbeifahrt,_Links_vorbei,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "224": {
+    "title": "Haltestelle",
+    "commonsFile": "File:Zeichen 224 - Haltestelle, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_224_-_Haltestelle,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 883,
+    "height": 883,
+    "shape": "circle"
+  },
+  "229": {
+    "title": "Taxenstand",
+    "commonsFile": "File:Zeichen 229 - Taxenstand, StVO 1994.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_229_-_Taxenstand,_StVO_1994.svg",
+    "license": "Public domain",
+    "width": 421,
+    "height": 631,
+    "shape": "rect"
+  },
+  "237": {
+    "title": "Radweg",
+    "commonsFile": "File:Zeichen 237 - Sonderweg Radfahrer, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_237_-_Sonderweg_Radfahrer,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "239": {
+    "title": "Gehweg",
+    "commonsFile": "File:Zeichen 239 - Sonderweg Fußgänger, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_239_-_Sonderweg_Fu%C3%9Fg%C3%A4nger,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "240": {
+    "title": "Gemeinsamer Geh- und Radweg",
+    "commonsFile": "File:Zeichen 240 - Gemeinsamer Fuß- und Radweg, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_240_-_Gemeinsamer_Fu%C3%9F-_und_Radweg,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "241-30": {
+    "title": "Getrennter Rad- und Gehweg – Radweg links",
+    "commonsFile": "File:Zeichen 241-30 - getrennter Rad- und Fußweg, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_241-30_-_getrennter_Rad-_und_Fu%C3%9Fweg,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "242.1": {
+    "title": "Beginn einer Fußgängerzone",
+    "commonsFile": "File:Zeichen 242.1 - Beginn einer Fußgängerzone, StVO 2009.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_242.1_-_Beginn_einer_Fu%C3%9Fg%C3%A4ngerzone,_StVO_2009.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "242.2": {
+    "title": "Ende einer Fußgängerzone",
+    "commonsFile": "File:Zeichen 242.2 - Ende einer Fußgängerzone, StVO 2009.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_242.2_-_Ende_einer_Fu%C3%9Fg%C3%A4ngerzone,_StVO_2009.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "244.1": {
+    "title": "Beginn einer Fahrradstraße",
+    "commonsFile": "File:Zeichen 244.1 - Beginn einer Fahrradstraße, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_244.1_-_Beginn_einer_Fahrradstra%C3%9Fe,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "244.2": {
+    "title": "Ende einer Fahrradstraße",
+    "commonsFile": "File:Zeichen 244.2 - Ende einer Fahrradstraße, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_244.2_-_Ende_einer_Fahrradstra%C3%9Fe,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "245": {
+    "title": "Bussonderfahrstreifen",
+    "commonsFile": "File:Zeichen 245 - Bussonderfahrstreifen, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_245_-_Bussonderfahrstreifen,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 602,
+    "shape": "circle"
+  },
+  "250": {
+    "title": "Verbot für Fahrzeuge aller Art",
+    "commonsFile": "File:Zeichen 250 - Verbot für Fahrzeuge aller Art, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_250_-_Verbot_f%C3%BCr_Fahrzeuge_aller_Art,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "251": {
+    "title": "Verbot für Kraftwagen",
+    "commonsFile": "File:Zeichen 251 - Verbot für Kraftwagen und sonstige mehrspurige Kraftfahrzeuge, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_251_-_Verbot_f%C3%BCr_Kraftwagen_und_sonstige_mehrspurige_Kraftfahrzeuge,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "253": {
+    "title": "Verbot für Kraftfahrzeuge über 3,5 t",
+    "commonsFile": "File:Zeichen 253 - Verbot für Kraftfahrzeuge mit einem zulässigen Gesamtgewicht, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_253_-_Verbot_f%C3%BCr_Kraftfahrzeuge_mit_einem_zul%C3%A4ssigen_Gesamtgewicht,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "254": {
+    "title": "Verbot für Radverkehr",
+    "commonsFile": "File:Zeichen 254 - Verbot für Radfahrer, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_254_-_Verbot_f%C3%BCr_Radfahrer,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "255": {
+    "title": "Verbot für Krafträder",
+    "commonsFile": "File:Zeichen 255 - Verbot für Krafträder, auch mit Beiwagen, Kleinkrafträder und Mofas, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_255_-_Verbot_f%C3%BCr_Kraftr%C3%A4der,_auch_mit_Beiwagen,_Kleinkraftr%C3%A4der_und_Mofas,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "259": {
+    "title": "Verbot für Fußgänger",
+    "commonsFile": "File:Zeichen 259 - Verbot für Fußgänger, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_259_-_Verbot_f%C3%BCr_Fu%C3%9Fg%C3%A4nger,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "260": {
+    "title": "Verbot für Kraftfahrzeuge",
+    "commonsFile": "File:Zeichen 260 - Verbot für Krafträder und Mofas und sonstige mehrspurige Kraftfahrzeuge, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_260_-_Verbot_f%C3%BCr_Kraftr%C3%A4der_und_Mofas_und_sonstige_mehrspurige_Kraftfahrzeuge,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "262": {
+    "title": "Tatsächliche Masse (5,5 t)",
+    "commonsFile": "File:Zeichen 262-5,5 - Verbot für Fahrzeuge über angegebene tatsächliche Masse, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_262-5,5_-_Verbot_f%C3%BCr_Fahrzeuge_%C3%BCber_angegebene_tats%C3%A4chliche_Masse,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "264": {
+    "title": "Tatsächliche Breite (2 m)",
+    "commonsFile": "File:Zeichen 264-2 - Verbot für Fahrzeuge über angegebene tatsächliche Breite, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_264-2_-_Verbot_f%C3%BCr_Fahrzeuge_%C3%BCber_angegebene_tats%C3%A4chliche_Breite,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "265": {
+    "title": "Tatsächliche Höhe (3,8 m)",
+    "commonsFile": "File:Zeichen 265-3,8 - Verbot für Fahrzeuge über angegebene tatsächliche Höhe, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_265-3,8_-_Verbot_f%C3%BCr_Fahrzeuge_%C3%BCber_angegebene_tats%C3%A4chliche_H%C3%B6he,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "267": {
+    "title": "Verbot der Einfahrt",
+    "commonsFile": "File:Zeichen 267 - Verbot der Einfahrt, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_267_-_Verbot_der_Einfahrt,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "272": {
+    "title": "Verbot des Wendens",
+    "commonsFile": "File:Zeichen 272, Verbot des Wendens, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_272,_Verbot_des_Wendens,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-5": {
+    "title": "Zulässige Höchstgeschwindigkeit 5 km/h",
+    "commonsFile": "File:Zeichen 274-5 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-5_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-10": {
+    "title": "Zulässige Höchstgeschwindigkeit 10 km/h",
+    "commonsFile": "File:Zeichen 274-10 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-10_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-20": {
+    "title": "Zulässige Höchstgeschwindigkeit 20 km/h",
+    "commonsFile": "File:Zeichen 274-20 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-20_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-30": {
+    "title": "Zulässige Höchstgeschwindigkeit 30 km/h",
+    "commonsFile": "File:Zeichen 274-30 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-30_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-40": {
+    "title": "Zulässige Höchstgeschwindigkeit 40 km/h",
+    "commonsFile": "File:Zeichen 274-40 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-40_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-50": {
+    "title": "Zulässige Höchstgeschwindigkeit 50 km/h",
+    "commonsFile": "File:Zeichen 274-50 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-50_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-60": {
+    "title": "Zulässige Höchstgeschwindigkeit 60 km/h",
+    "commonsFile": "File:Zeichen 274-60 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-60_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-70": {
+    "title": "Zulässige Höchstgeschwindigkeit 70 km/h",
+    "commonsFile": "File:Zeichen 274-70 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-70_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-80": {
+    "title": "Zulässige Höchstgeschwindigkeit 80 km/h",
+    "commonsFile": "File:Zeichen 274-80 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-80_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-90": {
+    "title": "Zulässige Höchstgeschwindigkeit 90 km/h",
+    "commonsFile": "File:Zeichen 274-90 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-90_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-100": {
+    "title": "Zulässige Höchstgeschwindigkeit 100 km/h",
+    "commonsFile": "File:Zeichen 274-100 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-100_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-110": {
+    "title": "Zulässige Höchstgeschwindigkeit 110 km/h",
+    "commonsFile": "File:Zeichen 274-110 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-110_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-120": {
+    "title": "Zulässige Höchstgeschwindigkeit 120 km/h",
+    "commonsFile": "File:Zeichen 274-120 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-120_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274-130": {
+    "title": "Zulässige Höchstgeschwindigkeit 130 km/h",
+    "commonsFile": "File:Zeichen 274-130 - Zulässige Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274-130_-_Zul%C3%A4ssige_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "274.1": {
+    "title": "Beginn einer Tempo 30-Zone",
+    "commonsFile": "File:Zeichen 274.1 - Beginn einer Tempo 30-Zone, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274.1_-_Beginn_einer_Tempo_30-Zone,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "274.2": {
+    "title": "Ende einer Tempo 30-Zone",
+    "commonsFile": "File:Zeichen 274.2 - Ende einer Tempo 30-Zone (einseitig), StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_274.2_-_Ende_einer_Tempo_30-Zone_(einseitig),_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "276": {
+    "title": "Überholverbot für Kraftfahrzeuge aller Art",
+    "commonsFile": "File:Zeichen 276 - Überholverbot für Kraftfahrzeuge aller Art, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_276_-_%C3%9Cberholverbot_f%C3%BCr_Kraftfahrzeuge_aller_Art,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "277": {
+    "title": "Überholverbot für Kraftfahrzeuge über 3,5 t",
+    "commonsFile": "File:Zeichen 277 - Überholverbot für Kraftfahrzeuge mit einem zulässigen Gesamtgewicht über 2,8 t, einschließlich ihrer Anhänger, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_277_-_%C3%9Cberholverbot_f%C3%BCr_Kraftfahrzeuge_mit_einem_zul%C3%A4ssigen_Gesamtgewicht_%C3%BCber_2,8_t,_einschlie%C3%9Flich_ihrer_Anh%C3%A4nger,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-30": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 30 km/h",
+    "commonsFile": "File:Zeichen 278-30 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-30_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-50": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 50 km/h",
+    "commonsFile": "File:Zeichen 278-50 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-50_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-60": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 60 km/h",
+    "commonsFile": "File:Zeichen 278-60 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-60_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-70": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 70 km/h",
+    "commonsFile": "File:Zeichen 278-70 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-70_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-80": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 80 km/h",
+    "commonsFile": "File:Zeichen 278-80 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-80_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-100": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 100 km/h",
+    "commonsFile": "File:Zeichen 278-100 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-100_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "278-120": {
+    "title": "Ende der zulässigen Höchstgeschwindigkeit 120 km/h",
+    "commonsFile": "File:Zeichen 278-120 - Ende der zulässigen Höchstgeschwindigkeit, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_278-120_-_Ende_der_zul%C3%A4ssigen_H%C3%B6chstgeschwindigkeit,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "280": {
+    "title": "Ende des Überholverbots für Kraftfahrzeuge aller Art",
+    "commonsFile": "File:Zeichen 280 - Ende des Überholverbotes für Kraftfahrzeuge aller Art, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_280_-_Ende_des_%C3%9Cberholverbotes_f%C3%BCr_Kraftfahrzeuge_aller_Art,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "281": {
+    "title": "Ende des Überholverbots für Kraftfahrzeuge über 3,5 t",
+    "commonsFile": "File:Zeichen 281 - Ende des Überholverbots für Kraftfahrzeuge mit einem zulässigen Gesamtgewicht über 3,5 t, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_281_-_Ende_des_%C3%9Cberholverbots_f%C3%BCr_Kraftfahrzeuge_mit_einem_zul%C3%A4ssigen_Gesamtgewicht_%C3%BCber_3,5_t,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "282": {
+    "title": "Ende sämtlicher streckenbezogener Geschwindigkeitsbeschränkungen und Überholverbote",
+    "commonsFile": "File:Zeichen 282 - Ende sämtlicher Streckenverbote, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_282_-_Ende_s%C3%A4mtlicher_Streckenverbote,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "283": {
+    "title": "Absolutes Haltverbot",
+    "commonsFile": "File:Zeichen 283 - Absolutes Haltverbot, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_283_-_Absolutes_Haltverbot,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "283-10": {
+    "title": "Absolutes Haltverbot – Anfang – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 283-10 - Absolutes Haltverbot (Anfang), Aufstellung rechts, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_283-10_-_Absolutes_Haltverbot_(Anfang),_Aufstellung_rechts,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "283-20": {
+    "title": "Absolutes Haltverbot – Ende – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 283-20 - Absolutes Haltverbot (Ende), Aufstellung rechts, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_283-20_-_Absolutes_Haltverbot_(Ende),_Aufstellung_rechts,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "283-30": {
+    "title": "Absolutes Haltverbot – Mitte – Aufstellung rechts",
+    "commonsFile": "File:Zeichen 283-30 - Absolutes Haltverbot (Mitte), Aufstellung rechts, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_283-30_-_Absolutes_Haltverbot_(Mitte),_Aufstellung_rechts,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "286": {
+    "title": "Eingeschränktes Haltverbot",
+    "commonsFile": "File:Zeichen 286 - Eingeschränktes Halteverbot, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_286_-_Eingeschr%C3%A4nktes_Halteverbot,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "circle"
+  },
+  "290.1": {
+    "title": "Beginn eines eingeschränkten Haltverbotes für eine Zone",
+    "commonsFile": "File:Zeichen 290.1 - Beginn eines eingeschränkten Haltverbotes für eine Zone, StVO 2009.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_290.1_-_Beginn_eines_eingeschr%C3%A4nkten_Haltverbotes_f%C3%BCr_eine_Zone,_StVO_2009.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "290.2": {
+    "title": "Ende eines eingeschränkten Haltverbotes für eine Zone",
+    "commonsFile": "File:Zeichen 290.2 - Ende eines eingeschränkten Haltverbotes für eine Zone, StVO 2009.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_290.2_-_Ende_eines_eingeschr%C3%A4nkten_Haltverbotes_f%C3%BCr_eine_Zone,_StVO_2009.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "square"
+  },
+  "301": {
+    "title": "Vorfahrt",
+    "commonsFile": "File:Zeichen 301 - Vorfahrt, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_301_-_Vorfahrt,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 847,
+    "height": 744,
+    "shape": "triangle"
+  },
+  "306": {
+    "title": "Vorfahrtstraße",
+    "commonsFile": "File:Zeichen 306 - Vorfahrtstraße, StVO 1970.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_306_-_Vorfahrtstra%C3%9Fe,_StVO_1970.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "diamond"
+  },
+  "307": {
+    "title": "Ende der Vorfahrtstraße",
+    "commonsFile": "File:Zeichen 307 - Ende der Vorfahrtstraße, StVO 1981.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_307_-_Ende_der_Vorfahrtstra%C3%9Fe,_StVO_1981.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 600,
+    "shape": "diamond"
+  },
+  "308": {
+    "title": "Vorrang vor dem Gegenverkehr",
+    "commonsFile": "File:Zeichen 308 - Vorrang vor dem Gegenverkehr, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_308_-_Vorrang_vor_dem_Gegenverkehr,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 501,
+    "height": 501,
+    "shape": "square"
+  },
+  "314": {
+    "title": "Parken",
+    "commonsFile": "File:Zeichen 314 - Parken, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_314_-_Parken,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "314-10": {
+    "title": "Parken – Anfang (Aufstellung rechts) oder Ende (Aufstellung links)",
+    "commonsFile": "File:Zeichen 314-10 - Parkplatz (Anfang), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_314-10_-_Parkplatz_(Anfang),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "314-20": {
+    "title": "Parken – Ende (Aufstellung rechts) oder Anfang (Aufstellung links)",
+    "commonsFile": "File:Zeichen 314-20 - Parkplatz (Ende), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_314-20_-_Parkplatz_(Ende),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "315": {
+    "title": "Parken auf Gehwegen – halb in Fahrtrichtung rechts",
+    "commonsFile": "File:Zeichen 315-55 - Parken halb auf Gehwegen in Fahrtrichtung rechts, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_315-55_-_Parken_halb_auf_Gehwegen_in_Fahrtrichtung_rechts,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 480,
+    "height": 720,
+    "shape": "rect"
+  },
+  "325.1": {
+    "title": "Beginn eines verkehrsberuhigten Bereichs",
+    "commonsFile": "File:Zeichen 325.1 - Beginn eines verkehrsberuhigten Bereichs, StVO 2009.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_325.1_-_Beginn_eines_verkehrsberuhigten_Bereichs,_StVO_2009.svg",
+    "license": "Public domain",
+    "width": 732,
+    "height": 489,
+    "shape": "rect"
+  },
+  "325.2": {
+    "title": "Ende eines verkehrsberuhigten Bereichs",
+    "commonsFile": "File:Zeichen 325.2 - Ende eines verkehrsberuhigten Bereichs, StVO 2009.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_325.2_-_Ende_eines_verkehrsberuhigten_Bereichs,_StVO_2009.svg",
+    "license": "Public domain",
+    "width": 732,
+    "height": 489,
+    "shape": "rect"
+  },
+  "327": {
+    "title": "Tunnel",
+    "commonsFile": "File:Zeichen 327 - Tunnel, StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_327_-_Tunnel,_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "328": {
+    "title": "Nothalte- und Pannenbucht",
+    "commonsFile": "File:Zeichen 328 - Nothalte- und Pannenbucht, StVO 2006.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_328_-_Nothalte-_und_Pannenbucht,_StVO_2006.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "330.1": {
+    "title": "Autobahn",
+    "commonsFile": "File:Zeichen 330.1 - Autobahn, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_330.1_-_Autobahn,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "330.2": {
+    "title": "Ende der Autobahn",
+    "commonsFile": "File:Zeichen 330.2 - Ende der Autobahn, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_330.2_-_Ende_der_Autobahn,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "331.1": {
+    "title": "Kraftfahrstraße",
+    "commonsFile": "File:Zeichen 331.1 - Kraftfahrstraße, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_331.1_-_Kraftfahrstra%C3%9Fe,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "331.2": {
+    "title": "Ende der Kraftfahrstraße",
+    "commonsFile": "File:Zeichen 331.2 - Ende der Kraftfahrstraße, StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_331.2_-_Ende_der_Kraftfahrstra%C3%9Fe,_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "333": {
+    "title": "Ausfahrt von der Autobahn",
+    "commonsFile": "File:Zeichen 333 - Pfeilschild - Ausfahrt von der Autobahn, StVO 1980.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_333_-_Pfeilschild_-_Ausfahrt_von_der_Autobahn,_StVO_1980.svg",
+    "license": "Public domain",
+    "width": 3161,
+    "height": 821,
+    "shape": "other"
+  },
+  "350": {
+    "title": "Fußgängerüberweg",
+    "commonsFile": "File:Zeichen 350-10 - Fußgängerüberweg (rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_350-10_-_Fu%C3%9Fg%C3%A4nger%C3%BCberweg_(rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "357": {
+    "title": "Sackgasse",
+    "commonsFile": "File:Zeichen 357 - Sackgasse, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_357_-_Sackgasse,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "450-50": {
+    "title": "Ankündigungsbake – einstreifig (100 m)",
+    "commonsFile": "File:Zeichen 450-50 - Ankündigungsbake einstreifig (100 m), StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_450-50_-_Ank%C3%BCndigungsbake_einstreifig_(100_m),_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 652,
+    "height": 1501,
+    "shape": "rect"
+  },
+  "450-51": {
+    "title": "Ankündigungsbake – zweistreifig (200 m)",
+    "commonsFile": "File:Zeichen 450-51 - Ankündigungsbake zweistreifig (200 m), StVO 2013.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_450-51_-_Ank%C3%BCndigungsbake_zweistreifig_(200_m),_StVO_2013.svg",
+    "license": "Public domain",
+    "width": 695,
+    "height": 1602,
+    "shape": "rect"
+  },
+  "720": {
+    "title": "Grünpfeilschild",
+    "commonsFile": "File:Zeichen 720 - Grünpfeil, StVO 1994.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zeichen_720_-_Gr%C3%BCnpfeil,_StVO_1994.svg",
+    "license": "Public domain",
+    "width": 650,
+    "height": 650,
+    "shape": "square"
+  },
+  "1000-10": {
+    "title": "Richtung, linksweisend",
+    "commonsFile": "File:Zusatzzeichen 1000-10 - Richtungsangaben durch Pfeile, linksweisend, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1000-10_-_Richtungsangaben_durch_Pfeile,_linksweisend,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1000-11": {
+    "title": "Vorankündigung, linksweisend",
+    "commonsFile": "File:Zusatzzeichen 1000-11 - Richtung der Gefahrstelle, linksweisend, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1000-11_-_Richtung_der_Gefahrstelle,_linksweisend,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1000-20": {
+    "title": "Richtung, rechtsweisend",
+    "commonsFile": "File:Zusatzzeichen 1000-20 - Richtungsangaben durch Pfeile, rechtsweisend, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1000-20_-_Richtungsangaben_durch_Pfeile,_rechtsweisend,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1000-21": {
+    "title": "Vorankündigung, rechtsweisend",
+    "commonsFile": "File:Zusatzzeichen 1000-21 - Richtung der Gefahrstelle, rechtsweisend, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1000-21_-_Richtung_der_Gefahrstelle,_rechtsweisend,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1000-30": {
+    "title": "Beide Richtungen, zwei gegengerichtete waagerechte Pfeile",
+    "commonsFile": "File:Zusatzzeichen 1000-30 - beide Richtungen, zwei gegengerichtete waagerechte Pfeile, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1000-30_-_beide_Richtungen,_zwei_gegengerichtete_waagerechte_Pfeile,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1001-30": {
+    "title": "Auf ... m (800 m)",
+    "commonsFile": "File:Zusatzzeichen 1001-30 - auf ... m, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1001-30_-_auf_..._m,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1002-10": {
+    "title": "Verlauf der Vorfahrtstraße an Kreuzungen – von unten nach links",
+    "commonsFile": "File:Zusatzzeichen 1002-10 - Verlauf der Vorfahrtsstraße an Kreuzungen (von unten nach links), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-10_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Kreuzungen_(von_unten_nach_links),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-11": {
+    "title": "Verlauf der Vorfahrtstraße an Kreuzungen – von oben nach links",
+    "commonsFile": "File:Zusatzzeichen 1002-11 - Verlauf der Vorfahrtsstraße an Kreuzungen (von oben nach links), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-11_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Kreuzungen_(von_oben_nach_links),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-12": {
+    "title": "Verlauf der Vorfahrtstraße an Einmündungen – von unten nach links, Einmündung von oben",
+    "commonsFile": "File:Zusatzzeichen 1002-12 - Verlauf der Vorfahrtsstraße an Einmündungen (von unten nach links, Fall 1), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-12_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Einm%C3%BCndungen_(von_unten_nach_links,_Fall_1),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-13": {
+    "title": "Verlauf der Vorfahrtstraße an Einmündungen – von unten nach links, Einmündung von rechts",
+    "commonsFile": "File:Zusatzzeichen 1002-13 - Verlauf der Vorfahrtsstraße an Einmündungen (von unten nach links, Fall 2), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-13_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Einm%C3%BCndungen_(von_unten_nach_links,_Fall_2),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-14": {
+    "title": "Verlauf der Vorfahrtstraße an Einmündungen – von oben nach links, Einmündung von unten",
+    "commonsFile": "File:Zusatzzeichen 1002-14.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-14.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-20": {
+    "title": "Verlauf der Vorfahrtstraße an Kreuzungen – von unten nach rechts",
+    "commonsFile": "File:Zusatzzeichen 1002-20 - Verlauf der Vorfahrtsstraße an Kreuzungen (von unten nach rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-20_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Kreuzungen_(von_unten_nach_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-21": {
+    "title": "Verlauf der Vorfahrtstraße an Kreuzungen – von oben nach rechts",
+    "commonsFile": "File:Zusatzzeichen 1002-21 - Verlauf der Vorfahrtsstraße an Kreuzungen (von oben nach rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-21_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Kreuzungen_(von_oben_nach_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-22": {
+    "title": "Verlauf der Vorfahrtstraße an Einmündungen – von unten nach rechts, Einmündung von oben",
+    "commonsFile": "File:Zusatzzeichen 1002-22 - Verlauf der Vorfahrtsstraße an Einmündungen (von unten nach rechts, Fall 1), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-22_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Einm%C3%BCndungen_(von_unten_nach_rechts,_Fall_1),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-23": {
+    "title": "Verlauf der Vorfahrtstraße an Einmündungen – von unten nach rechts, Einmündung von links",
+    "commonsFile": "File:Zusatzzeichen 1002-23 - Verlauf der Vorfahrtsstraße an Einmündungen (von unten nach rechts, Fall 2), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-23_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Einm%C3%BCndungen_(von_unten_nach_rechts,_Fall_2),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1002-24": {
+    "title": "Verlauf der Vorfahrtstraße an Einmündungen – von oben nach rechts, Einmündung von unten",
+    "commonsFile": "File:Zusatzzeichen 1002-24 - Verlauf der Vorfahrtsstraße an Einmündungen (von oben nach rechts), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1002-24_-_Verlauf_der_Vorfahrtsstra%C3%9Fe_an_Einm%C3%BCndungen_(von_oben_nach_rechts),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1004-30": {
+    "title": "Entfernungsangabe in m (100 m)",
+    "commonsFile": "File:Zusatzzeichen 1004-30 - nach 100 m, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1004-30_-_nach_100_m,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1004-32": {
+    "title": "Entfernungsangabe in m (200 m)",
+    "commonsFile": "File:Zusatzzeichen 1004-32 - nach 200 m, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1004-32_-_nach_200_m,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1008-30": {
+    "title": "Vorfahrt geändert",
+    "commonsFile": "File:Zusatzzeichen 1008-30 - Vorfahrt geändert (600x330), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1008-30_-_Vorfahrt_ge%C3%A4ndert_(600x330),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1010-52": {
+    "title": "Radverkehr",
+    "commonsFile": "File:Zusatzzeichen 1010-52 - Radverkehr (600x330), StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1010-52_-_Radverkehr_(600x330),_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1010-58": {
+    "title": "Personenkraftwagen",
+    "commonsFile": "File:Zusatzzeichen 1010-58 - Personenkraftwagen (600x330), StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1010-58_-_Personenkraftwagen_(600x330),_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1012-30": {
+    "title": "Anfang",
+    "commonsFile": "File:Zusatzzeichen 1012-30 - Anfang, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1012-30_-_Anfang,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1012-31": {
+    "title": "Ende",
+    "commonsFile": "File:Zusatzzeichen 1012-31 - Ende (600x330), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1012-31_-_Ende_(600x330),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1012-32": {
+    "title": "Radfahrer absteigen",
+    "commonsFile": "File:Zusatzzeichen 1012-32 - Radfahrer absteigen (420x231), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1012-32_-_Radfahrer_absteigen_(420x231),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 421,
+    "height": 232,
+    "shape": "rect"
+  },
+  "1020-12": {
+    "title": "Radverkehr und Anlieger frei",
+    "commonsFile": "File:Zusatzzeichen 1020-12 - Radfahrer und Anlieger frei (450x600), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1020-12_-_Radfahrer_und_Anlieger_frei_(450x600),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 450,
+    "shape": "rect"
+  },
+  "1020-30": {
+    "title": "Anlieger frei",
+    "commonsFile": "File:Zusatzzeichen 1020-30 - Anlieger frei (600x330), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1020-30_-_Anlieger_frei_(600x330),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 602,
+    "height": 331,
+    "shape": "rect"
+  },
+  "1022-10": {
+    "title": "Radverkehr frei",
+    "commonsFile": "File:Zusatzzeichen 1022-10 - Radfahrer frei, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1022-10_-_Radfahrer_frei,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 450,
+    "shape": "rect"
+  },
+  "1024-10": {
+    "title": "Personenkraftwagen frei",
+    "commonsFile": "File:Zusatzzeichen 1024-10 - Personenkraftwagen frei, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1024-10_-_Personenkraftwagen_frei,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 450,
+    "shape": "rect"
+  },
+  "1026-35": {
+    "title": "Lieferverkehr frei",
+    "commonsFile": "File:Zusatzzeichen 1026-35 - Lieferverkehr frei, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1026-35_-_Lieferverkehr_frei,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 451,
+    "shape": "rect"
+  },
+  "1026-36": {
+    "title": "Landwirtschaftlicher Verkehr frei",
+    "commonsFile": "File:Zusatzzeichen 1026-36 - Landwirtschaftlicher Verkehr frei (450x600), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1026-36_-_Landwirtschaftlicher_Verkehr_frei_(450x600),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 451,
+    "shape": "rect"
+  },
+  "1026-38": {
+    "title": "Land- und forstwirtschaftlicher Verkehr frei",
+    "commonsFile": "File:Zusatzzeichen 1026-38 - Land- und forstwirtschaftlicher Verkehr frei (450x600), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1026-38_-_Land-_und_forstwirtschaftlicher_Verkehr_frei_(450x600),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 451,
+    "shape": "rect"
+  },
+  "1040-30": {
+    "title": "Zeitliche Beschränkung (16 – 18 h)",
+    "commonsFile": "File:Zusatzzeichen 1040-30 - Zeitliche Beschränkung (16 - 18 h), 330x600, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1040-30_-_Zeitliche_Beschr%C3%A4nkung_(16_-_18_h),_330x600,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 331,
+    "shape": "rect"
+  },
+  "1042-33": {
+    "title": "Zeitliche Beschränkung (Montag – Freitag, 16 – 18 h)",
+    "commonsFile": "File:Zusatzzeichen 1042-33 - Mo - Fr, 16 - 18 h (600x330), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1042-33_-_Mo_-_Fr,_16_-_18_h_(600x330),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1048-12": {
+    "title": "Nur Kraftfahrzeuge mit einer zulässigen Gesamtmasse über 3,5 t, einschließlich ihrer Anhänger, und Zugmaschinen, ausgenommen Personenkraftwagen und Kraftomnibusse",
+    "commonsFile": "File:Zusatzzeichen 1048-12 - nur Kraftfahrzeuge mit einem zulässigen Gesamtgewicht über 2,8 t, einschließlich ihrer Anhänger, und Zugmaschinen, ausgenommen Personenkraftwagen und Kraftomnibusse, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1048-12_-_nur_Kraftfahrzeuge_mit_einem_zul%C3%A4ssigen_Gesamtgewicht_%C3%BCber_2,8_t,_einschlie%C3%9Flich_ihrer_Anh%C3%A4nger,_und_Zugmaschinen,_ausgenommen_Personenkraftwagen_und_Kraftomnibusse,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 600,
+    "height": 330,
+    "shape": "rect"
+  },
+  "1052-35": {
+    "title": "Gewichtsangabe (7,5 t)",
+    "commonsFile": "File:Zusatzzeichen 1052-35 - Gewichtsangabe (7,5 t), StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1052-35_-_Gewichtsangabe_(7,5_t),_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 420,
+    "height": 231,
+    "shape": "rect"
+  },
+  "1052-36": {
+    "title": "Bei Nässe",
+    "commonsFile": "File:Zusatzzeichen 1052-36 - bei Nässe, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1052-36_-_bei_N%C3%A4sse,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 601,
+    "height": 601,
+    "shape": "square"
+  },
+  "1053-33": {
+    "title": "Massenangabe – 7,5 t",
+    "commonsFile": "File:Zusatzzeichen 1053-33 - Massenangabe – 7,5 t (420x231), StVO 2017.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1053-33_-_Massenangabe_%E2%80%93_7,5_t_(420x231),_StVO_2017.svg",
+    "license": "Public domain",
+    "width": 421,
+    "height": 232,
+    "shape": "rect"
+  },
+  "1060-11": {
+    "title": "Auch Fahrräder und Mofas",
+    "commonsFile": "File:Zusatzzeichen 1060-11 - auch Fahrräder und Mofas, StVO 1992.svg",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File:Zusatzzeichen_1060-11_-_auch_Fahrr%C3%A4der_und_Mofas,_StVO_1992.svg",
+    "license": "Public domain",
+    "width": 330,
+    "height": 600,
+    "shape": "rect"
+  }
+}
