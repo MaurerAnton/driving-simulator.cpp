@@ -362,6 +362,14 @@ addToLibrary({
   fsd_exit_fullscreen: function () {
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
   },
+  fsd_handle_limit__deps: ['$FSD'],
+  fsd_handle_limit: function () {
+    return FSD.els.length;
+  },
+  fsd_forget_listener__deps: ['$FSD'],
+  fsd_forget_listener: function (id) {
+    delete FSD.fns[id];
+  },
   /** which handles are in the page now: writes a byte (1/0) for each handle up to `n` */
   fsd_connected_map__deps: ['$FSD'],
   fsd_connected_map: function (out, n) {

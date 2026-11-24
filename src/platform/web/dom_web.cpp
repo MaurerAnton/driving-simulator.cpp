@@ -6,6 +6,7 @@
  */
 #include <emscripten.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -60,6 +61,10 @@ void fsd_pointer_capture(int h, int id, int on);
 int fsd_has_pointer_capture(int h, int id);
 int fsd_document_element(const char* which);
 void fsd_exit_fullscreen();
+int fsd_handle_limit();
+void fsd_connected_map(uint8_t* out, int n);
+void fsd_tree_map(int* out, int n);
+void fsd_forget_listener(int id);
 }
 
 namespace fs::dom {
@@ -172,6 +177,19 @@ int documentElementOf(const char* which) {
   return fsd_document_element(which);
 }
 void exitFullscreen() { fsd_exit_fullscreen(); }
+
+int handleLimit() { return fsd_handle_limit(); }
+int refCount(int h) {
+  auto& r = refs();
+  return static_cast<size_t>(h) < r.size() ? r[static_cast<size_t>(h)] : 0;
+}
+void liveness(int limit, std::vector<uint8_t>& connected, std::vector<int>& tree) {
+  connected.assign(static_cast<size_t>(limit), 0);
+  tree.assign(static_cast<size_t>(limit), 0);
+  fsd_connected_map(connected.data(), limit);
+  fsd_tree_map(tree.data(), limit);
+}
+void forgetListener(int listener) { fsd_forget_listener(listener); }
 
 }  // namespace backend
 
