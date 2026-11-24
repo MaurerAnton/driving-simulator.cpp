@@ -192,7 +192,7 @@ int main() {
   }
 
   // --- the countries ---
-  assert(o.countries.size() >= 25 && o.countries.size() <= 45);
+  assert(o.countries.size() >= 40 && o.countries.size() <= 70);
   Counts n;
   for (size_t i = 0; i < o.countries.size(); i++) {
     const OutlineCountry& c = o.countries[i];
@@ -216,7 +216,7 @@ int main() {
   const int landRings = n.rings;
 
   // --- the lakes ---
-  assert(o.lakes.size() >= 50 && o.lakes.size() <= 400);
+  assert(o.lakes.size() >= 50 && o.lakes.size() <= 700);
   for (const OutlineLake& lake : o.lakes) checkRings(lake.rings, lake.box, o, n);
   assert(inALake(o, 47.62, 9.38));    // Lake Constance, off Friedrichshafen
   assert(inALake(o, 46.45, 6.55));    // Lake Geneva, off Lausanne
@@ -228,7 +228,7 @@ int main() {
   assert(landRings >= 150 && landRings <= 1500);
   assert(n.rings >= 250 && n.rings <= 2500);
   assert(n.holes >= 2);   // (San Marino and the Vatican in Italy, at least)
-  assert(n.points >= 10000 && n.points <= 60000);
+  assert(n.points >= 10000 && n.points <= 120000);
   assert(n.farRings >= 50 && n.farRings < n.rings);
   assert(n.farPoints >= 1500 && n.farPoints * 2 <= n.points);
 

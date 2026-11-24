@@ -16,7 +16,7 @@
 // region fills the screen, a coast is not where the region's own roads say it is.)
 //
 //   node tools/build-outline.mjs [--out web/data/outline.bin] [--cache build/natural-earth]
-//        [--box -700,-1700,800,1300]   the frame, in km (minX,minZ,maxX,maxZ)
+//        [--box -1800,-2600,1900,1800] the frame, in km (minX,minZ,maxX,maxZ): Europe from Ireland to Belarus, Norway to Tunisia
 //        [--tolerance 300]             how far a line may be moved, in metres
 //        [--far 2000]                  the same for the far level
 //        [--lakes 30] [--far-lakes 150]  the smallest lake kept, in km²
@@ -1033,7 +1033,7 @@ async function main() {
   const target = resolve(arg('--out', join(here, '../web/data/outline.bin')));
   const opt = {
     unit: 50,
-    box: arg('--box', '-700,-1700,800,1300').split(',').map((km) => Number(km) * 1000),
+    box: arg('--box', '-1800,-2600,1900,1800').split(',').map((km) => Number(km) * 1000),
     tolerance: Number(arg('--tolerance', '300')),
     farTolerance: Number(arg('--far', '2000')),
     lakeMin: Number(arg('--lakes', '30')),
