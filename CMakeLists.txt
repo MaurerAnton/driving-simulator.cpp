@@ -89,6 +89,8 @@ if(FAHRSIM_WASM)
     "SHELL:-s EXIT_RUNTIME=0"
     "SHELL:-s EXPORTED_RUNTIME_METHODS=['UTF8ToString','stringToUTF8','lengthBytesUTF8','HEAPU8','HEAPF32','HEAPF64','HEAP32']"
     "SHELL:-s EXPORTED_FUNCTIONS=['_main','_malloc','_free']"
+    # (an uncaught C++ exception is written to the console with its message: getExceptionMessage)
+    "SHELL:-s EXPORT_EXCEPTION_HANDLING_HELPERS=1"
     "SHELL:-s ASSERTIONS=0"
     )
   # the browser's side of the host layer: every src/platform/web/library_*.js

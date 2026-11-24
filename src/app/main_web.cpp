@@ -324,6 +324,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE int fs_ready() { return viewerReady || (game && 
 EM_JS(void, hookPage, (), {
   window.__fs.info = function () { return JSON.parse(UTF8ToString(_fs_info())); };
   Object.defineProperty(window.__fs, 'ready', { get: function () { return _fs_ready() !== 0; }, set: function () {}, configurable: true });
+  // an uncaught C++ exception: its type and message, not just "Exception"
+  window.addEventListener('error', function (ev) {
+    try {
+      if (ev.error && typeof WebAssembly.Exception === 'function' && ev.error instanceof WebAssembly.Exception)
+        console.error('C++ exception: ' + getExceptionMessage(ev.error).join(': '));
+    } catch (e) {}
+  });
 });
 
 int main() {

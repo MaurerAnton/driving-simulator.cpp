@@ -10,8 +10,10 @@ addToLibrary({
   $FSI: {
     error: '',
     /** the formatters made so far, by kind + locale + options (making one is slow, using one is not) */
-    made: new Map(),
+    // (made on first use: the library's objects are copied as text, a Map would arrive as {})
+    made: null,
     get(kind, locale, options) {
+      if (!FSI.made) FSI.made = new Map();
       const key = kind + '|' + locale + '|' + options;
       let f = FSI.made.get(key);
       if (!f) {
