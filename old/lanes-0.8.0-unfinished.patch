@@ -1,0 +1,749 @@
+diff --git a/src/world/lanes.cpp b/src/world/lanes.cpp
+index 5991f5c..3606170 100644
+--- a/src/world/lanes.cpp
++++ b/src/world/lanes.cpp
+@@ -167,18 +167,35 @@ class MinHeap {
+ // ---------------------------------------------------------------------------
+ 
+ LaneGraph::LaneGraph(World& world_) : world(world_) {
+-  buildLanes();
+-  // every lane of every edge can reach every other lane at its two junctions
++  for (auto& e : world.edges())
++    if (e.id >= 0 && !e.pl.cum.empty()) addEdge(e);
++  // The lanes and the paths keep pointers to each other, so their vectors must
++  // never move: reserve everything the map can need up front (the lanes of
++  // every road, and every lane's turns through every junction).
++  size_t totalLanes = 0;
+   size_t totalConnectors = 0;
+-  for (const auto& group : edgeLanes)
+-    totalConnectors += (group.fwd.size() + group.back.size()) * 8;
+-  connectors.reserve(totalConnectors);
++  for (const auto& e : world.edges()) {
++    const size_t n = static_cast<size_t>(e.lanesF + e.lanesB);
++    totalLanes += n;
++    totalConnectors += n * 8;
++  }
++  lanes.reserve(totalLanes + 4096);
++  live_.reserve(totalLanes + 4096);
++  edgeLanes.reserve(world.edges().size() + 64);
++  connectors.reserve(totalConnectors + 8192);
++  livePaths_.reserve(totalConnectors + 8192);
+   buildConnectors();
+   // The conflicts of a junction are worked out once, when one of its paths is
+   // first asked (the original's JunctionPath getters ask the graph).  Here the
+   // reads go straight to the Connector, so every junction is resolved up front
+   // – the same result, at the same moment the graph is built.
+   resolveAll();
++  // the numbers the live lanes and paths keep: as the JS counters would leave them
++  live_.assign(lanes.size(), nullptr);
++  for (auto& lane : lanes) live_[static_cast<size_t>(lane.id)] = &lane;
++  nextLane_ = static_cast<int>(lanes.size());
++  for (auto& c : connectors) livePaths_.push_back(&c);
++  nextPath_ = static_cast<int>(connectors.size());
+ }
+ 
+ PolySample lanePoint(const Lane& lane, double d, PolySample out) {
+@@ -195,88 +212,147 @@ PolySample lanePoint(const Lane& lane, double d, PolySample out) {
+   return out;
+ }
+ 
+-void LaneGraph::buildLanes() {
+-  // the lanes keep pointers to each other (from/to/armTo) and to the edges
+-  // and arms, so the vectors are sized up front and never reallocate
+-  size_t totalLanes = 0;
+-  for (const auto& e : world.edges())
+-    totalLanes += static_cast<size_t>(e.lanesF + e.lanesB);
+-  lanes.reserve(totalLanes);
+-  edgeLanes.reserve(world.edges().size());
+-
+-  for (auto& e : world.edges()) {
+-    EdgeLanes group;
+-    double W = e.width;
+-    double oR = -W / 2 + e.margin;
+-    double oD = oR + e.lanesF * e.laneW;
+-    double sA = e.cutA;
+-    double sB = e.len - e.cutB;
+-    double len = std::max(0.0, sB - sA);
+-    for (int k = 0; k < e.lanesF; k++) {
+-      Lane lane;
+-      lane.id = static_cast<int>(lanes.size());
+-      lane.edge = &e;
+-      lane.dir = 1;
+-      lane.idx = k;
+-      lane.count = e.lanesF;
+-      lane.off = oR + (k + 0.5) * e.laneW;
+-      lane.width = e.laneW;
+-      lane.s0 = sA;
+-      lane.s1 = sB;
+-      lane.len = len;
+-      lane.from = e.a;
+-      lane.to = e.b;
+-      lane.armTo = e.armB;
+-      lane.armFrom = e.armA;
+-      lane.limit = e.maxF > 0 ? e.maxF / 3.6 : std::numeric_limits<double>::infinity();
+-      lane.stopAt = std::max(0.0, len - std::max(0.0, e.armB->stopS - e.cutB));
+-      lanes.push_back(std::move(lane));
+-      group.fwd.push_back(&lanes.back());
+-    }
+-    for (int k = 0; k < e.lanesB; k++) {
+-      // right-most backward lane is the left-most seen along a→b
+-      double off = e.lanesF > 0 ? W / 2 - e.margin - (k + 0.5) * e.laneW
+-                                : oD + (e.lanesB - k - 0.5) * e.laneW;
+-      Lane lane;
+-      lane.id = static_cast<int>(lanes.size());
+-      lane.edge = &e;
+-      lane.dir = -1;
+-      lane.idx = k;
+-      lane.count = e.lanesB;
+-      lane.off = off;
+-      lane.width = e.laneW;
+-      lane.s0 = sB;
+-      lane.s1 = sA;
+-      lane.len = len;
+-      lane.from = e.b;
+-      lane.to = e.a;
+-      lane.armTo = e.armA;
+-      lane.armFrom = e.armB;
+-      lane.limit = e.maxB > 0 ? e.maxB / 3.6 : std::numeric_limits<double>::infinity();
+-      lane.stopAt = std::max(0.0, len - std::max(0.0, e.armA->stopS - e.cutA));
+-      lanes.push_back(std::move(lane));
+-      group.back.push_back(&lanes.back());
++void LaneGraph::addEdge(Edge& e) {
++  if (e.pl.pts.empty()) return;  // its centreline never arrived: no lanes to derive
++  if (static_cast<size_t>(e.id) < edgeLanes.size() &&
++      !(edgeLanes[static_cast<size_t>(e.id)].fwd.empty() &&
++        edgeLanes[static_cast<size_t>(e.id)].back.empty()))
++    return;  // TS: `if (this.edgeLanes[e.id]) return;`
++  if (static_cast<size_t>(e.id) >= edgeLanes.size())
++    edgeLanes.resize(static_cast<size_t>(e.id) + 1);
++  EdgeLanes group;
++  double W = e.width;
++  double oR = -W / 2 + e.margin;
++  double oD = oR + e.lanesF * e.laneW;
++  double sA = e.cutA;
++  double sB = e.len - e.cutB;
++  double len = std::max(0.0, sB - sA);
++  auto takeLaneId = [&]() {
++    if (!freeLanes_.empty()) {
++      const int id = freeLanes_.back();
++      freeLanes_.pop_back();
++      return id;
+     }
+-    edgeLanes.push_back(std::move(group));
++    return nextLane_++;
++  };
++  for (int k = 0; k < e.lanesF; k++) {
++    Lane lane;
++    lane.id = takeLaneId();
++    lane.edge = &e;
++    lane.dir = 1;
++    lane.idx = k;
++    lane.count = e.lanesF;
++    lane.off = oR + (k + 0.5) * e.laneW;
++    lane.width = e.laneW;
++    lane.s0 = sA;
++    lane.s1 = sB;
++    lane.len = len;
++    lane.from = e.a;
++    lane.to = e.b;
++    lane.armTo = e.armB;
++    lane.armFrom = e.armA;
++    lane.limit = e.maxF > 0 ? e.maxF / 3.6 : std::numeric_limits<double>::infinity();
++    // (the stop line comes with the junction's own record: completeNodePaths sets it)
++    lane.stopAt = len;
++    if (static_cast<size_t>(lane.id) >= lanes.size())
++      lanes.resize(static_cast<size_t>(lane.id) + 1);
++    lanes[static_cast<size_t>(lane.id)] = std::move(lane);
++    if (static_cast<size_t>(lane.id) >= live_.size()) live_.resize(static_cast<size_t>(lane.id) + 1);
++    live_[static_cast<size_t>(lane.id)] = &lanes[static_cast<size_t>(lane.id)];
++    group.fwd.push_back(&lanes[static_cast<size_t>(lane.id)]);
+   }
++  for (int k = 0; k < e.lanesB; k++) {
++    // right-most backward lane is the left-most seen along a→b
++    double off = e.lanesF > 0 ? W / 2 - e.margin - (k + 0.5) * e.laneW
++                              : oD + (e.lanesB - k - 0.5) * e.laneW;
++    Lane lane;
++    lane.id = takeLaneId();
++    lane.edge = &e;
++    lane.dir = -1;
++    lane.idx = k;
++    lane.count = e.lanesB;
++    lane.off = off;
++    lane.width = e.laneW;
++    lane.s0 = sB;
++    lane.s1 = sA;
++    lane.len = len;
++    lane.from = e.b;
++    lane.to = e.a;
++    lane.armTo = e.armA;
++    lane.armFrom = e.armB;
++    lane.limit = e.maxB > 0 ? e.maxB / 3.6 : std::numeric_limits<double>::infinity();
++    lane.stopAt = len;
++    if (static_cast<size_t>(lane.id) >= lanes.size())
++      lanes.resize(static_cast<size_t>(lane.id) + 1);
++    lanes[static_cast<size_t>(lane.id)] = std::move(lane);
++    if (static_cast<size_t>(lane.id) >= live_.size()) live_.resize(static_cast<size_t>(lane.id) + 1);
++    live_[static_cast<size_t>(lane.id)] = &lanes[static_cast<size_t>(lane.id)];
++    group.back.push_back(&lanes[static_cast<size_t>(lane.id)]);
++  }
++  edgeLanes[static_cast<size_t>(e.id)] = std::move(group);
+ }
+ 
+ std::vector<Lane*> LaneGraph::lanesInto(const Arm& arm) {
++  if (arm.edge->id < 0 || static_cast<size_t>(arm.edge->id) >= edgeLanes.size()) return {};
+   const EdgeLanes& el = edgeLanes[static_cast<size_t>(arm.edge->id)];
+   return arm.out ? el.back : el.fwd;
+ }
+ 
+ std::vector<Lane*> LaneGraph::lanesOutOf(const Arm& arm) {
++  if (arm.edge->id < 0 || static_cast<size_t>(arm.edge->id) >= edgeLanes.size()) return {};
+   const EdgeLanes& el = edgeLanes[static_cast<size_t>(arm.edge->id)];
+   return arm.out ? el.fwd : el.back;
+ }
+ 
+ void LaneGraph::addConnector(Node& node, Lane& from, Lane& to, int turn) {
++  // (the junction path is built from both centrelines: a road whose polyline
++  //  never came has none to build from)
++  // (the junction path is built from both centrelines: only lanes of roads
++  //  whose polyline came take part)
++  // (the junction path is built from both centrelines: only roads whose
++  //  centreline came take part, and only the lanes they really carry)
++  // (the junction path is built from both centrelines: only roads that are
++  //  really there take part, looked up by their number in the world)
++  auto roadOf = [&](int id) -> const Edge* {
++    if (id < 0 || static_cast<size_t>(id) >= world.edges().size()) return nullptr;
++    const Edge& e = world.edges()[static_cast<size_t>(id)];
++    return e.id == id ? &e : nullptr;
++  };
++  if (!from.edge || !to.edge) return;
++  const Edge* fe = roadOf(from.edge->id);
++  const Edge* te = roadOf(to.edge->id);
++  if (!fe || !te) return;
++  if (fe->pl.pts.empty() || te->pl.pts.empty()) return;
++  if (!fe->a || !fe->b || !te->a || !te->b) return;
++  auto liveList = [&](const Edge& e, int dir) -> const std::vector<Lane*>* {
++    if (e.id < 0 || static_cast<size_t>(e.id) >= edgeLanes.size()) return nullptr;
++    const EdgeLanes& el = edgeLanes[static_cast<size_t>(e.id)];
++    return dir > 0 ? &el.fwd : &el.back;
++  };
++  const std::vector<Lane*>* fl = liveList(*fe, from.dir);
++  const std::vector<Lane*>* tl = liveList(*te, to.dir);
++  if (!fl || !tl) return;
++  if (std::find(fl->begin(), fl->end(), &from) == fl->end()) return;
++  if (std::find(tl->begin(), tl->end(), &to) == tl->end()) return;
++  std::printf("DBG pass1: from.dir=%d to.dir=%d | before: A=%f B=%f\n", from.dir, to.dir, from.len, to.len);
++  std::fflush(stdout);
++  if (fe->id < 0 || static_cast<size_t>(fe->id) >= edgeLanes.size()) return;
++  if (te->id < 0 || static_cast<size_t>(te->id) >= edgeLanes.size()) return;
++  auto known = [&](const Lane& l) -> bool {
++    if (l.id < 0 || static_cast<size_t>(l.id) >= live_.size()) return false;
++    return live_[static_cast<size_t>(l.id)] == &l;
++  };
++  if (!known(from) || !known(to)) return;
+   gTmpA = lanePoint(from, from.len, gTmpA);
+   gTmpB = lanePoint(to, 0, gTmpB);
++  std::printf("DBG pass1b: after lanePoint A=%f B=%f ax=%f az=%f bx=%f bz=%f\n", from.len, to.len,
++              gTmpA.x, gTmpA.z, gTmpB.x, gTmpB.z);
++  std::fflush(stdout);
+   double ax = gTmpA.x, az = gTmpA.z;
+   double bx = gTmpB.x, bz = gTmpB.z;
+   double dist = std::hypot(bx - ax, bz - az);
++  std::printf("DBG dist=%f\n", dist);
++  std::fflush(stdout);
+   std::vector<double> pts;
+   if (dist < 0.3) {
+     pts = {ax, world.planeY(node, ax, az), az, bx, world.planeY(node, bx, bz), bz};
+@@ -295,22 +371,55 @@ void LaneGraph::addConnector(Node& node, Lane& from, Lane& to, int turn) {
+       pts.push_back(z);
+     }
+   }
++  std::printf("DBG c begin\n");
++  std::fflush(stdout);
+   Connector c;
+-  c.id = static_cast<int>(connectors.size());
+-  pathsAt_[node.id].push_back(c.id);
++  int id;
++  if (freePaths_.empty()) {
++    id = nextPath_++;
++  } else {
++    id = freePaths_.back();
++    freePaths_.pop_back();
++  }
++  c.id = id;
++  std::printf("DBG c id=%d\n", id);
++  std::fflush(stdout);
+   c.node = &node;
+   c.from = &from;
+   c.to = &to;
+   c.turn = turn;
++  std::printf("DBG makePolyline pts=%zu\n", pts.size());
++  std::fflush(stdout);
+   c.pl = makePolyline(pts);
+   c.len = c.pl.len;
+-  connectors.push_back(std::move(c));
+-  from.out.push_back(&connectors.back());
+-  to.in.push_back(&connectors.back());
++  std::printf("DBG made len=%f\n", c.len);
++  std::fflush(stdout);
++  if (static_cast<size_t>(id) >= connectors.size())
++    connectors.resize(static_cast<size_t>(id) + 1);
++  connectors[static_cast<size_t>(id)] = std::move(c);
++  if (static_cast<size_t>(id) >= livePaths_.size())
++    livePaths_.resize(static_cast<size_t>(id) + 1);
++  livePaths_[static_cast<size_t>(id)] = &connectors[static_cast<size_t>(id)];
++  pathsAt_[node.id].push_back(id);
++  from.out.push_back(&connectors[static_cast<size_t>(id)]);
++  to.in.push_back(&connectors[static_cast<size_t>(id)]);
++  // (the lists hold pointers into the vector: a later resize would move them,
++  //  so the vectors are reserved to hold everything of the whole map)
+ }
+ 
+ void LaneGraph::buildConnectors() {
+-  for (auto& node : world.nodes()) {
++  for (auto& node : world.nodes())
++    if (!node.stub && !node.arms.empty()) completeNodePaths(node);
++}
++
++void LaneGraph::completeNodePaths(Node& node) {
++  if (pathsAt_.count(node.id)) return;
++  pathsAt_[node.id] = {};
++  for (auto& a : node.arms) {
++    for (Lane* lane : lanesInto(a))
++      lane->stopAt = std::max(0.0, lane->len - std::max(0.0, a.stopS - a.cut));
++  }
++  {
+     auto& arms = node.arms;
+     for (auto& a : arms) {
+       std::vector<Lane*> ins = lanesInto(a);
+@@ -367,11 +476,15 @@ void LaneGraph::buildConnectors() {
+             if (!force && !allowed(lane->idx, m.turn)) continue;
+             std::vector<Lane*> outs = lanesOutOf(*m.arm);
+             if (outs.empty()) continue;
++            // (the lane to leave on: the right turn from the right-most, the
++            //  left turn from the left-most, straight on from the lane's own
++            //  number – but never from an empty slot)
+             Lane* target = m.turn == TURN_RIGHT
+                                ? outs[0]
+                                : (m.turn == TURN_LEFT || m.turn == TURN_UTURN
+                                       ? outs[outs.size() - 1]
+                                       : outs[std::min(static_cast<size_t>(lane->idx), outs.size() - 1)]);
++            if (!target) continue;
+             addConnector(node, *lane, *target, m.turn);
+             made++;
+           }
+@@ -383,6 +496,241 @@ void LaneGraph::buildConnectors() {
+   }
+ }
+ 
++void LaneGraph::removeEdge(Edge& e) {
++  if (e.id < 0 || static_cast<size_t>(e.id) >= edgeLanes.size()) return;
++  EdgeLanes& el = edgeLanes[static_cast<size_t>(e.id)];
++  std::vector<Lane*> all;
++  all.insert(all.end(), el.fwd.begin(), el.fwd.end());
++  all.insert(all.end(), el.back.begin(), el.back.end());
++  for (Lane* lane : all) {
++    if (!lane) continue;
++    // (paths of a junction that stays, as the end of another road, cannot lead here any more)
++    std::vector<Connector*> paths = lane->out;
++    paths.insert(paths.end(), lane->in.begin(), lane->in.end());
++    for (Connector* c : paths)
++      if (c) dropPath(*c);
++    lane->out.clear();
++    lane->in.clear();
++    if (lane->id >= 0 && static_cast<size_t>(lane->id) < live_.size()) {
++      live_[static_cast<size_t>(lane->id)] = nullptr;
++      freeLanes_.push_back(lane->id);
++    }
++  }
++  el.fwd.clear();
++  el.back.clear();
++}
++
++void LaneGraph::dropPath(Connector& c) {
++  auto drop = [](std::vector<Connector*>& list, Connector* p) {
++    auto it = std::find(list.begin(), list.end(), p);
++    if (it != list.end()) list.erase(it);
++  };
++  if (c.from) drop(c.from->out, &c);
++  if (c.to) drop(c.to->in, &c);
++  auto at = pathsAt_.find(c.node ? c.node->id : -1);
++  if (at != pathsAt_.end()) {
++    auto it = std::find(at->second.begin(), at->second.end(), c.id);
++    if (it != at->second.end()) at->second.erase(it);
++  }
++  if (c.id >= 0 && static_cast<size_t>(c.id) < livePaths_.size() &&
++      livePaths_[static_cast<size_t>(c.id)] == &c) {
++    livePaths_[static_cast<size_t>(c.id)] = nullptr;
++    freePaths_.push_back(c.id);
++    c.live = false;
++  }
++}
++
++void LaneGraph::removeNode(Node& node) {
++  auto it = pathsAt_.find(node.id);
++  if (it != pathsAt_.end()) {
++    std::vector<int> ids = it->second;
++    for (int id : ids)
++      if (id >= 0 && static_cast<size_t>(id) < livePaths_.size() && livePaths_[static_cast<size_t>(id)])
++        dropPath(*livePaths_[static_cast<size_t>(id)]);
++    pathsAt_.erase(node.id);
++  }
++  resolved_.erase(node.id);
++}
++
++void LaneGraph::completeNode(Node& node) { completeNodePaths(node); }
++
++namespace {
++/** Squared distance of a point from a segment. */
++double pointSegDist2(double x, double z, double ax, double az, double bx, double bz) {
++  const double dx = bx - ax;
++  const double dz = bz - az;
++  const double l2 = dx * dx + dz * dz;
++  double t = l2 > 1e-12 ? ((x - ax) * dx + (z - az) * dz) / l2 : 0;
++  t = t < 0 ? 0 : t > 1 ? 1 : t;
++  const double ex = x - (ax + dx * t);
++  const double ez = z - (az + dz * t);
++  return ex * ex + ez * ez;
++}
++
++/** Squared distance between two segments in the plane (0 when they cross). */
++double segSegDist2(double ax, double az, double bx, double bz, double cx, double cz, double dx,
++                   double dz) {
++  // crossing: each segment has the ends of the other on different sides
++  const double d1 = (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
++  const double d2 = (bx - ax) * (dz - az) - (bz - az) * (dx - ax);
++  const double d3 = (dx - cx) * (az - cz) - (dz - cz) * (ax - cx);
++  const double d4 = (dx - cx) * (bz - cz) - (dz - cz) * (bx - cx);
++  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
++  return std::min(std::min(pointSegDist2(ax, az, cx, cz, dx, dz),
++                           pointSegDist2(bx, bz, cx, cz, dx, dz)),
++                  std::min(pointSegDist2(cx, cz, ax, az, bx, bz),
++                           pointSegDist2(dx, dz, ax, az, bx, bz)));
++}
++}  // namespace
++
++double LaneGraph::nearestPath(double x, double z, double y, double reach, PathFoot& out) {
++  double best = reach;
++  bool found = false;
++  PolyProjection proj;
++  PolySample smp;
++  world.segmentsInBox(x - reach, z - reach, x + reach, z + reach, [&](const Edge& e, int seg) {
++    if (e.id < 0 || static_cast<size_t>(e.id) >= edgeLanes.size()) return;
++    const EdgeLanes& el = edgeLanes[static_cast<size_t>(e.id)];
++    if (el.fwd.empty() && el.back.empty()) return;
++    proj = projectOnPolyline(e.pl, x, z, proj, seg, seg);
++    const double far = e.width / 2 + best;
++    if (proj.d2 > far * far) return;
++    // (the lanes run between the junction areas at the two ends)
++    smp = samplePolyline(e.pl, clamp(proj.s, e.cutA, std::max(e.cutA, e.len - e.cutB)), smp);
++    if (!std::isnan(y) && std::fabs(smp.y - y) > 2.6) return;
++    for (int side = 0; side < 2; side++) {
++      const std::vector<Lane*>& list = side == 0 ? el.fwd : el.back;
++      for (size_t i = 0; i < list.size(); i++) {
++        const double px = smp.x + smp.tz * list[i]->off;
++        const double pz = smp.z - smp.tx * list[i]->off;
++        const double d = std::hypot(x - px, z - pz);
++        if (d < best) {
++          best = d;
++          out.x = px;
++          out.z = pz;
++          found = true;
++        }
++      }
++    }
++  });
++  world.nodesInBox(x - reach, z - reach, x + reach, z + reach, [&](Node& node) {
++    if (!std::isnan(y) && std::fabs(world.planeY(node, x, z) - y) > 2.6) return;
++    auto it = pathsAt_.find(node.id);
++    if (it == pathsAt_.end()) return;
++    for (int id : it->second) {
++      Connector* c = (id >= 0 && static_cast<size_t>(id) < livePaths_.size())
++                         ? livePaths_[static_cast<size_t>(id)]
++                         : nullptr;
++      if (!c) continue;
++      proj = projectOnPolyline(c->pl, x, z, proj);
++      if (proj.d2 >= best * best) continue;
++      best = std::sqrt(proj.d2);
++      smp = samplePolyline(c->pl, proj.s, smp);
++      out.x = smp.x;
++      out.z = smp.z;
++      found = true;
++    }
++  });
++  out.d = found ? best : std::numeric_limits<double>::infinity();
++  return out.d;
++}
++
++bool LaneGraph::wallInLane(double x1, double z1, double x2, double z2, double y, double need) {
++  const double minX = std::min(x1, x2) - need;
++  const double maxX = std::max(x1, x2) + need;
++  const double minZ = std::min(z1, z2) - need;
++  const double maxZ = std::max(z1, z2) + need;
++  const double need2 = need * need;
++  bool hit = false;
++  world.segmentsInBox(minX, minZ, maxX, maxZ, [&](const Edge& e, int seg) {
++    if (hit) return;
++    if (e.id < 0 || static_cast<size_t>(e.id) >= edgeLanes.size()) return;
++    const EdgeLanes& el = edgeLanes[static_cast<size_t>(e.id)];
++    if (el.fwd.empty() && el.back.empty()) return;
++    const auto& p = e.pl.pts;
++    const double ax = p[static_cast<size_t>(seg) * 3];
++    const double ay = p[static_cast<size_t>(seg) * 3 + 1];
++    const double az = p[static_cast<size_t>(seg) * 3 + 2];
++    const double bx = p[static_cast<size_t>(seg) * 3 + 3];
++    const double bz = p[static_cast<size_t>(seg) * 3 + 5];
++    if (!std::isnan(y) &&
++        std::fabs((ay + p[static_cast<size_t>(seg) * 3 + 4]) / 2 - y) >
++            2.6 + std::fabs(ay - p[static_cast<size_t>(seg) * 3 + 4]) / 2)
++      return;
++    // (most pieces of road in reach of the grid are nowhere near the wall)
++    const double far = e.width / 2 + need;
++    if (std::max(ax, bx) + far < minX + need || std::min(ax, bx) - far > maxX - need ||
++        std::max(az, bz) + far < minZ + need || std::min(az, bz) - far > maxZ - need)
++      return;
++    const double l = std::hypot(bx - ax, bz - az);
++    if (l < 1e-6) return;
++    // left of the direction of travel a→b
++    const double nx = (bz - az) / l;
++    const double nz = -(bx - ax) / l;
++    for (int side = 0; side < 2 && !hit; side++) {
++      const std::vector<Lane*>& list = side == 0 ? el.fwd : el.back;
++      for (size_t i = 0; i < list.size(); i++) {
++        const double o = list[i]->off;
++        if (segSegDist2(x1, z1, x2, z2, ax + nx * o, az + nz * o, bx + nx * o, bz + nz * o) <
++            need2) {
++          hit = true;
++          break;
++        }
++      }
++    }
++  });
++  if (hit) return true;
++  world.nodesInBox(minX, minZ, maxX, maxZ, [&](Node& node) {
++    if (hit) return;
++    if (!std::isnan(y) &&
++        std::fabs(world.planeY(node, (x1 + x2) / 2, (z1 + z2) / 2) - y) > 2.6)
++      return;
++    auto it = pathsAt_.find(node.id);
++    if (it == pathsAt_.end()) return;
++    for (int id : it->second) {
++      Connector* c = (id >= 0 && static_cast<size_t>(id) < livePaths_.size())
++                         ? livePaths_[static_cast<size_t>(id)]
++                         : nullptr;
++      if (!c) continue;
++      const auto& p = c->pl.pts;
++      for (size_t i = 0; i + 5 < p.size(); i += 3) {
++        if (segSegDist2(x1, z1, x2, z2, p[i], p[i + 2], p[i + 3], p[i + 5]) < need2) {
++          hit = true;
++          break;
++        }
++      }
++      if (hit) break;
++    }
++  });
++  return hit;
++}
++
++bool LaneGraph::besideLanes(double x, double z, double y, double need, PathFoot& out) {
++  out.x = x;
++  out.z = z;
++  PathFoot postFoot;
++  for (int tries = 0; tries < 5; tries++) {
++    const double d = nearestPath(out.x, out.z, y, need, postFoot);
++    if (d >= need) {
++      out.d = std::hypot(out.x - x, out.z - z);
++      return true;
++    }
++    // away from the middle of that lane (straight out of it; from dead centre towards where the post came from)
++    double ux = out.x - postFoot.x;
++    double uz = out.z - postFoot.z;
++    if (d < 0.05) {
++      ux = x - postFoot.x;
++      uz = z - postFoot.z;
++      if (std::hypot(ux, uz) < 0.05) return false;
++    }
++    const double l = std::hypot(ux, uz);
++    out.x = postFoot.x + (ux / l) * (need + 0.15);
++    out.z = postFoot.z + (uz / l) * (need + 0.15);
++    if (std::hypot(out.x - x, out.z - z) > 4.5) return false;
++  }
++  return false;
++}
++
+ bool LaneGraph::yields(const Connector& c1, const Connector& c2, bool merge) const {
+   const Arm* a1 = c1.from->armTo;
+   const Arm* a2 = c2.from->armTo;
+@@ -430,8 +778,8 @@ void LaneGraph::resolveNode(int nodeId) {
+   if (it == pathsAt_.end()) return;
+   std::vector<Connector*> list;
+   for (int id : it->second)
+-    if (id >= 0 && id < static_cast<int>(connectors.size()))
+-      list.push_back(&connectors[static_cast<size_t>(id)]);
++    if (id >= 0 && static_cast<size_t>(id) < livePaths_.size() && livePaths_[static_cast<size_t>(id)])
++      list.push_back(livePaths_[static_cast<size_t>(id)]);
+   {
+     for (size_t i = 0; i < list.size(); i++) {
+       for (size_t j = i + 1; j < list.size(); j++) {
+@@ -492,7 +840,8 @@ bool LaneGraph::drivable(const Edge& e, bool forTraffic) {
+   return true;
+ }
+ 
+-std::vector<Connector*> LaneGraph::route(const Lane& start, const Edge& goal, bool forTraffic) {
++std::vector<Connector*> LaneGraph::route(const Lane& start, const Edge& goal, bool forTraffic,
++                                         int goalDir) {
+   std::vector<double> dist(lanes.size(), std::numeric_limits<double>::infinity());
+   std::vector<Connector*> prev(lanes.size(), nullptr);
+   MinHeap heap;
+@@ -503,8 +852,12 @@ std::vector<Connector*> LaneGraph::route(const Lane& start, const Edge& goal, bo
+   double d;
+   while (heap.pop(id, d)) {
+     if (d > dist[static_cast<size_t>(id)]) continue;
+-    Lane& lane = lanes[static_cast<size_t>(id)];
+-    if (lane.edge == &goal && &lane != &start) {
++    Lane* lp = (id >= 0 && static_cast<size_t>(id) < live_.size())
++                   ? live_[static_cast<size_t>(id)]
++                   : nullptr;
++    if (!lp) continue;
++    Lane& lane = *lp;
++    if (lane.edge == &goal && &lane != &start && (goalDir == 0 || lane.dir == goalDir)) {
+       foundLane = &lane;
+       break;
+     }
+diff --git a/src/world/lanes.h b/src/world/lanes.h
+index 439d006..81b89fa 100644
+--- a/src/world/lanes.h
++++ b/src/world/lanes.h
+@@ -70,6 +70,8 @@ struct Connector {
+   /** connectors leaving the same lane, with the stations up to which the two
+    *  paths overlap */
+   std::vector<struct Sibling> siblings;
++  /** a live one (the network comes in pieces: paths go with their junctions) */
++  bool live = true;
+ };
+ 
+ /** Where two connectors' paths meet, and who gives way. */
+@@ -94,20 +96,39 @@ struct Sibling {
+   }
+ };
+ 
++/**
++ * A point on the centre line of a lane (or of a path through a junction)
++ * and how far it is from what was asked about.
++ */
++struct PathFoot {
++  double x = 0, z = 0, d = 0;
++};
++
+ class LaneGraph {
+  public:
+   explicit LaneGraph(World& world);
+ 
+   World& world;
++  /** by their number – with gaps once parts of the network were taken away again */
+   std::vector<Lane> lanes;
++  /** the paths through the junctions, by their number (a hole when one went) */
+   std::vector<Connector> connectors;
+-  /** lanes of each edge: [forward lanes right→left, backward lanes right→left] */
++  /** lanes of each edge: [forward lanes right→left, backward lanes right→left] (by the number of the edge) */
+   struct EdgeLanes {
+     std::vector<Lane*> fwd;
+     std::vector<Lane*> back;
+   };
+   std::vector<EdgeLanes> edgeLanes;
+ 
++  /** A road arrived: its lanes (nothing happens when they are there). */
++  void addEdge(Edge& e);
++  /** A road was taken out of the world: its lanes go (the paths at its ends went with their junctions). */
++  void removeEdge(Edge& e);
++  /** A junction arrived: the paths through it (nothing happens when they are there). */
++  void completeNode(Node& node);
++  /** A junction goes: its paths go with it. */
++  void removeNode(Node& node);
++
+   /** Work out the conflicts of every junction now (tools and tests; the game leaves it to resolveNode). */
+   void resolveAll();
+   /**
+@@ -128,19 +149,48 @@ class LaneGraph {
+   /**
+    * Shortest route (by travel time) from the end of lane `start` to any lane
+    * of `goal`.  Returns the connectors to take, or an empty vector when
+-   * there is none.  `forTraffic` restricts the search to ordinary public roads.
++   * there is none.  `forTraffic` restricts the search to ordinary public
++   * roads; `goalDir` only takes one that runs a→b (1) or b→a (-1).
++   */
++  std::vector<Connector*> route(const Lane& start, const Edge& goal, bool forTraffic = false,
++                                int goalDir = 0);
++
++  /**
++   * Where the centre line of a lane (or of a path through a junction) comes
++   * nearest to (x, z) within `reach` metres – the foot and its distance, or
++   * infinity when there is none in reach.
++   */
++  double nearestPath(double x, double z, double y, double reach, PathFoot& out);
++
++  /** Is a wall (x1,z1)-(x2,z2) at height `y` (NaN: any) in a lane within `need` metres? */
++  bool wallInLane(double x1, double z1, double x2, double z2, double y, double need);
++
++  /**
++   * Where a post (a sign, a lamp) may stand: the place itself when it keeps
++   * `need` metres from the middle of every lane, otherwise the nearest place
++   * beside the lanes within a few metres – or false when there is none.
+    */
+-  std::vector<Connector*> route(const Lane& start, const Edge& goal, bool forTraffic = false);
++  bool besideLanes(double x, double z, double y, double need, PathFoot& out);
+ 
+  private:
+-  void buildLanes();
+   void buildConnectors();
+   void addConnector(Node& node, Lane& from, Lane& to, int turn);
++  /** One node's paths: the exits its lanes may take (the JS buildConnectors body). */
++  void completeNodePaths(Node& node);
++  void dropPath(Connector& c);
+   bool yields(const Connector& c1, const Connector& c2, bool merge) const;
+ 
+   /** the paths through each junction, and which junctions have their conflicts worked out */
+   std::map<int, std::vector<int>> pathsAt_;   // node id → connector ids
+   std::set<int> resolved_;
++  /** one live lane / path per number (a hole where a road or a junction went) */
++  std::vector<Lane*> live_;
++  std::vector<Connector*> livePaths_;
++  /** the next free numbers (holes first, as the JS `nextLane`/`nextPath` counters) */
++  std::vector<int> freeLanes_;
++  std::vector<int> freePaths_;
++  int nextLane_ = 0;
++  int nextPath_ = 0;
+ };
+ 
+ /** Position on a lane at distance d from its start. */
+diff --git a/src/world/world.cpp b/src/world/world.cpp
+index 09a79e9..19d098c 100644
+--- a/src/world/world.cpp
++++ b/src/world/world.cpp
+@@ -1056,11 +1056,12 @@ void World::nodesInBox(double minX, double minZ, double maxX, double maxZ,
+ 
+ /** Visit the road segments whose padded box touches the given box (each segment once). */
+ void World::segmentsInBox(double minX, double minZ, double maxX, double maxZ,
+-                          const std::function<void(int)>& visit) const {
++                          const std::function<void(const Edge&, int)>& visit) const {
+   std::set<int> seen;
+   segGrid_.queryBox(minX, minZ, maxX, maxZ, [&](int code) {
+     if (!seen.insert(code).second) return;
+-    visit(code);
++    const Edge& e = edges_[static_cast<size_t>(code / 4096)];
++    visit(e, code % 4096);
+   });
+ }
+ 
+diff --git a/src/world/world.h b/src/world/world.h
+index 4111100..164ef25 100644
+--- a/src/world/world.h
++++ b/src/world/world.h
+@@ -204,7 +204,7 @@ class World {
+                   const std::function<void(Node&)>& visit);
+   /** Visit the road segments whose padded box touches the given box (each segment once). */
+   void segmentsInBox(double minX, double minZ, double maxX, double maxZ,
+-                     const std::function<void(int)>& visit) const;
++                     const std::function<void(const Edge&, int)>& visit) const;
+ 
+   /** Nearest edge to (x, z) within `radius` metres, or nullptr. */
+   Edge* nearestEdge(double x, double z, double radius = 30);
