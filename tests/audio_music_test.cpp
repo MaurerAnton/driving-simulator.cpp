@@ -61,7 +61,13 @@ std::string of(const Piece& p) { return "seed " + std::to_string(p.seed); }
 
 // ---------------------------------------------------------------- the pieces of the original
 
-/** What the original makes of a seed (node, v1.7.7): tempo, beats, key, mode, its chords and its notes (hashed over every bit), its length, how loud it is, its gain. */
+/**
+ * What the original makes of a seed (node, v1.7.7): tempo, beats, key, mode, its chords and its notes
+ * (hashed over every bit), its length, how loud it is, its gain.  (The hashes are FNV-1a as in
+ * piecesOfTheOriginal() below, worked out the same way in TypeScript over composePiece(seed): of each
+ * note the eight bytes of t and of d, its pitch, the bytes of v, the number of its instrument and of
+ * its role; of the last six seeds only the notes were taken.)
+ */
 struct RefPiece {
   uint32_t seed;
   double bpm;
@@ -340,8 +346,10 @@ void thePlayer() {
 // ---------------------------------------------------------------- the player of the original
 
 /**
- * The original's player on its stand-in for the Web Audio API (node, v1.7.7; seed 42, Math.random as
- * here, the clock in quarters of a second from nought): what it had made and sent at each of these moments.
+ * The original's player on its stand-in for the Web Audio API (node, v1.7.7, tests/game/audiomock.ts;
+ * seed 42, `Math.random = seeded(7)` of waves.ts, the clock in quarters of a second from nought, this
+ * function line by line): what it had made and sent at each of these moments – the comments name the
+ * original's numbers.
  */
 void asTheOriginalsPlayer() {
   plat::native::manualClock(true);

@@ -23,6 +23,7 @@
 #pragma once
 
 #include <cmath>
+#include <concepts>
 #include <map>
 #include <unordered_set>
 #include <vector>
@@ -50,6 +51,14 @@ double doppler(double source, double listener);
 /** How loud a horn is heard `d` metres away (1 within 12 m, then 6 dB less for each doubling of the distance). */
 double sirenLevel(double d);
 
+/** Where the listener is: the camera (its position, and its turn in matrixWorld – x its right, z its back). */
+template <class Ear>
+concept SirenEar = requires(const Ear& ear) {
+  { ear.position.x } -> std::convertible_to<double>;
+  { ear.position.z } -> std::convertible_to<double>;
+  { ear.matrixWorld.elements[0] } -> std::convertible_to<double>;
+};
+
 namespace sirenDetail {
 
 /** a car of the traffic, however the traffic keeps its cars (as they are, or by pointers to them) */
@@ -75,7 +84,7 @@ class Sirens {
    * listener moves (m/s, x and z).  Nothing happens before the game's sound
    * is started (`ctx` empty) or while it is suspended.
    */
-  template <class Cars, class Ear>
+  template <class Cars, SirenEar Ear>
   void update(const AudioContext& ctx, const AudioNode& out, const Cars& cars, const Ear& ear, bool inside, double vx = 0, double vz = 0) {
     if (!ctx || !out || ctx.state() != "running") return;
     const double ex = ear.position.x;

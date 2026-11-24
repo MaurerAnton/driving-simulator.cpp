@@ -13,6 +13,7 @@
  *     lfo.connect(o.frequency);                       lfo.connect(o.frequency);
  *     o.start(t); o.stop(t + 1);                      o.start(t); o.stop(t + 1);
  *     o.onended = () => g.disconnect();               o.onended([g] { g.disconnect(); });
+ *     const d = buf.getChannelData(0); d[i] = …;      std::vector<float> d(n); d[i] = …; buf.copyToChannel(d, 0);
  *
  * Properties are set with a call of their name (C++ has no setters).  A node, a
  * setting of a node, a buffer, a wave, a context: each is a reference to the
@@ -303,11 +304,11 @@ class AudioBuffer {
   /** seconds */
   double duration() const { return sampleRate_ > 0 ? length_ / sampleRate_ : 0; }
   /**
-   * The samples of a channel – a copy (in JavaScript `getChannelData` hands out the buffer's own
-   * memory, which is then written into; here the samples are made in a vector and handed
-   * over with copyToChannel).
+   * The samples of a channel – a copy.  (In JavaScript `getChannelData` hands out the buffer's own
+   * memory, which is then written into.  Here the samples are made in a vector and handed over
+   * with copyToChannel; so that nothing is written into this copy by mistake, it cannot be.)
    */
-  std::vector<float> getChannelData(int channel) const;
+  const std::vector<float> getChannelData(int channel) const;
   /** buffer.copyToChannel(source, channel, startInChannel) */
   void copyToChannel(const std::vector<float>& source, int channel, int startInChannel = 0) const;
 

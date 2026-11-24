@@ -103,7 +103,7 @@ void AudioScheduledSourceNode::onended(std::function<void()> fn) const {
 
 // --- buffers -----------------------------------------------------------------
 
-std::vector<float> AudioBuffer::getChannelData(int channel) const {
+const std::vector<float> AudioBuffer::getChannelData(int channel) const {
   std::vector<float> out(static_cast<size_t>(length_ > 0 ? length_ : 0), 0.0f);
   if (ref_.h() && channel >= 0 && channel < channels_ && !out.empty()) audioBackend::bufferRead(ref_.h(), channel, out.data(), length_);
   return out;
