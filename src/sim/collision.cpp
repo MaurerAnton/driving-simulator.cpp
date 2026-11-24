@@ -1,150 +1,203 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/**
- * Collisions of the player's car with scenery.
- *
- * Origin: src/sim/collision.ts (MaurerAnton/driving-simulator @ 5b6ddc7,
- * v0.1.0).  The car is three circles along its axis, the scenery segments and
- * discs in a 16 m grid keyed by tile so removal is per tile.
- */
+// Origin: src/sim/collision.ts @ v1.7.7
 #include "sim/collision.h"
 
+#include <algorithm>
 #include <cmath>
+
+#include "core/js.h"
+#include "sim/jsmath.h"
 
 namespace fs {
 
-int64_t SceneryCollider::key(int ix, int iz) {
-  return (static_cast<int64_t>(ix) + 2048) * 4096 + (static_cast<int64_t>(iz) + 2048);
+namespace {
+const double CELL = 16;
+inline int64_t cellOf(double v) { return static_cast<int64_t>(std::floor(v / CELL)); }
+}  // namespace
+
+void SceneryCollider::setShape(const std::vector<double>& offsets_, double radius_) {
+  offsets = offsets_;
+  radius = radius_;
 }
 
-void SceneryCollider::insert(std::vector<Prim>& tile, const Prim& p) {
-  double pad = p.kind == 1 ? p.r : 0;
-  double minX = p.kind == 0 ? std::min(p.x1, p.x2) : p.x1;
-  double maxX = p.kind == 0 ? std::max(p.x1, p.x2) : p.x1;
-  double minZ = p.kind == 0 ? std::min(p.z1, p.z2) : p.z1;
-  double maxZ = p.kind == 0 ? std::max(p.z1, p.z2) : p.z1;
-  long x0 = static_cast<long>(std::floor((minX - pad) / CELL));
-  long x1 = static_cast<long>(std::floor((maxX + pad) / CELL));
-  long z0 = static_cast<long>(std::floor((minZ - pad) / CELL));
-  long z1 = static_cast<long>(std::floor((maxZ + pad) / CELL));
-  for (long ix = x0; ix <= x1; ix++)
-    for (long iz = z0; iz <= z1; iz++) grid_[key(static_cast<int>(ix), static_cast<int>(iz))].push_back(p);
-  tile.push_back(p);
+int64_t SceneryCollider::key(int64_t ix, int64_t iz) { return (ix + 2048) * 4096 + (iz + 2048); }
+
+const std::vector<SceneryCollider::Prim*>* SceneryCollider::cell(int64_t ix, int64_t iz) const {
+  auto it = grid.find(key(ix, iz));
+  return it == grid.end() ? nullptr : &it->second;
+}
+
+void SceneryCollider::insert(Tile& tile, const Prim& prim) {
+  const double pad = prim.kind == 1 ? prim.r : 0;
+  const double fx0 = std::floor((jsMin(prim.x1, prim.kind == 0 ? prim.x2 : prim.x1) - pad) / CELL);
+  const double fx1 = std::floor((jsMax(prim.x1, prim.kind == 0 ? prim.x2 : prim.x1) + pad) / CELL);
+  const double fz0 = std::floor((jsMin(prim.z1, prim.kind == 0 ? prim.z2 : prim.z1) - pad) / CELL);
+  const double fz1 = std::floor((jsMax(prim.z1, prim.kind == 0 ? prim.z2 : prim.z1) + pad) / CELL);
+  // (a primitive that is not a number lies in no cell, as in the original: its loops do not run)
+  if (std::isnan(fx0) || std::isnan(fx1) || std::isnan(fz0) || std::isnan(fz1)) return;
+  const int64_t x0 = static_cast<int64_t>(fx0);
+  const int64_t x1 = static_cast<int64_t>(fx1);
+  const int64_t z0 = static_cast<int64_t>(fz0);
+  const int64_t z1 = static_cast<int64_t>(fz1);
+  tile.prims.push_back(prim);
+  Prim* p = &tile.prims.back();
+  for (int64_t ix = x0; ix <= x1; ix++) {
+    for (int64_t iz = z0; iz <= z1; iz++) {
+      const int64_t k = key(ix, iz);
+      grid[k].push_back(p);
+      tile.cells.push_back({k, p});
+    }
+  }
 }
 
 void SceneryCollider::add(const CollisionSource& src) {
-  std::vector<Prim> tile;
+  // (the same key again: the original's map keeps the new list, the old tile's primitives stay in the grid)
+  Tile fresh;
+  auto old = byTile.find(src.key);
+  if (old != byTile.end()) fresh.prims = std::move(old->second.prims);
+  Tile& tile = byTile[src.key];
+  tile = std::move(fresh);
   if (src.rings && src.ringCounts) {
-    int o = 0;
-    for (int r = 0; r < src.ringCount; r++) {
-      int n = src.ringCounts[r];
-      for (int i = 0; i < n; i++) {
-        int j = (i + 1) % n;
-        Prim p;
-        p.kind = 0;
-        p.x1 = src.rings[o + i * 2];
-        p.z1 = src.rings[o + i * 2 + 1];
-        p.x2 = src.rings[o + j * 2];
-        p.z2 = src.rings[o + j * 2 + 1];
-        p.yIsNaN = true;
-        insert(tile, p);
+    const std::vector<float>& rings = *src.rings;
+    size_t o = 0;
+    const std::vector<uint8_t>* skip = src.ringSkip;
+    for (const uint16_t n : *src.ringCounts) {
+      for (size_t i = 0; i < n; i++) {
+        const size_t side = o / 2 + i;
+        if (skip && (side >> 3) < skip->size() && ((*skip)[side >> 3] & (1 << (side & 7))) != 0) continue;
+        const size_t j = (i + 1) % n;
+        insert(tile, Prim{0, rings[o + i * 2], rings[o + i * 2 + 1], rings[o + j * 2], rings[o + j * 2 + 1], 0, JS_NAN});
       }
-      o += n * 2;
+      o += static_cast<size_t>(n) * 2;
     }
   }
   if (src.segments) {
-    const double* s = src.segments;
-    for (int i = 0; i < src.segmentCount; i++) {
-      Prim p;
-      p.kind = 0;
-      p.x1 = s[i * 5];
-      p.z1 = s[i * 5 + 1];
-      p.x2 = s[i * 5 + 2];
-      p.z2 = s[i * 5 + 3];
-      p.y = s[i * 5 + 4];
-      insert(tile, p);
-    }
+    const std::vector<float>& s = *src.segments;
+    for (size_t i = 0; i + 4 < s.size(); i += 5) insert(tile, Prim{0, s[i], s[i + 1], s[i + 2], s[i + 3], 0, s[i + 4]});
   }
-  if (src.discs) {
-    const double* d = src.discs;
-    for (int i = 0; i < src.discCount; i++) {
-      Prim p;
-      p.kind = 1;
-      p.x1 = d[i * 4];
-      p.z1 = d[i * 4 + 2];
-      p.y = d[i * 4 + 1];
-      p.r = d[i * 4 + 3];
-      insert(tile, p);
-    }
+  for (size_t i = 0; i + 3 < src.discs.size(); i += 4) {
+    insert(tile, Prim{1, src.discs[i], src.discs[i + 2], 0, 0, src.discs[i + 3], src.discs[i + 1]});
   }
-  byTile_[src.key] = std::move(tile);
 }
 
-void SceneryCollider::remove(const std::string& key) {
-  auto it = byTile_.find(key);
-  if (it == byTile_.end()) return;
-  // cells hold copies: drop every primitive of this tile from each cell it
-  // touched (a primitive is identified by its geometry)
-  for (const Prim& p : it->second) {
-    double pad = p.kind == 1 ? p.r : 0;
-    double minX = p.kind == 0 ? std::min(p.x1, p.x2) : p.x1;
-    double maxX = p.kind == 0 ? std::max(p.x1, p.x2) : p.x1;
-    double minZ = p.kind == 0 ? std::min(p.z1, p.z2) : p.z1;
-    double maxZ = p.kind == 0 ? std::max(p.z1, p.z2) : p.z1;
-    long x0 = static_cast<long>(std::floor((minX - pad) / CELL));
-    long x1 = static_cast<long>(std::floor((maxX + pad) / CELL));
-    long z0 = static_cast<long>(std::floor((minZ - pad) / CELL));
-    long z1 = static_cast<long>(std::floor((maxZ + pad) / CELL));
-    for (long ix = x0; ix <= x1; ix++) {
-      for (long iz = z0; iz <= z1; iz++) {
-        auto cell = grid_.find(SceneryCollider::key(static_cast<int>(ix), static_cast<int>(iz)));
-        if (cell == grid_.end()) continue;
-        auto& list = cell->second;
-        for (size_t i = list.size(); i-- > 0;) {
-          const Prim& q = list[i];
-          if (q.kind == p.kind && q.x1 == p.x1 && q.z1 == p.z1 && q.x2 == p.x2 && q.z2 == p.z2 &&
-              q.r == p.r && q.yIsNaN == p.yIsNaN && (q.yIsNaN || q.y == p.y)) {
-            list.erase(list.begin() + static_cast<long>(i));
-            break;
+void SceneryCollider::remove(const std::string& key_) {
+  auto it = byTile.find(key_);
+  if (it == byTile.end()) return;
+  for (const auto& [k, p] : it->second.cells) {
+    auto g = grid.find(k);
+    if (g == grid.end()) continue;
+    std::vector<Prim*>& list = g->second;
+    auto at = std::find(list.begin(), list.end(), p);
+    if (at != list.end()) {
+      *at = list.back();
+      list.pop_back();
+    }
+    if (list.empty()) grid.erase(g);
+  }
+  byTile.erase(it);
+}
+
+bool SceneryCollider::blocked(double x, double y, double z, double yaw, double margin) const {
+  const double R = radius + margin;
+  const double sin = jsSin(yaw);
+  const double cos = jsCos(yaw);
+  for (size_t c = 0; c < offsets.size(); c++) {
+    // (the model looks along -z: forward = (-sin yaw, -cos yaw), and offsets count backwards)
+    const double cx = x + sin * offsets[c];
+    const double cz = z + cos * offsets[c];
+    const int64_t ix0 = cellOf(cx - R);
+    const int64_t ix1 = cellOf(cx + R);
+    const int64_t iz0 = cellOf(cz - R);
+    const int64_t iz1 = cellOf(cz + R);
+    for (int64_t ix = ix0; ix <= ix1; ix++) {
+      for (int64_t iz = iz0; iz <= iz1; iz++) {
+        const std::vector<Prim*>* list = cell(ix, iz);
+        if (!list) continue;
+        for (size_t i = 0; i < list->size(); i++) {
+          const Prim& p = *(*list)[i];
+          if (!std::isnan(p.y) && std::abs(y - p.y) > 2.6) continue;
+          double px = p.x1;
+          double pz = p.z1;
+          if (p.kind == 0) {
+            const double dx = p.x2 - p.x1;
+            const double dz = p.z2 - p.z1;
+            const double l2 = dx * dx + dz * dz;
+            double t = l2 > 1e-9 ? ((cx - p.x1) * dx + (cz - p.z1) * dz) / l2 : 0;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            px = p.x1 + dx * t;
+            pz = p.z1 + dz * t;
           }
+          const double rad = R + (p.kind == 1 ? p.r : 0);
+          if ((cx - px) * (cx - px) + (cz - pz) * (cz - pz) < rad * rad) return true;
         }
-        if (list.empty()) grid_.erase(cell);
       }
     }
   }
-  byTile_.erase(it);
+  return false;
 }
 
-void SceneryCollider::setShape(const double* offsets, int count, double radius) {
-  circleCount_ = std::min(4, std::max(1, count));
-  for (int i = 0; i < circleCount_; i++) offsets_[i] = offsets[i];
-  radius_ = radius;
+bool SceneryCollider::circleBlocked(double x, double y, double z, double r) const {
+  const int64_t ix0 = cellOf(x - r);
+  const int64_t ix1 = cellOf(x + r);
+  const int64_t iz0 = cellOf(z - r);
+  const int64_t iz1 = cellOf(z + r);
+  for (int64_t ix = ix0; ix <= ix1; ix++) {
+    for (int64_t iz = iz0; iz <= iz1; iz++) {
+      const std::vector<Prim*>* list = cell(ix, iz);
+      if (!list) continue;
+      for (const Prim* pp : *list) {
+        const Prim& p = *pp;
+        if (!std::isnan(p.y) && std::abs(y - p.y) > 2.6) continue;
+        double px = p.x1;
+        double pz = p.z1;
+        if (p.kind == 0) {
+          const double dx = p.x2 - p.x1;
+          const double dz = p.z2 - p.z1;
+          const double l2 = dx * dx + dz * dz;
+          double t = l2 > 1e-9 ? ((x - p.x1) * dx + (z - p.z1) * dz) / l2 : 0;
+          t = t < 0 ? 0 : t > 1 ? 1 : t;
+          px = p.x1 + dx * t;
+          pz = p.z1 + dz * t;
+        }
+        const double rad = r + (p.kind == 1 ? p.r : 0);
+        if ((x - px) * (x - px) + (z - pz) * (z - pz) < rad * rad) return true;
+      }
+    }
+  }
+  return false;
 }
 
 double SceneryCollider::resolve(Vehicle& v) {
   double impact = 0;
-  double R = radius_;
-  for (int c = 0; c < circleCount_; c++) {
+  lastBuilding = 0;
+  const auto& mo = v.modelOrigin;
+  const double R = radius;
+  for (size_t c = 0; c < offsets.size(); c++) {
     // circle centre in the world, at centre-of-mass height
-    // offsets are measured from the wheelbase centre in the model frame
-    double world[3];
-    v.toWorld(0, 0, offsets_[c], world);
-    double cx = world[0], cy = world[1], cz = world[2];
-    long ix0 = static_cast<long>(std::floor((cx - R) / CELL));
-    long ix1 = static_cast<long>(std::floor((cx + R) / CELL));
-    long iz0 = static_cast<long>(std::floor((cz - R) / CELL));
-    long iz1 = static_cast<long>(std::floor((cz + R) / CELL));
-    for (long ix = ix0; ix <= ix1; ix++) {
-      for (long iz = iz0; iz <= iz1; iz++) {
-        auto cell = grid_.find(key(static_cast<int>(ix), static_cast<int>(iz)));
-        if (cell == grid_.end()) continue;
-        for (const Prim& p : cell->second) {
-          if (!p.yIsNaN && std::fabs(cy - 0.5 - p.y) > 2.6) continue;
-          double px, pz, rad = R;
+    v.toWorld(mo[0], 0, mo[2] + offsets[c], tmp.data());
+    const double cx = tmp[0];
+    const double cy = tmp[1];
+    const double cz = tmp[2];
+    const int64_t ix0 = cellOf(cx - R);
+    const int64_t ix1 = cellOf(cx + R);
+    const int64_t iz0 = cellOf(cz - R);
+    const int64_t iz1 = cellOf(cz + R);
+    for (int64_t ix = ix0; ix <= ix1; ix++) {
+      for (int64_t iz = iz0; iz <= iz1; iz++) {
+        const std::vector<Prim*>* list = cell(ix, iz);
+        if (!list) continue;
+        for (size_t i = 0; i < list->size(); i++) {
+          const Prim& p = *(*list)[i];
+          if (!std::isnan(p.y) && std::abs(cy - 0.5 - p.y) > 2.6) continue;
+          double px;
+          double pz;
+          double rad = R;
           if (p.kind == 0) {
-            double dx = p.x2 - p.x1, dz = p.z2 - p.z1;
-            double l2 = dx * dx + dz * dz;
+            const double dx = p.x2 - p.x1;
+            const double dz = p.z2 - p.z1;
+            const double l2 = dx * dx + dz * dz;
             double t = l2 > 1e-9 ? ((cx - p.x1) * dx + (cz - p.z1) * dz) / l2 : 0;
-            t = t < 0 ? 0 : (t > 1 ? 1 : t);
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
             px = p.x1 + dx * t;
             pz = p.z1 + dz * t;
           } else {
@@ -152,28 +205,33 @@ double SceneryCollider::resolve(Vehicle& v) {
             pz = p.z1;
             rad = R + p.r;
           }
-          double nx = cx - px, nz = cz - pz;
-          double d2 = nx * nx + nz * nz;
+          const double nx = cx - px;
+          const double nz = cz - pz;
+          const double d2 = nx * nx + nz * nz;
           if (d2 >= rad * rad || d2 < 1e-10) continue;
-          double d = std::sqrt(d2);
-          double ux = nx / d, uz = nz / d;
-          double depth = rad - d;
+          const double d = std::sqrt(d2);
+          const double ux = nx / d;
+          const double uz = nz / d;
+          const double depth = rad - d;
           // velocity of the contact point (ground-plane part)
-          double rx = px - v.pos[0], rz = pz - v.pos[2];
-          double vx = v.vel[0] - v.angVel[1] * -rz;
-          double vz = v.vel[2] - v.angVel[1] * rx;
-          double vn = vx * ux + vz * uz;
+          const double rx = px - v.pos[0];
+          const double rz = pz - v.pos[2];
+          const double vx = v.vel[0] - v.angVel[1] * -rz;
+          const double vz = v.vel[2] - v.angVel[1] * rx;
+          const double vn = vx * ux + vz * uz;
           v.translate(ux * depth, 0, uz * depth);
           if (vn < 0) {
-            impact = std::max(impact, -vn);
-            // inelastic hit with a little bounce; applied at centre-of-mass
-            // height so the car does not flip
-            double m = v.spec.mass * 0.55;
-            double j = -(1.15 * vn) * m;
+            impact = jsMax(impact, -vn);
+            // (into the wall of a building – a footprint, not a fence or a post)
+            if (p.kind == 0 && std::isnan(p.y)) lastBuilding = jsMax(lastBuilding, -vn);
+            // inelastic hit with a little bounce; applied at centre-of-mass height so the car does not flip
+            const double m = v.spec.mass * 0.55;
+            const double j = -(1.15 * vn) * m;
             // scrape friction along the obstacle
-            double tx = -uz, tz = ux;
-            double vt = vx * tx + vz * tz;
-            double jt = -std::max(-0.35 * j, std::min(0.35 * j, vt * m));
+            const double tx = -uz;
+            const double tz = ux;
+            const double vt = vx * tx + vz * tz;
+            const double jt = -jsMax(-0.35 * j, jsMin(0.35 * j, vt * m));
             v.applyImpulse(px, v.pos[1], pz, ux * j + tx * jt, 0, uz * j + tz * jt);
           }
         }

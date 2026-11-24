@@ -1,0 +1,310 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * HOOKS – what the simulation asks of the parts of the original that are not translated yet.
+ *
+ * The traffic, the rule monitor and the driver of the autopilot call into the people on foot,
+ * the cyclists, the emergency vehicles, the roadworks, the kerb build-outs, the level
+ * crossings, the wild animals, the bus lines and the signs with a time on them.  None of
+ * those is here yet.  Each stands in this file as a class of the original's name with just
+ * the members that are called – all of them for the missing part to fill in – and whoever holds
+ * one holds a pointer that is null until the part exists:
+ *
+ *     RoadEvents* roadEvents = nullptr;   …   if (roadEvents && roadEvents->blocked(lane, s)) …
+ *
+ * When a part is translated, its declaration here goes and the real class takes its place
+ * (the same name, the same members): nothing that calls it changes.  A test can hang a small
+ * class of its own on a hook in the meantime.
+ */
+#pragma once
+
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "core/geom.h"
+#include "core/js.h"
+#include "sim/insertion_map.h"
+#include "sim/playerstate.h"
+#include "world/lanes.h"
+#include "world/types.h"
+#include "world/world.h"
+
+namespace fs {
+
+struct TrafficCar;
+struct TrafficEvent;
+struct PlayerSnapshot;
+class RuleMonitor;
+
+// ---- src/sim/pedestrians.ts ---------------------------------------------------------------
+
+/** One of the people on foot (interface Walker). */
+struct Walker {
+  int id = 0;
+  /** what they look like: the look number of render/people (a replay records it as the "colour") */
+  int colour = 0;
+  double x = 0;
+  double y = 0;
+  double z = 0;
+  /** the way they face (0 = north, + = to the left) */
+  double yaw = 0;
+  /** metres walked (the gait follows it) – −1 while they stand */
+  double phase = 0;
+  /** 'walk' | 'wait' | 'cross' | 'gone' */
+  std::string state = "walk";
+  /** the crossing they wait at or walk over – null: none (also where they cross without one) */
+  const CrossingJson* crossing = nullptr;
+  /** how long they have been waiting at its kerb (s) */
+  double waited = 0;
+  /** how fast they walk now (m/s) */
+  double speed = 0;
+  /** for the picture: the head turned (rad, + to the left), a start (0 … 1), leaning into the walk (rad), an umbrella up */
+  double head = 0;
+  double startle = 0;
+  double lean = 0;
+  bool umbrella = false;
+};
+
+struct Cyclist;
+
+/** The people on foot in the town (class Crowd). */
+class Crowd {
+ public:
+  virtual ~Crowd() = default;
+  /** how many walk around near the player */
+  int target = 0;
+  /** the people (the original's getter `people`) */
+  virtual const std::vector<Walker*>& people() = 0;
+  virtual void clear() = 0;
+  virtual void removeRoads(const InsertionSet<Edge*>& gone) = 0;
+  /** those who are on the carriageway, as the cars see them (added to `out`) */
+  virtual void addBlocks(std::vector<PlayerState*>& out) = 0;
+  /** is somebody crossing the road `lane` leads into at the junction's mouth, where no crossing is drawn? */
+  virtual bool crossingLane(const Lane& lane) = 0;
+  virtual void update(double dt, const PlayerState& player, const std::vector<TrafficCar*>& cars, const std::vector<Cyclist*>& cyclists,
+                      const std::vector<PlayerState*>& obstacles, std::vector<TrafficEvent>& events) = 0;
+};
+
+// ---- src/sim/cyclists.ts ------------------------------------------------------------------
+
+/** Somebody on a bicycle (interface Cyclist: what the traffic reads of them). */
+struct Cyclist {
+  int id = 0;
+  /** the lane they ride beside, or the path through a junction they are on */
+  Lane* lane = nullptr;
+  Connector* conn = nullptr;
+  /** how far along it (m) */
+  double s = 0;
+  double v = 0;
+  double x = 0;
+  double y = 0;
+  double z = 0;
+  double yaw = 0;
+};
+
+inline constexpr double CYCLE_LENGTH = 1.8;
+inline constexpr double CYCLE_WIDTH = 0.64;
+
+/** People on bicycles (class Cyclists). */
+class Cyclists {
+ public:
+  virtual ~Cyclists() = default;
+  std::vector<Cyclist*> list;
+  /** how many ride around near the player by themselves (those sent along for a turn come on top) */
+  int target = 0;
+  /** the lanes cars may appear on near a place (the traffic's spawn grid: Traffic::lanesAt) */
+  std::function<const std::vector<Lane*>*(double x, double z)> lanesAt = nullptr;
+  virtual void clear() = 0;
+  virtual void update(double dt, const PlayerState& player, const std::vector<PlayerState*>& obstacles, const std::vector<TrafficCar*>& cars,
+                      std::vector<TrafficEvent>& events) = 0;
+  /** is a cyclist beside or coming up behind a vehicle that is about to turn right off `lane`, its middle at `s`? */
+  virtual bool blocksRightTurn(const Lane& lane, double s, double half) = 0;
+};
+
+// ---- src/sim/emergency.ts -----------------------------------------------------------------
+
+/** An emergency vehicle and its call (interface EmergencyCar: what the traffic reads of it). */
+struct EmergencyCar {
+  /** on a call: blue lights and siren on (false: a police car on patrol) */
+  bool call = false;
+  /** the connectors of its way after the one it takes next, in order (Traffic.nextFor hands them out) */
+  std::vector<Connector*> route;
+};
+
+struct EmergencyFault {
+  std::string id;
+  /** 'hint' | 'minor' | 'major' | 'fail' */
+  std::string severity;
+};
+
+/** Emergency vehicles on their calls, and how the others make way for them (class Emergencies). */
+class Emergencies {
+ public:
+  virtual ~Emergencies() = default;
+  struct Lead {
+    double gap = JS_INF;
+    double v = 0;
+  };
+  virtual void update(double dt, const PlayerState& player) = 0;
+  /** the speed a car wants: faster on a call, slower while making way */
+  virtual double desired(TrafficCar& car, double v0, double limit) = 0;
+  /** how far ahead a car that makes way is to stop (Infinity: not at all) */
+  virtual double stopFor(TrafficCar& car) = 0;
+  virtual Lead lead(TrafficCar& car) = 0;
+  /** through a junction on a call: the speed to go at most, or < 0: stop */
+  virtual double through(TrafficCar& car, const Connector& next, double distToLine, bool mustStop) = 0;
+  virtual const std::vector<EmergencyFault>& judge(double dt, const PlayerSnapshot& p) = 0;
+};
+
+// ---- src/sim/roadevents.ts ----------------------------------------------------------------
+
+/** What roadworks ask of a vehicle (interface Gate). */
+struct Gate {
+  /** stop this far ahead of the front (m; Infinity: no need) */
+  double stop = JS_INF;
+  /** at most this fast (m/s; Infinity: as the road allows) */
+  double cap = JS_INF;
+  /** the lane ends ahead (closed): the one to move over to */
+  Lane* move = nullptr;
+  /** the road the vehicle meant to turn into next is closed: choose another way */
+  bool reroute = false;
+  /** why it stops: '' | 'light' | 'oncoming' | 'lane' | 'closed' */
+  std::string why;
+};
+
+/** The roadworks and closures of the day (class RoadEvents). */
+class RoadEvents {
+ public:
+  virtual ~RoadEvents() = default;
+  virtual void step(double dt, const std::vector<TrafficCar*>& cars, const PlayerState& player) = 0;
+  virtual Gate gate(const Lane& lane, double front, double v, const Connector* next) = 0;
+  /** null: nothing ahead of this car */
+  virtual const Gate* gateCar(TrafficCar& car) = 0;
+  virtual Lane* openLane(const Lane& lane) = 0;
+  virtual bool laneOpen(const Lane& lane, double front) = 0;
+  /** how far left (+) of its lane a vehicle passes a closed side there (m) */
+  virtual double shift(const Lane& lane, double mid) = 0;
+  virtual void offset(const Lane& lane, double d, PolySample& p) = 0;
+  virtual bool closed(const Lane& lane) = 0;
+  virtual bool blocked(const Lane& lane, double s) = 0;
+  /** the obstacles with the fences, barriers and crowds of the zones near the player added */
+  virtual const std::vector<PlayerState*>& withBlocks(const std::vector<PlayerState*>& obstacles, const PlayerState& player) = 0;
+  virtual double limitAt(const Edge& edge, double s, int dir, double limit) = 0;
+  virtual bool passing(const Edge& edge, double s, int dir) = 0;
+  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, double off, int dir, double dt) = 0;
+};
+
+// ---- src/sim/narrowings.ts ----------------------------------------------------------------
+
+struct NarrowGate {
+  double stop = JS_INF;
+  double cap = JS_INF;
+  /** '' | 'oncoming' */
+  std::string why;
+};
+
+/** The narrowings kerb build-outs make (class Narrowings). */
+class Narrowings {
+ public:
+  virtual ~Narrowings() = default;
+  const PlayerState* player = nullptr;
+  virtual double shift(const Lane& lane, double mid, double hw = 0.95, double hl = 2.3) = 0;
+  virtual void offset(const Lane& lane, double d, PolySample& p, double hw = 0.95, double hl = 2.3) = 0;
+  virtual bool passing(const Edge& edge, double s, int dir) = 0;
+  virtual NarrowGate gate(const Lane& lane, double front, double v, double length, const TrafficCar* self) = 0;
+  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, int dir) = 0;
+};
+
+// ---- src/sim/levelcrossing.ts -------------------------------------------------------------
+
+struct LxGate {
+  double stop = JS_INF;
+  double cap = JS_INF;
+  /** '' | 'light' | 'barrier' | 'train' | 'queue' */
+  std::string why;
+};
+
+/** The level crossings (class LevelCrossings). */
+class LevelCrossings {
+ public:
+  virtual ~LevelCrossings() = default;
+  const PlayerState* player = nullptr;
+  virtual void update(double dt, double x, double z) = 0;
+  /** `self`: the car of the traffic that asks – or, with `isPlayer`, the player's vehicle (the original's 'player') */
+  virtual LxGate gate(const Lane& lane, double front, double v, double length, const Connector* next, const TrafficCar* self, bool isPlayer = false) = 0;
+  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, int dir, double dt) = 0;
+};
+
+// ---- src/sim/wildlife.ts ------------------------------------------------------------------
+
+/** Deer and wild boar crossing the country roads at dusk (class Wildlife). */
+class Wildlife {
+ public:
+  virtual ~Wildlife() = default;
+  /** the animals on the road, as the cars see them */
+  std::vector<PlayerState*> boxes;
+  virtual void clear() = 0;
+  virtual void update(double dt, const PlayerState& player) = 0;
+};
+
+// ---- src/world/buslines.ts ----------------------------------------------------------------
+
+struct BusLineStop {
+  /** the stop place's number in the map's stops */
+  int place = 0;
+  /** the way of the line it lies on (index into its ways), and how far along that road (m from its node a) */
+  int k = 0;
+  double m = 0;
+};
+
+/** A line of the city buses in one direction (interface BusLine: what the traffic reads of it). */
+struct BusLine {
+  /** its number in BusLines.lines */
+  int index = 0;
+  /** the line's number and where it goes */
+  std::string ref;
+  std::string to;
+  /** the ways (road * 2 + direction) of its route in order, and how many of them are the route itself (the rest: the way round to the line back) */
+  std::vector<int32_t> ways;
+  int end = 0;
+  /** the line back, where one begins at this one's end */
+  BusLine* back = nullptr;
+};
+
+/** The lines of the city buses (class BusLines). */
+class BusLines {
+ public:
+  virtual ~BusLines() = default;
+  struct At {
+    BusLine* line = nullptr;
+    int k = 0;
+  };
+  std::vector<BusLine*> lines;
+  /** the lines that run along way `w`, each with the index of that way in its ways */
+  virtual std::vector<At> at(int w) = 0;
+  virtual bool has(int w) = 0;
+  /** the stops of `line` on its ways k0 … k1 (written into `out`, which is returned) */
+  virtual std::vector<BusLineStop>& stopsOn(const BusLine& line, int k0, int k1, std::vector<BusLineStop>& out) = 0;
+};
+
+// ---- src/world/extrasigns.ts --------------------------------------------------------------
+
+/** The signs with a time on them: which hold now, by the game's clock (class TimedRules). */
+class TimedRules {
+ public:
+  virtual ~TimedRules() = default;
+  struct Limit {
+    /** km/h */
+    double v = 0;
+    /** what the sign's panel says ("22–6 h") */
+    std::string when;
+  };
+  /** the limit of a timed sign on a road in a direction that holds now – none: the road's own */
+  virtual std::optional<Limit> limit(int edge, int dir, bool heavy) = 0;
+  /** shut now to motor vehicles (or lorries): what the panel says – '' when it is not */
+  virtual std::string shut(int edge, int dir, bool heavy) = 0;
+};
+
+}  // namespace fs

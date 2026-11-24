@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Origin: src/sim/vehicle/vehicle.ts @ v1.7.7
 /**
  * Vehicle dynamics.
  *
@@ -20,14 +21,10 @@
  *    the slipping state and never oscillates.
  *
  * Everything is deterministic and allocation-free in step().
- *
- * Origin: src/sim/vehicle/vehicle.ts (MaurerAnton/driving-simulator @ 5b6ddc7,
- * v0.1.0).
  */
 #pragma once
 
 #include <array>
-#include <cmath>
 
 #include "sim/vehicle/types.h"
 
@@ -35,25 +32,19 @@ namespace fs {
 
 class Vehicle {
  public:
-  /** the body shell touching the ground (rolled over / stuck): the tests read it */
-  bool inBodyContact() const { return bodyContact; }
-  Vehicle(const VehicleSpec& spec, Ground& ground);
-
   const VehicleSpec spec;
-  Ground& ground;
-
   /** centre of mass (world) */
-  double pos[3] = {0, 0, 0};
-  double quat[4] = {0, 0, 0, 1};
-  double vel[3] = {0, 0, 0};
-  double angVel[3] = {0, 0, 0};
-  std::array<WheelState, 4> wheels;
+  std::array<double, 3> pos{0, 0, 0};
+  std::array<double, 4> quat{0, 0, 0, 1};
+  std::array<double, 3> vel{0, 0, 0};
+  std::array<double, 3> angVel{0, 0, 0};
+  std::array<WheelState, 4> wheels{};
   /**
    * Position of the model origin (ground point below the middle of the
    * wheelbase at rest) in body coordinates.  Place the 3D model at
    * pos + R·modelOrigin with the body orientation.
    */
-  double modelOrigin[3] = {0, 0, 0};
+  std::array<double, 3> modelOrigin{0, 0, 0};
 
   // --- derived, refreshed every step ---
   double speed = 0;
@@ -77,24 +68,36 @@ class Vehicle {
   /** distance driven (m) */
   double odometer = 0;
 
+  /** the body shell (not just the tyres) touches the ground: rolled over or stuck nose-down */
+  bool bodyContact = false;
   /** number of internal integration steps per step() call */
   int substeps = 2;
 
+  Vehicle(const VehicleSpec& spec, Ground& ground);
+
   /** Place the car at rest with its model origin on (x, y, z), facing `yaw`. */
   void teleport(double x, double y, double z, double yaw);
+
   void resetDrivetrain(bool engineRunning);
+
   void applyImpulse(double px, double py, double pz, double jx, double jy, double jz);
+
   void translate(double dx, double dy, double dz);
-  /** Height of each wheel centre above the model's ground plane (for drawing). */
-  void getWheelHeights(double out[4]) const;
-  /** World position of the model origin. */
-  void getModelPosition(double out[3]) const;
+
+  /** Height of each wheel centre above the model's ground plane, in body coordinates (for drawing the wheels). */
+  void getWheelHeights(double* out) const;
+
+  /** World position of the model origin (see `modelOrigin`). */
+  void getModelPosition(double* out) const;
+
   /** Body point (body coordinates) → world. */
-  void toWorld(double bx, double by, double bz, double out[3]) const;
+  void toWorld(double bx, double by, double bz, double* out) const;
 
   void step(double dt, const DriverInput& input);
 
  private:
+  Ground& ground;
+
   // --- internal state ---
   double engineOmega = 0;
   double idleI = 0;
@@ -102,26 +105,24 @@ class Vehicle {
   double fireTimer = 0;
   double shiftTimer = 0;
   int autoGear = 1;
-  double rot[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+  std::array<double, 9> rot{};
   std::array<std::array<double, 3>, 4> attach{};
-  double comp[4] = {0, 0, 0, 0};
-  double compPrev[4] = {0, 0, 0, 0};
-  double susLen[4] = {0.36, 0.36, 0.36, 0.36};
-  double zx[4] = {0, 0, 0, 0};
-  double zy[4] = {0, 0, 0, 0};
-  double fxTyre[4] = {0, 0, 0, 0};
-  double absMul[4] = {1, 1, 1, 1};
-  GroundSample sampleState{};
+  std::array<double, 4> comp{};
+  std::array<double, 4> compPrev{};
+  std::array<double, 4> susLen;
+  std::array<double, 4> zx{};
+  std::array<double, 4> zy{};
+  std::array<double, 4> fxTyre{};
+  /** 1 + (tyre damping seen by the wheel) · h / inertia: the wheel is integrated implicitly against it */
+  std::array<double, 4> wheelImp{1, 1, 1, 1};
+  std::array<double, 4> absMul{1, 1, 1, 1};
+  GroundSample sample{};
   std::array<double, 2> staticComp{0, 0};
   double idleOmega = 0;
-  double prevVel[3] = {0, 0, 0};
+  std::array<double, 3> prevVel{0, 0, 0};
   double frontLat = 0;
   double lastTc = 0;
   double startGrace = 0;
-  /** the body shell (not just the tyres) touches the ground: rolled over or stuck nose-down */
-  bool bodyContact = false;
-  /** 1 + (tyre damping seen by the wheel) · h / inertia: the wheel is integrated implicitly against it */
-  double wheelImp[4] = {1, 1, 1, 1};
 
   void updateRot();
   /** angVel += I⁻¹ · (world torque) · h */
@@ -131,14 +132,5 @@ class Vehicle {
   void substep(double h, const DriverInput& inp);
   void derive(double dt);
 };
-
-/** Torque a longitudinal tyre force exerts against the wheel's rotation. */
-inline double rollTorque(double fx, double radius) { return fx * radius; }
-
-/** Pacejka-shaped normalised slip curve (see the header comment). */
-inline double pacejka(double rho) {
-  double u = 1.9 * rho;
-  return std::sin(1.5 * std::atan(u - 0.2 * (u - std::atan(u))));
-}
 
 }  // namespace fs

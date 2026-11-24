@@ -1,3 +1,0 @@
-sim_test
-traffic_test
-vehicle_test

@@ -83,7 +83,7 @@ RailNetwork::RailNetwork(const std::vector<RailJson>& rails) {
     p.len = n > 0 ? p.cum[n - 1] : 0;
     p.a = r.a;
     p.b = r.b;
-    if (r.hasSt) p.stops = r.st;
+    p.stops = r.st;
     p.cap.assign(n, 99.0f);
     // radius of the curve through the points a dozen metres before and behind: v² / r stays gentle
     for (size_t i = 0; i < n; i++) {
