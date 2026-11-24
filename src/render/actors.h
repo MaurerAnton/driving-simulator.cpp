@@ -19,6 +19,7 @@
 #include "engine/engine.h"
 #include "render/car.h"
 #include "render/fleet.h"
+#include "render/people.h"
 #include "sim/hooks.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
@@ -28,48 +29,12 @@ namespace fs {
 
 // ------------------------------------------------------------------ hooks ----
 //
-// The people on foot (render/people.ts), the cyclists (render/cyclist.ts) and the emergency
+// The cyclists (render/cyclist.ts) and the emergency
 // vehicles (render/emergency.ts) are not translated yet.  (The city bus is render/fleet.h's PlayerBus.)  Each stands here as a class of the original's name with just the members
 // the traffic's drawing calls, for the missing part to fill in; `create` is its constructor
-// (`new PeopleRenderer(capacity)` …) and null until then – what it would draw is left out
+// (`new CyclistModel(colour)` …) and null until then – what it would draw is left out
 // meanwhile.  When a part is translated its declaration here goes and the real class takes its
 // place: nothing in actors.cpp changes but the `create` calls.
-
-/** How somebody stands or walks (render/people.ts PersonPose). */
-struct PersonPose {
-  /** the feet on the ground – for somebody sitting, the ground below the hips */
-  double x = 0;
-  double y = 0;
-  double z = 0;
-  /** 0 = facing north (−z), positive = turned to the left */
-  double yaw = 0;
-  /** metres walked so far (drives the gait); −1 = standing still */
-  double walk = -1;
-  /** a whole number that settles the look: clothes, colours, hair, height, what is carried */
-  int look = 0;
-  /** sitting on a seat SEAT_HEIGHT above y (a bench, the bench in a shelter) */
-  std::optional<bool> sit{};
-  /** the head turned (rad, + to the left): looking out for the traffic – standing, instead of looking about now and then */
-  std::optional<double> head{};
-  /** a start (0 … 1): a horn, a car too close – the arms up, the body back */
-  std::optional<double> startle{};
-  /** leaning into the walk more (rad): in a hurry, in the rain */
-  std::optional<double> lean{};
-  /** an umbrella up (not with a walking stick or a suitcase in the hand that would hold it) */
-  std::optional<bool> umbrella{};
-  /** the arms held as given (rad): the right arm swung forward and out to the side, then the left arm */
-  std::optional<std::array<double, 4>> arms{};
-};
-
-/** render/people.ts */
-class PeopleRenderer {
- public:
-  static inline std::function<std::unique_ptr<PeopleRenderer>(int capacity)> create = nullptr;
-
-  virtual ~PeopleRenderer() = default;
-  const std::shared_ptr<Group> group = make<Group>();
-  virtual void update(const std::vector<PersonPose>& people, double time) = 0;
-};
 
 /** render/cyclist.ts */
 class CyclistModel {
