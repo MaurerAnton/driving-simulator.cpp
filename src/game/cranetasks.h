@@ -509,7 +509,7 @@ class CraneTasks {
   const CraneWorkPlan& plan;
   /** (the loads are changed by the game – where they lie, hooked – the vector itself is not resized) */
   std::vector<WorldLoad> loads;
-  const std::vector<WorldZone> zones;
+  std::vector<WorldZone> zones;
   /** the guided start ('guide'), the tasks, all done ('guide' | 'tasks' | 'done') */
   std::string stage = "guide";
   /** the guide's step now (null once it is done) */
@@ -534,7 +534,7 @@ class CraneTasks {
   /** The load of the task now, and the place it goes. */
   struct Target {
     WorldLoad* load;
-    const WorldZone* zone;
+    WorldZone* zone;
   };
   std::optional<Target> target();
 

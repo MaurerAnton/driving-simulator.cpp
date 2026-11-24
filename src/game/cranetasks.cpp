@@ -282,8 +282,8 @@ std::optional<CraneTasks::Target> CraneTasks::target() {
       load = &l;
       break;
     }
-  const WorldZone* zone = nullptr;
-  for (const WorldZone& z : zones)
+  WorldZone* zone = nullptr;
+  for (WorldZone& z : zones)
     if (z.id == t->zone) {
       zone = &z;
       break;
