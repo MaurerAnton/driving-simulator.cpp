@@ -21,6 +21,7 @@
 #include "i18n/index.h"
 #include "input/input.h"
 #include "platform/frame.h"
+#include "platform/json.h"
 #include "platform/plat.h"
 #include "render/actors.h"
 #include "render/far.h"
@@ -666,6 +667,229 @@ void Game::speak(const std::string& what, double dist, const std::string& text) 
   lastNavSpoken = key;
   // (the voice, the text made speakable, the queue: audio/speech.ts)
   speech.say(text, settings.lang, settings);
+}
+
+void Game::updateCamera(double dt) {
+  // (later: footGlance, the head turned by the glance keys on foot – game.ts:7271)
+  Camera& cam = *app.camera;
+  // zooming the view (input/camzoom.ts): on foot and in the driver's seat – pinch, the wheel, + and −
+  // (later: watcher, crane, doorT, opens, walker – game.ts:7277)
+  const bool zoomable = cameraMode == "cockpit";
+  input->viewZoom = zoomable;
+  input->zoom.update(dt, settings.zoomRelease, zoomable);
+  // (later: watcher.camera – game.ts:7280)
+  // the developer's view (?cam=… or devView()): a camera standing anywhere – for comparing the world with photos
+  if (cameraMode == "dev") {
+    cam.near = 0.3;
+    cam.fov = devFov;
+    cam.position.copy(free.pos);
+    cam.rotation.set(free.pitch, free.yaw, 0, Euler::YXZ);
+    cam.updateProjectionMatrix();
+    return;
+  }
+  Group& car = *model().root;
+  Vehicle& v = *vehicle;
+  const Controls& c = input->c;
+  // the eye is always needed for the mirrors
+  Vector3& lean = tmpV.set(-v.accLat * 0.004, 0, v.accLong * 0.005);
+  lean.clampLength(0, 0.06);
+  eyeWorld.copy(model().eye).add(lean).applyMatrix4(car.matrixWorld);
+  // (later: working a crane – game/craneplay.ts, game.ts:7300)
+  // (later: on foot, on the bus, a passenger, getting in and out – game.ts:7306)
+  if (cameraMode == "cockpit") {
+    cam.near = 0.06;
+    cam.fov = 60;
+    cam.position.copy(eyeWorld);
+    // looking over the shoulder also moves the head a little towards that side
+    // (on a demonstration drive the head turns as the driver looks over the shoulder – not in a jerk)
+    // (later: lessonWatch – game.ts:7372)
+    const double want = demo && demo->active ? demo->look * 0.8 : 0;
+    demoHead += std::max(-dt * 5, std::min(dt * 5, want - demoHead));
+    // (later: a rider's gaze and lean (PlayerBike), the aeroplane's – game.ts:7375)
+    const double gaze = 0;
+    tmpQ.setFromEuler(Euler(c.lookPitch - gaze, c.lookYaw + demoHead, 0, Euler::YXZ));
+    cam.quaternion.copy(car.quaternion).multiply(tmpQ);
+  } else if (cameraMode == "chase") {
+    cam.near = 0.3;
+    cam.fov = 55;
+    // The camera circles a point above the car: the mouse (or a finger) turns it all the way
+    // round and from road level up to a bird's view, the wheel changes the distance.
+    // (With a trailer it circles the coupling – the middle of the combination – and looks from
+    // higher up, so that the trailer does not hide the road and its end can be watched.)
+    const bool long_ = def->long_;
+    // (later: task.run.judge – reversing on the yard, game.ts:7395)
+    const bool reversing = false;
+    const double lift = std::min(1.5, std::max(0.03, (reversing ? 1.05 : long_ ? 0.42 : 0.2) - c.lookPitch));
+    const double reach = c.lookZoom * std::cos(lift);
+    const double up = long_ ? 2.2 : 1.1;
+    const double behind = reversing ? 9.5 : long_ ? 4.2 : 0;
+    const double fx = car.position.x + std::sin(v.yaw) * behind;
+    const double fz = car.position.z + std::cos(v.yaw) * behind;
+    Vector3& back = tmpV.set(std::sin(c.lookYaw) * reach, up + c.lookZoom * std::sin(lift), std::cos(c.lookYaw) * reach).applyAxisAngle(Vector3(0, 1, 0), v.yaw);
+    // (the camera's place relative to the car is what is smoothed – not its place in the world: following a
+    // moving point by a share of the way per picture left it trailing by more or less with every uneven
+    // picture, a quick little zoom in and out while driving)
+    if (camSnap) chaseOff.copy(back);
+    else chaseOff.lerp(back, 1 - std::exp(-dt * 8));
+    Vector3& target = camTarget.set(fx, car.position.y, fz).add(chaseOff);
+    const double g = app.tiles->heightAt(target.x, target.z);
+    if (!std::isnan(g)) target.y = std::max(target.y, g + 0.6);
+    cam.position.copy(target);
+    camSnap = false;
+    cam.lookAt(fx, car.position.y + up, fz);
+  } else if (cameraMode == "free" && flyFree()) {
+    flyCamera(cam, dt);
+  } else if (cameraMode == "free") {
+    cam.near = 0.3;
+    cam.fov = 55;
+    Fc& fc = this->fc;
+    const Input::Cam& t = input->takeCam();
+    const bool long_ = def->long_;
+    if (!fc.ready) {
+      // from where the camera is now, looking the way it looks
+      fc.ready = true;
+      fc.off.copy(cam.position).sub(car.position);
+      const Vector3& dir = cam.getWorldDirection(tmpV);
+      fc.yaw = std::atan2(-dir.x, -dir.z);
+      fc.pitch = std::asin(std::max(-1.0, std::min(1.0, dir.y)));
+      // (from the driver's seat, or from nowhere in particular: start behind the car instead)
+      if (fc.off.length() < 2.5 || fc.off.length() > 400) fc.ready = false;
+    }
+    if (!fc.ready || t.reset) {
+      // behind the car, a little above it
+      fc.ready = true;
+      const double back = long_ ? 20 : 8;
+      fc.off.set(std::sin(v.yaw) * back, long_ ? 7 : 3.2, std::cos(v.yaw) * back);
+      fc.yaw = v.yaw;
+      fc.pitch = -0.28;
+    }
+    fc.yaw += t.yaw;
+    fc.pitch = std::max(-1.5, std::min(1.3, fc.pitch + t.pitch));
+    const double sy = std::sin(fc.yaw);
+    const double cy = std::cos(fc.yaw);
+    const double cp = std::cos(fc.pitch);
+    const double sp = std::sin(fc.pitch);
+    TileManager& tiles = *app.tiles;
+    double ground = tiles.heightAt(car.position.x + fc.off.x, car.position.z + fc.off.z);
+    if (std::isnan(ground)) ground = car.position.y;
+    // what a drag or a key moves it by grows with the height: metres near the ground, a block from high up
+    const double reach = std::max(4.0, std::min(220.0, (car.position.y + fc.off.y - ground) * 1.6 + 3));
+    const double speed = (t.fast ? 4 : 1) * std::max(5.0, std::min(90.0, reach * 0.9));
+    const double right = t.right * reach + t.keyRight * speed;
+    const double fwd = t.fwd * reach + t.keyFwd * speed;
+    const double dolly = t.dolly * reach;
+    fc.off.x += cy * right - sy * fwd - sy * cp * dolly;
+    fc.off.z += -sy * right - cy * fwd - cy * cp * dolly;
+    fc.off.y += sp * dolly + t.keyUp * speed * 0.7;
+    // it stays within the part of the map that is loaded around the car, and above the ground
+    const double far = std::min(900.0, tiles.viewRadius * 0.7);
+    const double hd = std::hypot(fc.off.x, fc.off.z);
+    if (hd > far) {
+      fc.off.x *= far / hd;
+      fc.off.z *= far / hd;
+    }
+    ground = tiles.heightAt(car.position.x + fc.off.x, car.position.z + fc.off.z);
+    if (std::isnan(ground)) ground = car.position.y;
+    fc.off.y = std::max(ground + 0.4, std::min(ground + 600, car.position.y + fc.off.y)) - car.position.y;
+    cam.position.copy(car.position).add(fc.off);
+    camSnap = false;
+    cam.quaternion.setFromEuler(Euler(fc.pitch, fc.yaw, 0, Euler::YXZ));
+  } else {
+    cam.near = 0.2;
+    cam.fov = 60;
+    Free& f = free;
+    const double speed = (keys.contains("ShiftLeft") ? 80 : 12) * dt;
+    if (keys.contains("Numpad8")) f.pos.z -= speed;
+    if (keys.contains("Numpad2")) f.pos.z += speed;
+    if (keys.contains("Numpad4")) f.pos.x -= speed;
+    if (keys.contains("Numpad6")) f.pos.x += speed;
+    if (freeRelative) {
+      cam.position.copy(f.pos).applyQuaternion(car.quaternion).add(car.position);
+      tmpQ.setFromEuler(Euler(f.pitch, f.yaw, 0, Euler::YXZ));
+      cam.quaternion.copy(car.quaternion).multiply(tmpQ);
+    }
+  }
+  // (later: services.camera – game.ts:7486)
+  // (1 – nothing – unless the view is zoomed: only on foot and in the driver's seat)
+  cam.fov = input->zoom.fov(cam.fov);
+  cam.updateProjectionMatrix();
+}
+
+std::string Game::debugInfo() {
+  Vehicle* v = vehicle.get();
+  const auto fixed1 = [](double x) { return std::round(x * 10) / 10; };
+  JsonWriter w;
+  w.beginObject();
+  w.key("state");
+  w.string(state);
+  w.key("tiles");
+  w.number(static_cast<double>(app.tiles->tiles.size()));
+  w.key("frames");
+  w.number(frames);
+  w.key("cars");
+  w.number(traffic ? static_cast<double>(traffic->cars.size()) : 0);
+  w.key("kmh");
+  w.number(v ? fixed1(v->speed * 3.6) : 0);
+  w.key("rpm");
+  w.number(v ? std::round(v->rpm) : 0);
+  w.key("pos");
+  if (v) {
+    w.beginArray();
+    for (const double x : mpos) w.number(fixed1(x));
+    w.endArray();
+  } else {
+    w.null();
+  }
+  w.key("faults");
+  w.beginArray();
+  if (rules)
+    for (const Violation& x : rules->log) w.string(x.id);
+  w.endArray();
+  w.key("missingSigns");
+  w.beginArray();
+  if (signs)
+    for (const std::string& m : signs->missing) w.string(m);
+  w.endArray();
+  w.key("calls");
+  w.number(app.renderer.info.calls);
+  w.key("tris");
+  w.number(app.renderer.info.triangles);
+  // (later: reality.debugInfo – game.ts:7506)
+  w.key("reality");
+  w.null();
+  // the road network that is loaded (it may come in pieces around the car), and whether the roads of the whole map are known
+  w.key("roads");
+  if (app.world) {
+    w.beginObject();
+    w.key("pieces");
+    w.boolean(app.map->pieces);
+    w.key("edges");
+    w.number(static_cast<double>(app.world->allEdges.size()));
+    w.key("nodes");
+    w.number(static_cast<double>(app.world->allNodes.size()));
+    w.key("whole");
+    w.boolean(netIndex != nullptr);
+    w.endObject();
+  } else {
+    w.null();
+  }
+  w.key("trip");
+  if (demo) {
+    w.beginObject();
+    w.key("auto");
+    w.boolean(demo->active);
+    w.key("tour");
+    w.number(demo->tour ? std::round(demo->tour->metres) : 0);
+    w.key("route");
+    w.number(nav->route ? static_cast<double>(nav->route->size()) : -1);
+    w.key("left");
+    w.number(nav->left());
+    w.endObject();
+  } else {
+    w.null();
+  }
+  w.endObject();
+  return w.take();
 }
 
 }  // namespace fs
