@@ -10,20 +10,6 @@ namespace fs {
 
 namespace {
 
-// the map's colours (the big map's own, a shade apart for land and sea)
-const char* const SEA = "#131c25";
-const char* const LAND = "#1f2b36";
-const char* const BORDER = "#3b4d5d";
-const char* const COAST = "#5a6f82";
-const char* const COUNTRY_NAME = "rgba(170, 180, 189, 0.55)";
-const char* const REGION = "#38b6ff";
-const char* const REGION_FILL = "rgba(56, 182, 255, 0.16)";
-const char* const CURRENT = "#ffcc00";
-const char* const CURRENT_FILL = "rgba(255, 204, 0, 0.14)";
-const char* const CHOSEN_FILL = "rgba(255, 255, 255, 0.22)";
-const char* const TEXT = "#f1f3f5";
-const char* const TEXT_EDGE = "rgba(12, 18, 24, 0.85)";
-
 /** a box this wide on the screen (px) is drawn as a box with its name in it; smaller ones are dots */
 const double BOX_MIN = 54;
 /** a finger reaches a dot from this far (px) */
@@ -108,8 +94,21 @@ bool WorldLayer::overlaps(const std::vector<Placed>& placed, const Placed& p) {
   return false;
 }
 
-void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang,
+void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang, const MapStyle& style,
                       const std::function<void()>& underlay) const {
+  // (the colours of the map's style: ui/mapstyle.h)
+  const char* const SEA = style.sea;
+  const char* const LAND = style.land;
+  const char* const BORDER = style.border;
+  const char* const COAST = style.coast;
+  const char* const COUNTRY_NAME = style.countryName;
+  const char* const REGION = style.region;
+  const char* const REGION_FILL = style.regionFill;
+  const char* const CURRENT = style.current;
+  const char* const CURRENT_FILL = style.currentFill;
+  const char* const CHOSEN_FILL = style.chosenFill;
+  const char* const TEXT = style.regionText;
+  const char* const TEXT_EDGE = style.halo;
   g.fillStyle(SEA);
   g.fillRect(0, 0, v.width, v.height);
   const double mpp = 1 / v.scale;   // metres a pixel
@@ -216,7 +215,7 @@ void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& curre
       const double rad = isCurrent || isChosen ? 6 : 4.2;
       g.beginPath();
       g.arc(cx, cy, rad, 0, 6.283185307179586);
-      g.fillStyle(isCurrent ? CURRENT : isChosen ? "#ffffff" : REGION);
+      g.fillStyle(isCurrent ? CURRENT : isChosen ? TEXT : REGION);
       g.fill();
       g.lineWidth(1.5);
       g.strokeStyle(TEXT_EDGE);

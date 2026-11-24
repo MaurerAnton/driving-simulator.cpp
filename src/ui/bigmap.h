@@ -37,6 +37,10 @@
 #include "ui/addresspicker.h"
 #include "ui/maphooks.h"
 #include "ui/maplayers.h"
+#include "ui/mapoverview.h"
+#include "ui/mapstyle.h"
+#include "ui/onlinesearch.h"
+#include "ui/streetbook.h"
 #include "ui/pathdraw.h"
 #include "ui/placesearch.h"
 #include "ui/worldlayer.h"
@@ -172,10 +176,17 @@ struct BigMapHost {
   std::function<std::string()> region = nullptr;
   /** ? the player chose another region on the map ("Open this map"): save it in the settings and load it */
   std::function<void(const Region& r)> onOpenRegion = nullptr;
+  /** ? "Put the car here" on a road of a region that is not loaded: the game loads that region and begins a free drive there (game/startat.h) */
+  std::function<void(const Region& r, const SpawnJson& spot)> startInRegion = nullptr;
+  /** ? where a region's files are (its net.bin.gz and map.json; ending in '/') – left empty: map-assets (world/regions.h), the site's own map not at all */
+  std::function<std::string(const std::string& id)> regionFiles = nullptr;
 };
 
 class BigMap {
  public:
+  /** 2.0: roads that came into the world: their names are kept for the search field (ui/streetbook.h) */
+  void noteStreets(const std::vector<Edge*>& edges);
+
   /** (2.0: `world`: the layer of all regions – null: the map of the loaded region alone, as in 1.7.7) */
   explicit BigMap(BigMapHost host, std::shared_ptr<WorldLayer> world = nullptr);
   ~BigMap();
@@ -354,6 +365,52 @@ class BigMap {
   void fillRegion();
   /** the regions as the search field finds them */
   std::vector<RegionSource> regionSources() const;
+
+  // 2.0: the map's look (ui/mapstyle.h) -------------------------------------------------------
+  /** the style and the online search, as the player chose them (kept on this device) */
+  MapPrefs prefs = loadMapPrefs();
+  /** the button of the bar that switches between the dark and the light map */
+  dom::El styleBtn;
+  const MapStyle& style() const { return mapStyleOf(prefs.style); }
+  /** the light map or the dark one (kept) */
+  void setStyle(const std::string& name);
+
+  // 2.0: the schema of the whole map (ui/mapoverview.h): every road of the network, every place's name ------
+  std::unique_ptr<MapOverview> own;
+  /** the overview of the loaded map (made anew when its road network is another) */
+  MapOverview& ownOverview();
+
+  // 2.0: the search finds everything ---------------------------------------------------------------------
+  /** the streets of the pieces loaded so far (ui/streetbook.h) */
+  StreetBook streets;
+  /** how many roads of the world were looked at for their names (they are looked at again when there are more) */
+  size_t streetsSeen = 0;
+  /** what is offered before anything is typed: the towns of the map, the biggest and nearest first */
+  std::vector<PlaceHit> browsePlaces();
+  /** the online place search's hits (ui/onlinesearch.h) as the map leads to them */
+  Task<std::vector<PlaceHit>> searchOnline(std::string q);
+  /** (what the search gets once the map is gone) */
+  static Task<std::vector<PlaceHit>> noPlaces();
+
+  // 2.0: the regions that are not loaded, drawn as their schema once one zooms into them ------------------
+  struct Foreign {
+    std::string id;
+    std::unique_ptr<MapOverview> ov;
+    bool loading = true;
+    bool failed = false;
+    /** when it was last in view (for keeping only the last few) */
+    double used = 0;
+  };
+  std::vector<std::shared_ptr<Foreign>> foreign;
+  /** the region whose road the place panel is for (empty: the loaded map's) */
+  std::optional<std::string> foreignSpot;
+  Foreign* foreignOf(const std::string& id);
+  /** the regions in view large enough to be drawn: fetched where they are not yet; drawn where they are */
+  void drawForeign(const Ctx2D& g, const MapView& v, double dpr, const MapStyle& st, std::vector<LabelBox>& taken);
+  Task<void> loadForeign(std::shared_ptr<Foreign> f, std::string base);
+  /** a tap on a road of a region that is not loaded: its place panel (true: there was one) */
+  bool foreignTap(double x, double y);
+  void showForeignSpot(const Region& r, const OverviewSpot& at);
 };
 
 }  // namespace fs

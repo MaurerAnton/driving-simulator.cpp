@@ -5,5 +5,12 @@
   "worldHint": "Dodirnite regiju da je odaberete",
   "worldSize": "Preuzimanje: {mb} MB",
   "worldRegion": "Regija",
-  "mapAerialSources": "Zračne snimke su isključene dok ih ne uključiš (karta → Slojevi). Tada se učitavaju izravno s poslužitelja njihovih izvora – EOX (Sentinel-2 cloudless 2016) i geodetskih uprava njemačkih saveznih zemalja: ti poslužitelji saznaju tvoju IP adresu i koje se područje prikazuje."
+  "mapAerialSources": "Zračne snimke su isključene dok ih ne uključiš (karta → Slojevi). Tada se učitavaju izravno s poslužitelja njihovih izvora – EOX (Sentinel-2 cloudless 2016) i geodetskih uprava njemačkih saveznih zemalja: ti poslužitelji saznaju tvoju IP adresu i koje se područje prikazuje.",
+  "map2.style": "Svijetla karta",
+  "map2.online": "Pretraživanje na mreži",
+  "map2.onlineCredit": "Pretraživanje: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "izvan karata",
+  "map2.loading": "Učitava se karta {name} …",
+  "map2.regionPlace": "Karta: {name}",
+  "map2.searching": "Pretražuje se na mreži …"
 }

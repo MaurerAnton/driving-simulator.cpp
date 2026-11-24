@@ -5,5 +5,12 @@
   "worldHint": "Chạm vào một vùng để chọn",
   "worldSize": "Tải xuống: {mb} MB",
   "worldRegion": "Khu vực",
-  "mapAerialSources": "Ảnh hàng không bị tắt cho đến khi bạn bật lên (bản đồ → Lớp). Khi đó ảnh được tải trực tiếp từ máy chủ của các nguồn – EOX (Sentinel-2 cloudless 2016) và cơ quan đo đạc của các bang Đức: các máy chủ này biết địa chỉ IP của bạn và khu vực đang hiển thị."
+  "mapAerialSources": "Ảnh hàng không bị tắt cho đến khi bạn bật lên (bản đồ → Lớp). Khi đó ảnh được tải trực tiếp từ máy chủ của các nguồn – EOX (Sentinel-2 cloudless 2016) và cơ quan đo đạc của các bang Đức: các máy chủ này biết địa chỉ IP của bạn và khu vực đang hiển thị.",
+  "map2.style": "Bản đồ sáng",
+  "map2.online": "Tìm kiếm trực tuyến",
+  "map2.onlineCredit": "Tìm kiếm: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "ngoài các bản đồ",
+  "map2.loading": "Đang tải bản đồ {name} …",
+  "map2.regionPlace": "Bản đồ: {name}",
+  "map2.searching": "Đang tìm trực tuyến …"
 }

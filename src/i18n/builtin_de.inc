@@ -2453,5 +2453,12 @@ R"FSLANG({
 "worldHint":"Tippe eine Region an, um sie auszuwählen",
 "worldSize":"Download: {mb} MB",
 "worldRegion":"Region",
-"mapAerialSources":"Die Luftbilder sind aus, bis du sie einschaltest (Karte → Ebenen). Dann werden sie direkt von den Servern ihrer Quellen geladen – EOX (Sentinel-2 cloudless 2016) und die Landesvermessungen der deutschen Länder: Diese Server erfahren deine IP-Adresse und welcher Ausschnitt gezeigt wird."
+"mapAerialSources":"Die Luftbilder sind aus, bis du sie einschaltest (Karte → Ebenen). Dann werden sie direkt von den Servern ihrer Quellen geladen – EOX (Sentinel-2 cloudless 2016) und die Landesvermessungen der deutschen Länder: Diese Server erfahren deine IP-Adresse und welcher Ausschnitt gezeigt wird.",
+"map2.style":"Helle Karte",
+"map2.online":"Online-Suche",
+"map2.onlineCredit":"Suche: Photon by komoot, © OpenStreetMap-Mitwirkende",
+"map2.outside":"außerhalb der Karten",
+"map2.loading":"Karte {name} wird geladen …",
+"map2.regionPlace":"Karte: {name}",
+"map2.searching":"Online-Suche läuft …"
 })FSLANG"

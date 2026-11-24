@@ -15,6 +15,7 @@
 #include "game/address.h"
 #include "i18n/unicode.h"
 #include "platform/dom.h"
+#include "platform/plat.h"
 
 namespace fs {
 
@@ -35,6 +36,19 @@ struct AddressPickerOptions {
   std::function<void(const T& hit)> pick;
   /** where the one who asks is (a place of the map): what lies near comes first (may be left out) */
   std::function<std::optional<AddressIndex::Near>()> near = nullptr;
+
+  // 2.0 (none of these in 1.7.7: left empty, the picker is the original's)
+  /** what is offered while nothing is typed yet (the big map: every town of the map) */
+  std::function<std::vector<T>()> browse = nullptr;
+  /** a search that takes a while (the online place search): asked once typing pauses, with at least 3 characters */
+  std::function<Task<std::vector<T>>(std::string query)> online = nullptr;
+  /** may it be asked now (a setting)? (empty: yes) */
+  std::function<bool()> onlineOn = nullptr;
+  /** under the hits of `online`: whose they are; while it is asked: that it is */
+  std::string onlineNote;
+  std::string searching;
+  /** is a hit only listed (greyed: there is nothing to go to)? */
+  std::function<bool(const T&)> dim = nullptr;
 };
 
 /** `{ node, input }` */
@@ -61,7 +75,25 @@ struct AddressPickerState {
   std::vector<T> hits;
   /** the entry the arrow keys have reached, -1: none yet */
   int active = -1;
+  // 2.0: the online search – which question is the latest (older answers are dropped), whether one is out, and its hits for `onlineQ`
+  int seq = 0;
+  bool pending = false;
+  std::string onlineQ;
+  std::vector<T> online;
 };
+
+/** 2.0: how long typing must pause before the online search is asked (ms) */
+inline constexpr double ONLINE_PAUSE = 350;
+
+template <class T>
+Task<void> addressPickerOnline(std::shared_ptr<AddressPickerOptions<T>> o, std::shared_ptr<AddressPickerState<T>> st, int seq, std::string q, std::function<void()> show) {
+  std::vector<T> hits = co_await o->online(q);
+  if (st->seq != seq) co_return;
+  st->pending = false;
+  st->onlineQ = q;
+  st->online = std::move(hits);
+  show();
+}
 
 template <class T>
 Task<void> addressPickerLoad(std::shared_ptr<AddressPickerOptions<T>> o, std::shared_ptr<AddressPickerState<T>> st, std::function<void(const std::string&)> say, std::function<void()> show) {
@@ -132,23 +164,8 @@ AddressPicker addressPicker(AddressPickerOptions<T> options) {
     clear();
     o->pick(h);
   };
-  std::function<void()> show = [o, st, say, clear, mark, choose, input, list, listId] {
-    const std::string q = trim(input.value());
-    // (one character is enough for a line number of public transport – "5", "N3" – where it is a
-    //  whole token; for text a single letter would match half the map, so it waits for the second)
-    if (i18n::utf16Length(q) < (isLineToken(q) ? 1u : 2u)) {
-      say("");
-      return;
-    }
-    if (!st->index) {
-      say(o->loading);
-      return;
-    }
-    std::vector<T> found = st->index(q, 8, o->near ? o->near() : std::nullopt);
-    if (found.empty()) {
-      say(o->none);
-      return;
-    }
+  // (the list of hits: buttons; 2.0: greyed ones, a line under them)
+  std::function<void(std::vector<T>, std::string)> render = [o, st, clear, mark, choose, input, list, listId](std::vector<T> found, std::string note) {
     clear();
     st->hits = std::move(found);
     input.setAttribute("aria-expanded", "true");
@@ -160,22 +177,83 @@ AddressPicker addressPicker(AddressPickerOptions<T> options) {
       // the field keeps the focus (Tab goes on to the next control, the arrow keys walk the list)
       b.tabIndex(-1);
       b.textContent(st->hits[static_cast<size_t>(k)].label);
+      if (o->dim && o->dim(st->hits[static_cast<size_t>(k)])) b.addClass("addr-dim");   // 2.0
       b.onclick([st, choose, k] {
         if (k < static_cast<int>(st->hits.size())) choose(st->hits[static_cast<size_t>(k)]);
       });
       b.handler("pointerenter", [mark, k](dom::Event&) { mark(k); });
       list.append(b);
     }
+    // 2.0: whose the online hits are, or that they are being looked for
+    if (!note.empty()) {
+      El n = dom::el("small");
+      n.className("addr-note");
+      n.textContent(note);
+      list.append(n);
+    }
     mark(-1);
+  };
+  std::function<void()> show = [o, st, say, render, input] {
+    const std::string q = trim(input.value());
+    // (one character is enough for a line number of public transport – "5", "N3" – where it is a
+    //  whole token; for text a single letter would match half the map, so it waits for the second)
+    if (i18n::utf16Length(q) < (isLineToken(q) ? 1u : 2u)) {
+      // 2.0: nothing typed yet – what there is to choose from (every town of the map)
+      std::vector<T> all = o->browse && st->index ? o->browse() : std::vector<T>();
+      if (all.empty()) say("");
+      else render(std::move(all), "");
+      return;
+    }
+    if (!st->index) {
+      say(o->loading);
+      return;
+    }
+    std::vector<T> found = st->index(q, 8, o->near ? o->near() : std::nullopt);
+    // 2.0: … and what the online search found for this very text, after them
+    const bool more = st->onlineQ == q && !st->online.empty();
+    if (more) found.insert(found.end(), st->online.begin(), st->online.end());
+    if (found.empty()) {
+      say(st->pending ? o->searching : o->none);
+      return;
+    }
+    render(std::move(found), more ? o->onlineNote : st->pending ? o->searching : "");
+  };
+  // 2.0: the online search, once typing pauses (each keystroke makes the question before it void)
+  std::function<void()> ask = [o, st, input, show] {
+    const int seq = ++st->seq;
+    st->pending = false;
+    if (!o->online || (o->onlineOn && !o->onlineOn())) return;
+    const std::string q = trim(input.value());
+    if (i18n::utf16Length(q) < 3) return;
+    st->pending = true;
+    plat::setTimeout(
+        [o, st, seq, q, show] {
+          if (st->seq != seq) return;
+          detail::addressPickerOnline<T>(o, st, seq, q, show).detach();
+        },
+        detail::ONLINE_PAUSE);
   };
   std::function<void()> ensure = [o, st, say, show] {
     if (st->asked) return;
     st->asked = true;
     detail::addressPickerLoad<T>(o, st, say, show).detach();
   };
-  input.on("focus", ensure);
-  input.on("input", [ensure, show] {
+  // (2.0: with something to offer before anything is typed, it is offered at once; and taken away when the field is left)
+  input.on("focus", [o, st, ensure, show] {
     ensure();
+    if (o->browse && st->index) show();
+  });
+  if (o->browse)
+    input.on("blur", [input, clear] {
+      plat::setTimeout(
+          [input, clear] {
+            if (dom::activeElement() != input && trim(input.value()).empty()) clear();
+          },
+          250);
+    });
+  input.on("input", [ensure, show, ask] {
+    ensure();
+    ask();
     show();
   });
   input.on("keydown", [st, show, mark, choose, clear](dom::Event& e) {

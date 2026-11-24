@@ -5,5 +5,12 @@
   "worldHint": "Prek një rajon për ta zgjedhur",
   "worldSize": "Shkarkim: {mb} MB",
   "worldRegion": "Rajon",
-  "mapAerialSources": "Fotot ajrore janë të fikura derisa t’i ndezësh (harta → Shtresat). Atëherë ngarkohen drejtpërdrejt nga serverët e burimeve të tyre – EOX (Sentinel-2 cloudless 2016) dhe zyrat e hartografisë së landeve gjermane: këta serverë mësojnë adresën tënde IP dhe cila zonë shfaqet."
+  "mapAerialSources": "Fotot ajrore janë të fikura derisa t’i ndezësh (harta → Shtresat). Atëherë ngarkohen drejtpërdrejt nga serverët e burimeve të tyre – EOX (Sentinel-2 cloudless 2016) dhe zyrat e hartografisë së landeve gjermane: këta serverë mësojnë adresën tënde IP dhe cila zonë shfaqet.",
+  "map2.style": "Hartë e çelët",
+  "map2.online": "Kërkim në internet",
+  "map2.onlineCredit": "Kërkimi: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "jashtë hartave",
+  "map2.loading": "Po ngarkohet harta e {name} …",
+  "map2.regionPlace": "Harta: {name}",
+  "map2.searching": "Po kërkohet në internet …"
 }

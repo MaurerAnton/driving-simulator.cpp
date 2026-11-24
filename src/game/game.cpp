@@ -53,6 +53,7 @@
 #include "sim/trailer.h"
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
+#include "game/startat.h"   // 2.0
 #include "ui/bigmap.h"
 #include "ui/geoip.h"
 #include "ui/hud.h"
@@ -461,8 +462,23 @@ Task<void> Game::boot(URLSearchParams q) {
       saveSettings(settings);
       plat::reload();
     };
+    // 2.0: "Put the car here" on another region's road: that region, and the drive begins there at once after the reload (game/startat.h)
+    host.startInRegion = [this](const Region& r, const SpawnJson& spot) {
+      saveStartAt(r.id, spot);
+      settings.region = r.id;
+      saveSettings(settings);
+      plat::reload();
+    };
+    host.regionFiles = [this](const std::string& id) -> std::string {
+      if (id.empty()) return this->app.baseUrl;
+      return std::string(MAP_ASSETS_URL) + REGIONS_DIR + "/" + id + "/";
+    };
     bigMap = std::make_unique<BigMap>(std::move(host));
   }
+  // 2.0: the names of the roads that come are kept for the map's search field
+  app.map->listen({.added = [this](const WorldChange& c) {
+    if (bigMap) bigMap->noteStreets(c.edges);
+  }, .removed = nullptr});
   // the driven path is written down now and then; make sure the last stretch is, too
   dom::window().on("pagehide", [this](dom::Event&) { path->save(); });
   hud->onSettingsChanged = [this] { applySettings(); };
@@ -540,6 +556,8 @@ Task<void> Game::boot(URLSearchParams q) {
     input->c.lookYaw = (at(l, 0, 0) * M_PI) / 180;
     debugLook = std::array<double, 2>{(at(l, 0, 0) * M_PI) / 180, (at(l, 1, 0) * M_PI) / 180};
   }
+  // 2.0: a place chosen on another region's roads before the reload (game/startat.h): the drive begins there, without the menu
+  const std::optional<SpawnJson> startAt = takeStartAt(app.regionId);
   const std::optional<std::string> atPlace = q.get("at");
   if (atPlace && !atPlace->empty()) {
     const std::vector<double> p = numbersOf(*atPlace);
@@ -551,6 +569,7 @@ Task<void> Game::boot(URLSearchParams q) {
     test.kind = "street";
     world.json.spawns.insert(world.json.spawns.begin(), test);
   }
+  if (startAt) world.json.spawns.insert(world.json.spawns.begin(), *startAt);   // 2.0
   last = plat::nowMs();
   looping = true;
   plat::requestAnimationFrame([this](double t) { frame(t); });
@@ -566,7 +585,8 @@ Task<void> Game::boot(URLSearchParams q) {
       const std::vector<AddressHit> hits = ix ? ix->search(addr, 1, near) : std::vector<AddressHit>();
       self->begin(start, spawnIdx, true, hits.empty() ? nullptr : &hits[0]);
     }(this, *start, *addr, spawnIdx).detach();
-  } else if (start && !start->empty()) begin(*start, spawnIdx, true);
+  } else if (startAt) begin("free", 0, true);   // 2.0
+  else if (start && !start->empty()) begin(*start, spawnIdx, true);
   else {
     toMenu();
     startWhereIAm();

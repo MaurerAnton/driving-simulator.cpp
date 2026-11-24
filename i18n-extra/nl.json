@@ -5,5 +5,12 @@
   "worldHint": "Tik op een regio om die te kiezen",
   "worldSize": "Download: {mb} MB",
   "worldRegion": "Regio",
-  "mapAerialSources": "De luchtfoto’s staan uit tot je ze aanzet (kaart → Lagen). Dan worden ze rechtstreeks geladen van de servers van hun bronnen – EOX (Sentinel-2 cloudless 2016) en de landmeetkundige diensten van de Duitse deelstaten: die servers krijgen je IP-adres te zien en welk gebied wordt getoond."
+  "mapAerialSources": "De luchtfoto’s staan uit tot je ze aanzet (kaart → Lagen). Dan worden ze rechtstreeks geladen van de servers van hun bronnen – EOX (Sentinel-2 cloudless 2016) en de landmeetkundige diensten van de Duitse deelstaten: die servers krijgen je IP-adres te zien en welk gebied wordt getoond.",
+  "map2.style": "Lichte kaart",
+  "map2.online": "Online zoeken",
+  "map2.onlineCredit": "Zoeken: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "buiten de kaarten",
+  "map2.loading": "Kaart van {name} wordt geladen …",
+  "map2.regionPlace": "Kaart: {name}",
+  "map2.searching": "Online zoeken …"
 }

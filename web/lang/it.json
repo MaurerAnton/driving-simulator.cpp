@@ -2452,5 +2452,12 @@
 "worldHint":"Tocca una regione per sceglierla",
 "worldSize":"Download: {mb} MB",
 "worldRegion":"Regione",
-"mapAerialSources":"Le foto aeree sono disattivate finché non le attivi (mappa → Livelli). Vengono poi caricate direttamente dai server delle loro fonti – EOX (Sentinel-2 cloudless 2016) e gli uffici catastali dei Länder tedeschi: quei server vengono a conoscenza del tuo indirizzo IP e della zona mostrata."
+"mapAerialSources":"Le foto aeree sono disattivate finché non le attivi (mappa → Livelli). Vengono poi caricate direttamente dai server delle loro fonti – EOX (Sentinel-2 cloudless 2016) e gli uffici catastali dei Länder tedeschi: quei server vengono a conoscenza del tuo indirizzo IP e della zona mostrata.",
+"map2.style":"Mappa chiara",
+"map2.online":"Ricerca online",
+"map2.onlineCredit":"Ricerca: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"fuori dalle mappe",
+"map2.loading":"Caricamento della mappa di {name} …",
+"map2.regionPlace":"Mappa: {name}",
+"map2.searching":"Ricerca online …"
 }

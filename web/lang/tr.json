@@ -2452,5 +2452,12 @@
 "worldHint":"Seçmek için bir bölgeye dokunun",
 "worldSize":"İndirme: {mb} MB",
 "worldRegion":"Bölge",
-"mapAerialSources":"Hava fotoğrafları sen açana kadar kapalıdır (harita → Katmanlar). Açınca doğrudan kaynaklarının sunucularından yüklenir – EOX (Sentinel-2 cloudless 2016) ve Alman eyaletlerinin harita kadastro daireleri: bu sunucular IP adresini ve hangi bölgenin gösterildiğini öğrenir."
+"mapAerialSources":"Hava fotoğrafları sen açana kadar kapalıdır (harita → Katmanlar). Açınca doğrudan kaynaklarının sunucularından yüklenir – EOX (Sentinel-2 cloudless 2016) ve Alman eyaletlerinin harita kadastro daireleri: bu sunucular IP adresini ve hangi bölgenin gösterildiğini öğrenir.",
+"map2.style":"Açık renkli harita",
+"map2.online":"Çevrim içi arama",
+"map2.onlineCredit":"Arama: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"haritaların dışında",
+"map2.loading":"{name} haritası yükleniyor …",
+"map2.regionPlace":"Harita: {name}",
+"map2.searching":"Çevrim içi aranıyor …"
 }

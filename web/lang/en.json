@@ -2452,5 +2452,12 @@
 "worldHint":"Tap a region to choose it",
 "worldSize":"Download: {mb} MB",
 "worldRegion":"Region",
-"mapAerialSources":"The aerial photographs are off until you switch them on (map → Layers). Then they are loaded straight from the servers of their sources – EOX (Sentinel-2 cloudless 2016) and the land surveys of the German states: those servers learn your IP address and which area is shown."
+"mapAerialSources":"The aerial photographs are off until you switch them on (map → Layers). Then they are loaded straight from the servers of their sources – EOX (Sentinel-2 cloudless 2016) and the land surveys of the German states: those servers learn your IP address and which area is shown.",
+"map2.style":"Light map",
+"map2.online":"Online search",
+"map2.onlineCredit":"Search: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"outside the maps",
+"map2.loading":"Loading the map of {name} …",
+"map2.regionPlace":"Map: {name}",
+"map2.searching":"Searching online …"
 }

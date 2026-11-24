@@ -5,5 +5,12 @@
   "worldHint": "Toque numa região para a escolher",
   "worldSize": "Transferência: {mb} MB",
   "worldRegion": "Região",
-  "mapAerialSources": "As fotos aéreas estão desligadas até as ativares (mapa → Camadas). São então carregadas diretamente dos servidores das suas fontes – EOX (Sentinel-2 cloudless 2016) e os serviços cartográficos dos estados alemães: esses servidores ficam a saber o teu endereço IP e a área mostrada."
+  "mapAerialSources": "As fotos aéreas estão desligadas até as ativares (mapa → Camadas). São então carregadas diretamente dos servidores das suas fontes – EOX (Sentinel-2 cloudless 2016) e os serviços cartográficos dos estados alemães: esses servidores ficam a saber o teu endereço IP e a área mostrada.",
+  "map2.style": "Mapa claro",
+  "map2.online": "Pesquisa online",
+  "map2.onlineCredit": "Pesquisa: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "fora dos mapas",
+  "map2.loading": "A carregar o mapa de {name} …",
+  "map2.regionPlace": "Mapa: {name}",
+  "map2.searching": "A pesquisar online …"
 }

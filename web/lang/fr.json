@@ -2452,5 +2452,12 @@
 "worldHint":"Touchez une région pour la choisir",
 "worldSize":"Téléchargement : {mb} Mo",
 "worldRegion":"Région",
-"mapAerialSources":"Les photos aériennes sont désactivées jusqu’à ce que vous les activiez (carte → Calques). Elles sont alors chargées directement depuis les serveurs de leurs sources – EOX (Sentinel-2 cloudless 2016) et les services cadastraux des Länder allemands : ces serveurs apprennent votre adresse IP et la zone affichée."
+"mapAerialSources":"Les photos aériennes sont désactivées jusqu’à ce que vous les activiez (carte → Calques). Elles sont alors chargées directement depuis les serveurs de leurs sources – EOX (Sentinel-2 cloudless 2016) et les services cadastraux des Länder allemands : ces serveurs apprennent votre adresse IP et la zone affichée.",
+"map2.style":"Carte claire",
+"map2.online":"Recherche en ligne",
+"map2.onlineCredit":"Recherche : Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"hors des cartes",
+"map2.loading":"Chargement de la carte {name} …",
+"map2.regionPlace":"Carte : {name}",
+"map2.searching":"Recherche en ligne …"
 }

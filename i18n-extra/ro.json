@@ -5,5 +5,12 @@
   "worldHint": "Atinge o regiune pentru a o alege",
   "worldSize": "Descărcare: {mb} MB",
   "worldRegion": "Regiune",
-  "mapAerialSources": "Fotografiile aeriene sunt oprite până când le pornești (hartă → Straturi). Atunci sunt încărcate direct de pe serverele surselor lor – EOX (Sentinel-2 cloudless 2016) și oficiile de cadastru ale landurilor germane: aceste servere află adresa ta IP și zona afișată."
+  "mapAerialSources": "Fotografiile aeriene sunt oprite până când le pornești (hartă → Straturi). Atunci sunt încărcate direct de pe serverele surselor lor – EOX (Sentinel-2 cloudless 2016) și oficiile de cadastru ale landurilor germane: aceste servere află adresa ta IP și zona afișată.",
+  "map2.style": "Hartă luminoasă",
+  "map2.online": "Căutare online",
+  "map2.onlineCredit": "Căutare: Photon by komoot, © OpenStreetMap contributors",
+  "map2.outside": "în afara hărților",
+  "map2.loading": "Se încarcă harta {name} …",
+  "map2.regionPlace": "Hartă: {name}",
+  "map2.searching": "Se caută online …"
 }

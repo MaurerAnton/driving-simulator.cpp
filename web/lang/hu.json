@@ -2452,5 +2452,12 @@
 "worldHint":"Koppints egy régióra a kiválasztásához",
 "worldSize":"Letöltés: {mb} MB",
 "worldRegion":"Régió",
-"mapAerialSources":"A légifotók ki vannak kapcsolva, amíg be nem kapcsolod őket (térkép → Rétegek). Ekkor közvetlenül a forrásaik szervereiről töltődnek be – EOX (Sentinel-2 cloudless 2016) és a német tartományok földmérési hivatalai: ezek a szerverek megtudják az IP-címedet és a megjelenített területet."
+"mapAerialSources":"A légifotók ki vannak kapcsolva, amíg be nem kapcsolod őket (térkép → Rétegek). Ekkor közvetlenül a forrásaik szervereiről töltődnek be – EOX (Sentinel-2 cloudless 2016) és a német tartományok földmérési hivatalai: ezek a szerverek megtudják az IP-címedet és a megjelenített területet.",
+"map2.style":"Világos térkép",
+"map2.online":"Online keresés",
+"map2.onlineCredit":"Keresés: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"a térképeken kívül",
+"map2.loading":"{name} térképe betöltődik …",
+"map2.regionPlace":"Térkép: {name}",
+"map2.searching":"Online keresés folyamatban …"
 }

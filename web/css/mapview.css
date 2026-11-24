@@ -1,0 +1,10 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* 2.0: the big map's light style, its search lists (all places, online hits) – ui/bigmap.cpp, ui/addresspicker.h */
+.bm-tools .btn.ghost.bm-style { min-width: 44px; font-size: 18px; }
+.bm-tools .btn.ghost.bm-style[aria-pressed="true"] { background: #f2efe9; color: #1d2733; border-color: #f2efe9; }
+.overlay.bigmap.bm-light { background: #aad3df; }
+/* the lists of the search field: long ones scroll (every town of the map is offered when nothing is typed yet) */
+.bm-top .bm-search .addr-list { max-height: min(60vh, 460px); overflow-y: auto; overscroll-behavior: contain; }
+.addr-list button.addr-dim { opacity: 0.55; }
+.addr-list .addr-note { display: block; font-size: 11px; color: var(--muted); padding: 2px 4px 4px; }
+.addr-list .addr-head { display: block; font-size: 12px; font-weight: 700; color: var(--muted); padding: 6px 4px 0; }

@@ -2452,5 +2452,12 @@
 "worldHint":"点按一个地区即可选择",
 "worldSize":"下载：{mb} MB",
 "worldRegion":"地区",
-"mapAerialSources":"航拍照片默认关闭，需要你自己打开（地图 → 图层）。打开后，照片直接从其来源的服务器加载——EOX（Sentinel-2 cloudless 2016）和德国各州的测绘部门：这些服务器会得知你的 IP 地址以及显示的区域。"
+"mapAerialSources":"航拍照片默认关闭，需要你自己打开（地图 → 图层）。打开后，照片直接从其来源的服务器加载——EOX（Sentinel-2 cloudless 2016）和德国各州的测绘部门：这些服务器会得知你的 IP 地址以及显示的区域。",
+"map2.style":"浅色地图",
+"map2.online":"在线搜索",
+"map2.onlineCredit":"搜索：Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"不在地图范围内",
+"map2.loading":"正在加载 {name} 的地图 …",
+"map2.regionPlace":"地图：{name}",
+"map2.searching":"正在在线搜索 …"
 }

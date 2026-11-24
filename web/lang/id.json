@@ -2452,5 +2452,12 @@
 "worldHint":"Ketuk sebuah wilayah untuk memilihnya",
 "worldSize":"Unduhan: {mb} MB",
 "worldRegion":"Wilayah",
-"mapAerialSources":"Foto udara mati sampai kamu menyalakannya (peta → Lapisan). Setelah itu foto dimuat langsung dari server sumbernya – EOX (Sentinel-2 cloudless 2016) dan badan survei negara bagian Jerman: server tersebut mengetahui alamat IP-mu dan area yang ditampilkan."
+"mapAerialSources":"Foto udara mati sampai kamu menyalakannya (peta → Lapisan). Setelah itu foto dimuat langsung dari server sumbernya – EOX (Sentinel-2 cloudless 2016) dan badan survei negara bagian Jerman: server tersebut mengetahui alamat IP-mu dan area yang ditampilkan.",
+"map2.style":"Peta terang",
+"map2.online":"Pencarian daring",
+"map2.onlineCredit":"Pencarian: Photon by komoot, © OpenStreetMap contributors",
+"map2.outside":"di luar peta",
+"map2.loading":"Memuat peta {name} …",
+"map2.regionPlace":"Peta: {name}",
+"map2.searching":"Mencari secara daring …"
 }
