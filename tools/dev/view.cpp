@@ -118,6 +118,14 @@ int main(int argc, char** argv) {
           long tris = static_cast<long>((g.index ? g.index->count() : (g.position() ? g.position()->count() : 0)) / 3);
           if (o.type == ObjectType::InstancedMesh) tris *= static_cast<InstancedMesh&>(o).count;
           std::string name = o.name.empty() ? (o.parent && o.parent->type == ObjectType::LOD ? "terrain" : "(unnamed)") : o.name;
+          // (an attribute with another number of items than the positions: WebGL refuses such a draw)
+          if (g.position()) {
+            const size_t nv = g.position()->count();
+            for (const auto& kv : g.attributes)
+              if (kv.second && kv.second->count() != nv && kv.second->divisor == 0)
+                std::printf("  MISMATCH %s: %s has %zu items for %zu vertices (array %zu, itemSize %d)\n", name.c_str(), kv.first.c_str(), kv.second->count(), nv,
+                            kv.second->length(), kv.second->itemSize);
+          }
           auto& e = by[name];
           e[2]++;
           e[3] += tris;
