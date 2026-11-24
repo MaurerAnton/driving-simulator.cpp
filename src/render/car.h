@@ -24,6 +24,7 @@
 #include "platform/canvas.h"
 #include "render/carBody.h"
 #include "render/cardetail.h"
+#include "render/caropen.h"
 #include "render/instruments.h"
 #include "render/mirrors.h"
 
@@ -122,43 +123,6 @@ struct DoorTrim {
   std::vector<GeometryPtr> doors;
 };
 
-// ------------------------------------------------------------------ hooks ----
-//
-// render/caropen.ts (doors, bonnet and boot that open) is not translated yet.  It stands here
-// as a class of the original's name with just the members the car calls, for the missing part
-// to fill in; `create` is its constructor (`new CarOpenings(host)`) and null until then – nothing
-// of the car opens meanwhile.  When it is translated its declaration here goes and the real
-// class takes its place: nothing in car.cpp changes but the `create` call.
-// (The finer car of the "very high" graphics is render/cardetail.h.)
-
-/** What of the player's car the parts are taken from (render/caropen.ts OpeningsHost). */
-struct OpeningsHost {
-  std::shared_ptr<Group> root;
-  struct Exterior {
-    std::shared_ptr<Group> group;
-    const CarShell* shell = nullptr;
-    const CarDims* dims = nullptr;
-  } exterior;
-  std::shared_ptr<Group> cockpit;
-  std::vector<Mirror*> mirrors;
-  /** the door panels inside: their material's mesh as a whole, without them, and each door's own (fl fr rl rr) */
-  const std::vector<DoorTrim>* doorTrim = nullptr;
-  /** take a new mesh into the see-through cabin (the original's `register`, a word C++ keeps to itself) */
-  std::function<void(const std::shared_ptr<Mesh>& mesh)> register_;
-};
-
-/** render/caropen.ts */
-class CarOpenings {
- public:
-  static inline std::function<std::unique_ptr<CarOpenings>(const OpeningsHost& host)> create = nullptr;
-
-  virtual ~CarOpenings() = default;
-  /** The finer model's meshes (render/cardetail.ts): what lies on a part goes with it. */
-  virtual void addDetail(const std::vector<ObjectPtr>& objects) = 0;
-  /** How far each part is open (fl fr rl rr bonnet boot), 0 … 1. */
-  virtual void pose(const std::vector<double>& values) = 0;
-};
-
 /** The driving-school car with its interior and mirrors. */
 class PlayerCar {
  public:
@@ -206,7 +170,6 @@ class PlayerCar {
 
   /**
    * The doors, the bonnet and the tailgate (render/caropen.ts) – cut out of the body the first time this is asked for.
-   * (Null while render/caropen is not translated.)
    */
   CarOpenings* openings();
 

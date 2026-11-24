@@ -5,8 +5,8 @@
  *
  *  - the model builds: its parts, their number and their sizes; which mirrors there are; the
  *    lamps, the wheels, the levers and the pedals follow the state; the see-through cabin;
- *  - the finer model and the parts that open are hooks: nothing is made while they are not there,
- *    and the car's flow runs through them once they are;
+ *  - the finer model and the parts that open: nothing is made while they are off and shut, and the
+ *    car's flow runs through them once they are there;
  *  - looking into a mirror: the last case of the original's tests/game/cockpit.test.ts (the others
  *    there are the game's);
  *  - everything, number by number, against the original: tools/diff/render_cars.ts --part car
@@ -212,47 +212,6 @@ void theCarOfTheTraffic() {
   assert(ex.paint->shadowSide && *ex.paint->shadowSide == Side::Double && ex.solids[0]->castShadow);
 }
 
-/** the finer model, standing in for render/cardetail */
-struct TestDetail : CarDetail {
-  std::vector<ObjectPtr> added;
-  int shown = -1;
-  int updates = 0;
-  static inline int made = 0;
-  static inline TestDetail* last = nullptr;
-  explicit TestDetail(const CarParts& car) {
-    made++;
-    last = this;
-    assert(car.exterior && car.cockpit && car.mirrors.size() == 3 && car.steering && car.lever && car.handbrake && car.pedals.size() == 3 && car.stalk);
-    assert(car.eye.x == -0.36);
-    const std::shared_ptr<Mesh> m = make<Mesh>(make<BufferGeometry>(), basic());
-    car.cockpit->add(m);
-    added.push_back(m);
-    ghosts.push_back({m, 1});
-  }
-  const std::vector<ObjectPtr>& meshes() const override { return added; }
-  void show(bool on) override { shown = on ? 1 : 0; }
-  void update(const CarVisualState&) override { updates++; }
-};
-
-/** the parts that open, standing in for render/caropen */
-struct TestOpenings : CarOpenings {
-  std::vector<double> posed;
-  int details = 0;
-  static inline int made = 0;
-  static inline TestOpenings* last = nullptr;
-  explicit TestOpenings(const OpeningsHost& host) {
-    made++;
-    last = this;
-    assert(host.root && host.exterior.group && host.exterior.shell && host.exterior.dims == &COMPACT_DIMS && host.cockpit && host.mirrors.size() == 3);
-    assert(host.doorTrim && host.doorTrim->size() == 5 && host.register_);
-    const std::shared_ptr<Mesh> m = make<Mesh>(make<BufferGeometry>(), basic());
-    host.cockpit->add(m);
-    host.register_(m);
-  }
-  void addDetail(const std::vector<ObjectPtr>& objects) override { details += static_cast<int>(objects.size()); }
-  void pose(const std::vector<double>& values) override { posed = values; }
-};
-
 void thePlayersCar() {
   PlayerCar car;
   assert(car.root->children.size() == 2 && car.root->children[0] == car.exterior.group && car.root->children[1] == car.cockpit);
@@ -371,47 +330,31 @@ void thePlayersCar() {
   for (Mesh* t : twins) assert(!t->visible && !static_cast<Mesh*>(t->parent)->material->transparent && t->parent->renderOrder == 0);
   const size_t ghosts = twins.size();
 
-  // ---- the finer model and the parts that open: hooks ----
-  assert(!CarDetail::create && !CarOpenings::create);
+  // ---- the finer model (render/cardetail) and the parts that open (render/caropen) ----
   const int meshes = countMeshes(*car.root);
-  car.setDetail(true);
+  // nothing is made while the finer model is off and every part is shut
   car.setDetail(false);
-  assert(car.openings() == nullptr);
-  car.setOpenings({1, 0, 0, 0, 1, 0});
+  car.setOpenings({0, 0, 0, 0, 0, 0});
   car.update(s, 0.05, 600);
   assert(countMeshes(*car.root) == meshes);
-  // … with the parts there: made the first time they are asked for, taken into the see-through cabin, told what the car does
-  CarDetail::create = [](const CarParts& parts) { return std::make_unique<TestDetail>(parts); };
-  CarOpenings::create = [](const OpeningsHost& host) { return std::make_unique<TestOpenings>(host); };
+  // made the first time it is asked for, taken into the see-through cabin, told what the car does
   car.setCabinOpacity(0.5);
-  car.setDetail(false);
-  assert(TestDetail::made == 0);
   car.setDetail(true);
-  assert(TestDetail::made == 1 && TestDetail::last->shown == 1);
-  Mesh& fine = static_cast<Mesh&>(*TestDetail::last->added[0]);
-  assert(fine.children.size() == 1 && fine.children[0]->visible && fine.renderOrder == 4 && fine.material->transparent);
+  const int fine = countMeshes(*car.root);
+  assert(fine > meshes + 20);
+  assert(find(*car.root, "body detail") && find(*car.root, "lamps") && find(*car.root, "detailed wheels") && find(*car.root, "shift pattern"));
   car.update(s, 0.05, 700);
-  assert(TestDetail::last->updates == 1);
   car.setDetail(false);
+  assert(!find(*car.root, "body detail")->visible);
   car.setDetail(true);
-  assert(TestDetail::made == 1 && TestDetail::last->shown == 1);
-  car.setOpenings({0, 0, 0, 0, 0, 0});
-  assert(TestOpenings::made == 0);
+  assert(countMeshes(*car.root) == fine && find(*car.root, "body detail")->visible);
+  // the parts that open: cut out the first time one opens (the finer model's meshes go with them)
   car.setOpenings({0, 0.5, 0, 0, 0, 0});
-  assert(TestOpenings::made == 1 && TestOpenings::last->posed.size() == 6 && TestOpenings::last->posed[1] == 0.5);
-  // (the finer model was there already: the parts take its meshes)
-  assert(TestOpenings::last->details == 1 && car.openings() == TestOpenings::last);
+  CarOpenings* opener = car.openings();
+  assert(opener && countMeshes(*car.root) > fine);
   car.setOpenings({0, 0, 0, 0, 0, 0});
-  assert(TestOpenings::made == 1 && TestOpenings::last->posed[1] == 0);
-  car.setDetail(true);
-  assert(TestOpenings::last->details == 2);
-  size_t now = 0;
-  car.root->traverse([&now](Object3D& o) {
-    if (rdump::isMesh(o) && o.parent && rdump::isMesh(*o.parent) && !static_cast<Mesh&>(o).material->colorWrite && o.visible) now++;
-  });
-  assert(now == ghosts + 2);
-  CarDetail::create = nullptr;
-  CarOpenings::create = nullptr;
+  assert(car.openings() == opener);
+  car.setCabinOpacity(1);
   car.dispose();
 }
 

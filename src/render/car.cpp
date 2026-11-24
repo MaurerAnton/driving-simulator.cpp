@@ -1338,10 +1338,10 @@ void PlayerCar::setDetail(bool on) {
 }
 
 CarOpenings* PlayerCar::openings() {
-  if (!opener_ && CarOpenings::create) {
+  if (!opener_) {
     std::vector<Mirror*> all;
     for (const std::unique_ptr<Mirror>& m : mirrors) all.push_back(m.get());
-    opener_ = CarOpenings::create(OpeningsHost{
+    opener_ = std::make_unique<CarOpenings>(OpeningsHost{
         .root = root,
         .exterior = {.group = exterior.group, .shell = &exterior.shell, .dims = &exterior.dims},
         .cockpit = cockpit,
