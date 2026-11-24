@@ -60,7 +60,9 @@ multiplayer and the server, map packs, developer map modes, old-version switch.
 3. ✔ The same in the browser, deployed (https://maureranton.github.io/driving-simulator.cpp/): the map under a free
    camera, any region by `?region=<id>` or the list on the page – tiles fetched one by one out of the regions' parts
    (Feldkirch, Austria: open in 0.9 s). `tools/t.sh regions_check` opens every region natively.
-4. The car: vehicle + ground + chase camera + keys; then touch controls; then the display (hud).
+4. ✔ 24.11.: every helper branch merged; the whole game builds natively and in the browser, all 66 tests pass in CI, and
+   the test site runs the C++ game: menu, free drive with traffic, HUD, mini map.  `autopilot_drive_test` drives
+   1 km of a trip to Elgershausen on the real map by itself (30 km/h on average, never off its lane).
 5. Traffic, signals, signs, rules; menu and lessons; sound.
 6. Autopilot trips, big map, the world layer with all regions; region switching; a tool that opens every region.
 7. Speed work on real phones; README progress table; release notes; 2.0.0.
