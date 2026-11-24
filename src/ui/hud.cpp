@@ -479,7 +479,7 @@ void Hud::update(const HudState& s, double now) {
       lastPrio = key;
       if (startsWith(key, "sig")) {
         const std::vector<std::string> parts = split(key.substr(3), "a");
-        const double st = jsNumber(parts[0]);
+        const int st = static_cast<int>(jsNumber(parts[0]));
         auto lamp = [](bool on, const std::string& c) {
           return "<circle cx=\"30\" cy=\"" + std::string(c == "#ff2a1a" ? "16" : c == "#ffb000" ? "44" : "72") + "\" r=\"11\" fill=\"" + (on ? c : "#2a2a2a") + "\"/>";
         };
@@ -488,7 +488,7 @@ void Hud::update(const HudState& s, double now) {
         if (parts.size() < 2) prio.innerHTML("<svg viewBox=\"0 0 60 88\">" + head + "</svg>");
         else {
           // the green arrow: a second, smaller head on the right with an amber and a green arrow
-          const double a = jsNumber(parts[1]);
+          const int a = static_cast<int>(jsNumber(parts[1]));
           auto point = [](bool on, const std::string& c, double y) {
             return "<circle cx=\"80\" cy=\"" + jsStr(y) + "\" r=\"11\" fill=\"#1c1c1c\"/><path d=\"M71 " + jsStr(y - 3) + "h9v-6l10 9-10 9v-6h-9z\" fill=\"" + (on ? c : "#3a3a3a") + "\"/>";
           };
