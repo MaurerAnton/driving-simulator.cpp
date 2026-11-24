@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Origin: src/world/types.ts @ v1.7.7
 /**
  * Constants of the road-network model (class names, priority tiers, lane
  * widths, surface tables).
- *
- * Origin: src/world/types.ts (MaurerAnton/driving-simulator @ 5b6ddc7, v0.1.0).
  */
 #include "world/types.h"
 
