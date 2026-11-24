@@ -57,7 +57,9 @@ multiplayer and the server, map packs, developer map modes, old-version switch.
 2. ✔ The real map drawn natively (`tools/t.sh view out.png`): 36 tiles, 8326 roads; 71 draw calls and 625 000
    triangles at 1280×720 with shadows – 4–7 frames a second on the tablet's graphics chip *while a dozen builds
    ran beside it*; 1.7.7 made 1 in the same place. Looking down (16 calls, 237 000 triangles): 34.
-3. The same in the browser (`src/app/main_web.cpp`: the map under a free camera, any region by `?region=`); deploy.
+3. ✔ The same in the browser, deployed (https://maureranton.github.io/driving-simulator.cpp/): the map under a free
+   camera, any region by `?region=<id>` or the list on the page – tiles fetched one by one out of the regions' parts
+   (Feldkirch, Austria: open in 0.9 s). `tools/t.sh regions_check` opens every region natively.
 4. The car: vehicle + ground + chase camera + keys; then touch controls; then the display (hud).
 5. Traffic, signals, signs, rules; menu and lessons; sound.
 6. Autopilot trips, big map, the world layer with all regions; region switching; a tool that opens every region.
