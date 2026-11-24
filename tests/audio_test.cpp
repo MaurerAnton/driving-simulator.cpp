@@ -12,8 +12,10 @@
  *   tests/sim/emergency.test.ts    its part on the two-tone horn
  *
  * – and beyond them: the numbers of the original itself (worked out with node from v1.7.7), what the
- * original's GameAudio makes and sends on its stand-in for the Web Audio API in the same drive, the other
- * sounds of the game (horns, bell, crowd, bang), and the host's own part (platform/audio.h).
+ * original's GameAudio makes and sends on its stand-in for the Web Audio API in the same drive, how its
+ * voices hang together and are set up for each vehicle, everything its sounds ask of the Web Audio API
+ * node by node (the short sounds, the horns of the emergency vehicles, a level crossing's bell, a march,
+ * a bang), and the host's own part (platform/audio.h).
  */
 #include <array>
 #include <cassert>
@@ -1200,6 +1202,9 @@ void bellCrowdAndBang() {
   crowd.update(1.0 / 60, 20, 100, true);
   a.start();
   const AudioContext ctx = a.context();
+  // (whatever sounds before this left to end by itself has ended first)
+  plat::native::advance(20000);
+  plat::native::drain();
   const int ended0 = audioDetail::endedCount();
 
   // the bell: 3.2 strokes a second while it is within hearing, each two partials
@@ -1285,6 +1290,455 @@ void bellCrowdAndBang() {
     const audioNative::NodeInfo* crack = all[all.size() - 8];
     assert(crack->kind == "source" && crack->buffer != 0 && std::abs(crack->stopped - crack->started - 0.2) < 1e-12);
   }
+}
+
+// ---------------------------------------------------------------- the voices and their setting up, as in the original
+
+/**
+ * How the voices of the original hang together, and how each vehicle sets them up: its GameAudio on
+ * its stand-in for the Web Audio API (node, v1.7.7), node by node in the order they are made –
+ * what each feeds, and after start() and after every setVehicle() the type of every filter and
+ * oscillator and the value of every setting that means something for its kind of node.
+ */
+void voicesHangTogetherAsInTheOriginal() {
+  GameAudio a;
+  a.start();
+  const AudioContext ctx = a.context();
+  // (0: the loudspeakers; 1 … 44: the nodes in the order start() makes them; settings as number.name)
+  const std::string GRAPH =
+      "0:destination>;1:gain>2;2:compressor>0;3:gain>4;4:biquad>1;5:source>15,29,33;6:source>19,31,35;7:osc>9;8:osc>10,21;9:gain>11;10:gain>11;11:biquad>12;12:biquad>13;13:gain>14;14:gain>3;15:biquad>16,17,18;16:gain>7.detune,8.detune;17:gain>13.gain;18:gain>33.detune;19:biquad>20;20:gain>22;21:gain>20.gain;22:gain>3;23:osc>24;24:gain>3;25:osc>26;26:gain>3;27:osc>28;28:gain>3;29:biquad>30;30:gain>3;31:biquad>32;32:gain>3;33:biquad>34;34:gain>3;35:biquad>36;36:gain>3;37:osc>39;38:osc>39;39:biquad>40;40:gain>3;41:osc>44;42:osc>43;43:gain>41.frequency;44:gain>3";
+  // (sources and oscillators: number, when started, whether it goes round and round, whether it has a buffer)
+  const std::string SOURCES = "5:0:1:1 6:0:1:1 7:0:0:0 8:0:0:0 23:0:0:0 25:0:0:0 27:0:0:0 37:0:0:0 38:0:0:0 41:0:0:0 42:0:0:0";
+  struct Setup {
+    const char* vehicle;
+    /** the types of the filters and the oscillators, in the order they are made */
+    const char* types;
+    /** of every gain its gain; of every filter frequency, detune, Q (and the gain of a peaking one); of every oscillator frequency, detune; of the limiter its five */
+    std::vector<double> values;
+  };
+  const std::vector<Setup> SETUPS = {
+      {"start", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 1, 160, 0, 1.2, 4, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 0.9, 0.4, 0.6, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.7, 0, 500, 0, 0.6, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 415, 0, 520, 0, 2400, 0, 1, 0, 88, 0, 9, 0, 22, 0}},
+      {"car", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 1, 160, 0, 1.2, 4, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 0.9, 0.4, 0.6, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.7, 0, 500, 0, 0.6, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 415, 0, 520, 0, 2400, 0, 1, 0, 88, 0, 9, 0, 22, 0}},
+      {"moped", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 3, 1300, 0, 2.5, 8, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1.2, 0.1, 0.9, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.5, 0, 500, 0, 0.5, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 480, 0, 482, 0, 3500, 0, 1, 0, 190, 0, 15, 0, 40, 0}},
+      {"motorcycle125", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2, 260, 0, 1.5, 6, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1, 0.15, 0.85, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.5, 0, 500, 0, 0.5, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 440, 0, 442, 0, 3000, 0, 1, 0, 150, 0, 12, 0, 30, 0}},
+      {"motorcycle35", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2, 200, 0, 1.3, 6, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1, 0.2, 0.8, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.5, 0, 500, 0, 0.5, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 430, 0, 432, 0, 2800, 0, 1, 0, 130, 0, 10, 0, 26, 0}},
+      {"motorcycle", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2, 420, 0, 1.2, 5, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 0.9, 0.4, 0.6, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.5, 0, 500, 0, 0.5, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 420, 0, 528, 0, 2600, 0, 1, 0, 120, 0, 10, 0, 26, 0}},
+      {"minibus", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 1, 120, 0, 1, 4, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1.3, 0.15, 0.85, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 0.7, 0, 500, 0, 0.6, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 349, 0, 440, 0, 2200, 0, 1, 0, 70, 0, 7, 0, 16, 0}},
+      {"lightTruck", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 1.5, 95, 0, 1, 5, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1.2, 0.15, 0.85, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.6, 0, 1150, 0, 5, 0, 3600, 0, 0.6, 0, 311, 0, 392, 0, 2000, 0, 1, 0, 55, 0, 6, 0, 14, 0}},
+      {"truck", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2, 85, 0, 1, 5, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1.1, 0.2, 0.8, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.6, 0, 1150, 0, 5, 0, 3600, 0, 0.6, 0, 247, 0, 311, 0, 1800, 0, 1, 0, 50, 0, 8, 0, 14, 0}},
+      {"semi", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2.4, 72, 0, 1.1, 6, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1.1, 0.2, 0.8, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1.1, 0, 500, 0, 0.6, 0, 1150, 0, 5, 0, 3600, 0, 0.6, 0, 185, 0, 233, 0, 1500, 0, 1, 0, 46, 0, 7, 0, 15, 0}},
+      {"bus", "highpass sine sine lowpass peaking lowpass bandpass sine triangle sine lowpass bandpass bandpass bandpass sawtooth sawtooth lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2, 70, 0, 0.9, 6, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1.1, 0.2, 0.8, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.6, 0, 1150, 0, 5, 0, 3600, 0, 0.6, 0, 294, 0, 370, 0, 2000, 0, 1, 0, 50, 0, 8, 0, 14, 0}},
+      {"tractorSlow", "highpass sine sine lowpass peaking lowpass bandpass sine sine triangle lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 3, 140, 0, 1.5, 6, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 0.9, 0.1, 0.9, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.6, 0, 1150, 0, 3, 0, 3600, 0, 0.6, 0, 370, 0, 371.5, 0, 2500, 0, 1, 0, 48, 0, 6, 0, 12, 0}},
+      {"tractor", "highpass sine sine lowpass peaking lowpass bandpass sine sine triangle lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2.5, 150, 0, 1.4, 5, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1, 0.15, 0.85, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.6, 0, 1150, 0, 3, 0, 3600, 0, 0.6, 0, 392, 0, 394, 0, 2500, 0, 1, 0, 48, 0, 7, 0, 12, 0}},
+      {"tram", "highpass sine sine lowpass peaking lowpass bandpass sine triangle sine lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 2, 900, 0, 1, 3, 1, 0, 20, 0, -3, 0, 0, 2849.202552952, 1000, 0, 0.8, 1, 0, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 4, 0, 500, 0, 0.6, 0, 1150, 0, 28, 0, 3600, 0, 0.6, 0, 392, 0, 394, 0, 2500, 0, 1, 0, 48, 0, 7, 0, 12, 0}},
+      {"plane", "highpass sine sine lowpass peaking lowpass bandpass sine triangle sine lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 1, 180, 0, 1, 4, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 0.7, 0.5, 0.5, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.5, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 392, 0, 394, 0, 2500, 0, 1, 0, 60, 0, 5, 0, 14, 0}},
+      {"onFoot", "highpass sine sine lowpass peaking lowpass bandpass sine sine sine lowpass bandpass bandpass bandpass square square lowpass sawtooth sine",
+       {0.7, -2, 1, 20, 0.003, 0.25, 1, 28, 0, -3, 20, 0, 20, 0, 0, 0, 1000, 0, 1, 180, 0, 1, 4, 1, 0, 20, 0, -3, 0, 0, 0, 1000, 0, 1, 1, 0, 0, 3000, 0, 0, 440, 0, 0, 440, 0, 0, 500, 0, 1, 0, 500, 0, 0.5, 0, 1150, 0, 6, 0, 3600, 0, 0.6, 0, 392, 0, 394, 0, 2500, 0, 1, 0, 60, 0, 5, 0, 14, 0}},
+  };
+
+  auto all = [&ctx] { return audioNative::nodes(ctx); };
+  auto indexOf = [&all](int id) -> int {
+    const std::vector<const audioNative::NodeInfo*> nodes = all();
+    for (size_t i = 0; i < nodes.size(); i++)
+      if (nodes[i]->id == id) return static_cast<int>(i);
+    return -1;
+  };
+  std::string graph, sources;
+  {
+    const std::vector<const audioNative::NodeInfo*> nodes = all();
+    assert(nodes.size() == 45);
+    for (size_t i = 0; i < nodes.size(); i++) {
+      const audioNative::NodeInfo& n = *nodes[i];
+      if (i) graph += ";";
+      graph += std::to_string(i) + ":" + n.kind + ">";
+      std::string outs;
+      for (int o : n.outputs) outs += (outs.empty() ? "" : ",") + std::to_string(indexOf(o));
+      for (const auto& o : n.paramOutputs) outs += (outs.empty() ? "" : ",") + std::to_string(indexOf(o.first)) + "." + o.second;
+      graph += outs;
+      if (n.kind == "source" || n.kind == "osc") sources += (sources.empty() ? "" : " ") + std::to_string(i) + ":" + (n.started == 0 ? "0" : "?") + ":" + (n.loop ? "1" : "0") + ":" + (n.buffer ? "1" : "0");
+    }
+  }
+  if (graph != GRAPH) std::fprintf(stderr, "audio_test: the voices hang together as\n  %s\nin the original as\n  %s\n", graph.c_str(), GRAPH.c_str());
+  assert(graph == GRAPH);
+  assert(sources == SOURCES);
+
+  auto compare = [&](const Setup& want) {
+    const std::string name = want.vehicle;
+    std::string types;
+    std::vector<double> values;
+    for (const audioNative::NodeInfo* n : all()) {
+      if (n->kind == "gain") values.push_back(n->param("gain").value);
+      else if (n->kind == "biquad") {
+        values.push_back(n->param("frequency").value);
+        values.push_back(n->param("detune").value);
+        values.push_back(n->param("Q").value);
+        if (n->type == "peaking") values.push_back(n->param("gain").value);
+      } else if (n->kind == "osc") {
+        values.push_back(n->param("frequency").value);
+        values.push_back(n->param("detune").value);
+      } else if (n->kind == "compressor") {
+        for (const char* p : {"threshold", "knee", "ratio", "attack", "release"}) values.push_back(n->param(p).value);
+      }
+      // (the stand-in keeps the type an oscillator had before it was given a wave of its own; a browser, and this host, call it 'custom')
+      if (n->kind == "biquad" || n->kind == "osc") types += (types.empty() ? "" : " ") + (n->wave ? std::string("sine") : n->type);
+    }
+    check(types == want.types, name + ": the types of the filters and the oscillators as in the original (" + types + ")");
+    check(values.size() == want.values.size(), name + ": as many settings as in the original");
+    for (size_t i = 0; i < values.size(); i++) {
+      if (std::abs(values[i] - want.values[i]) <= 1e-11 * std::max(1.0, std::abs(want.values[i]))) continue;
+      std::fprintf(stderr, "audio_test: %s: setting %zu is %.15g, %.15g in the original\n", name.c_str(), i, values[i], want.values[i]);
+      std::abort();
+    }
+  };
+  compare(SETUPS[0]);
+  const RpmScale truck{600, 2400};
+  for (size_t i = 0; i < SOUND_KINDS.size(); i++) {
+    assert(std::string(SETUPS[i + 1].vehicle) == soundKindName(SOUND_KINDS[i]));
+    a.setVehicle(SOUND_KINDS[i], SOUND_KINDS[i] == SoundKind::Minibus ? &truck : nullptr);
+    compare(SETUPS[i + 1]);
+  }
+}
+
+// ---------------------------------------------------------------- everything that is asked of the Web Audio API
+
+/** a number as the digest writes it: whole numbers as they are, the others to nine places (JavaScript's toExponential(8)) */
+std::string digestNumber(double x) {
+  char b[48];
+  if (x == std::floor(x) && std::abs(x) < 1e15) {
+    if (x == 0) return "0";
+    std::snprintf(b, sizeof b, "%.0f", x);
+    return b;
+  }
+  std::snprintf(b, sizeof b, "%.8e", x);
+  std::string s = b;
+  const size_t e = s.find('e');
+  std::string exponent = s.substr(e + 2);
+  while (exponent.size() > 1 && exponent[0] == '0') exponent.erase(0, 1);
+  return s.substr(0, e + 2) + exponent;
+}
+
+/**
+ * The nodes of a context from number `from` up to `to` (0: the loudspeakers, then in the order they were
+ * made), each as a line: its kind and type, how it was started and stopped, what it feeds, and of every
+ * setting that was touched its value and the last `last` things asked of it (what, value, time, time
+ * constant).  The original's stand-in for the Web Audio API writes the same lines of what the original
+ * asks of it; a line is compared by its hash (FNV-1a).
+ */
+std::vector<std::string> digestLines(const AudioContext& ctx, size_t from, size_t to, size_t last) {
+  const std::vector<const audioNative::NodeInfo*> nodes = audioNative::nodes(ctx);
+  auto indexOf = [&nodes](int id) -> std::string {
+    for (size_t i = 0; i < nodes.size(); i++)
+      if (nodes[i]->id == id) return std::to_string(i);
+    return "?";
+  };
+  static const char* const NAMES[] = {"gain", "frequency", "detune", "Q", "pan", "delayTime", "threshold", "knee", "ratio", "attack", "release"};
+  std::vector<std::string> out;
+  for (size_t i = from; i < std::min(to, nodes.size()); i++) {
+    const audioNative::NodeInfo& n = *nodes[i];
+    // (an oscillator that was given a wave: the stand-in keeps the type it had, a browser and this host say 'custom')
+    std::string line = std::to_string(i) + "|" + n.kind + "|" + (n.wave ? std::string("sine") : n.type) + "|" + (n.loop ? "1" : "0") + "|" + (n.buffer ? "1" : "0") + "|" +
+                       digestNumber(n.started) + "|" + digestNumber(n.stopped) + "|" + digestNumber(n.offset) + "|" + digestNumber(n.duration) + "|";
+    std::string outs;
+    for (int o : n.outputs) outs += (outs.empty() ? "" : ",") + indexOf(o);
+    for (const auto& o : n.paramOutputs) outs += (outs.empty() ? "" : ",") + indexOf(o.first) + "." + o.second;
+    line += outs;
+    for (const char* name : NAMES) {
+      const audioNative::ParamInfo& p = n.param(name);
+      // (touched: set, or sent somewhere – a setting whose plans were only cancelled is not)
+      bool touched = false;
+      std::vector<const audioNative::ParamEvent*> asked;
+      for (const audioNative::ParamEvent& e : p.events) {
+        if (e.what != "cancel") touched = true;
+        if (e.what != "value") asked.push_back(&e);
+      }
+      if (!touched) continue;
+      line += std::string("|") + name + "=" + digestNumber(p.value) + ":";
+      for (size_t k = asked.size() > last ? asked.size() - last : 0; k < asked.size(); k++) {
+        const audioNative::ParamEvent& e = *asked[k];
+        line += (line.back() == ':' ? "" : ";") + e.what + "," + digestNumber(e.value) + "," + digestNumber(e.time) + "," + digestNumber(e.timeConstant);
+      }
+    }
+    out.push_back(line);
+  }
+  return out;
+}
+
+// How the original's side of these lines is made (node, in the original's tree at v1.7.7; `Math.random = seeded(n)` of
+// src/audio/waves.ts, the scenario of the test written in TypeScript against the original's modules).  Its stand-in for the
+// Web Audio API, tests/game/audiomock.ts, is taught to keep a little more – the time constant of setTargetAtTime, where a
+// source starts in its buffer and for how long, whether a setting was touched at all – and its nodes are written as lines:
+//
+//   export const PNAMES = ['gain', 'frequency', 'detune', 'Q', 'pan', 'delayTime', 'threshold', 'knee', 'ratio', 'attack', 'release'] as const;
+//
+//   type P = MockParam & { touched?: boolean; events: Array<[string, number, number, number?]> };
+//   type N = MockNode & { offset?: number; duration?: number };
+//
+//   const proto = MockContext.prototype as unknown as { make(kind: string): MockNode };
+//   const make = proto.make;
+//   proto.make = function (this: MockContext, kind: string): MockNode {
+//     const n = make.call(this, kind) as N;
+//     for (const name of PNAMES) {
+//       const p = (n as unknown as Record<string, P>)[name];
+//       let v = p.value;
+//       p.touched = false;
+//       Object.defineProperty(p, 'value', {
+//         get: () => v,
+//         set: (x: number) => {
+//           v = x;
+//           p.touched = true;
+//         },
+//       });
+//       p.setTargetAtTime = function (this: P, x: number, t: number, tc: number): P {
+//         this.value = x;
+//         (this as unknown as { ctx: MockContext }).ctx.paramCalls++;
+//         this.events.push(['target', x, t, tc]);
+//         if (this.events.length > 200) this.events.shift();
+//         return this;
+//       } as never;
+//     }
+//     const start = n.start;
+//     n.start = function (this: N, t = 0, offset?: number, dur?: number): void {
+//       this.offset = offset;
+//       this.duration = dur;
+//       start.call(this, t);
+//     };
+//     return n;
+//   };
+//
+//   export const fmt = (x: number): string => (Number.isInteger(x) && Math.abs(x) < 1e15 ? String(x === 0 ? 0 : x) : x.toExponential(8));
+//
+//   /** the nodes of a context from number `from` on (0: the loudspeakers), each as a line; of every setting the last `last` things asked */
+//   export function lines(ctx: MockContext, from: number, to: number, last: number): string[] {
+//     const nodes: N[] = [ctx.destination as N, ...(ctx.nodes as N[])];
+//     const index = new Map<MockNode, number>();
+//     nodes.forEach((n, i) => index.set(n, i));
+//     const owner = (p: unknown): string => {
+//       for (let i = 0; i < nodes.length; i++) for (const name of PNAMES) if ((nodes[i] as unknown as Record<string, unknown>)[name] === p) return `${i}.${name}`;
+//       return '?';
+//     };
+//     const out: string[] = [];
+//     for (let i = from; i < Math.min(to, nodes.length); i++) {
+//       const n = nodes[i];
+//       const type = n.type || (n.kind === 'biquad' ? 'lowpass' : n.kind === 'osc' ? 'sine' : '');
+//       const outs = [...n.outputs.filter((o) => o instanceof MockNode).map((o) => String(index.get(o as MockNode))), ...n.outputs.filter((o) => o instanceof MockParam).map(owner)];
+//       const parts = [String(i), n.kind, type, n.loop ? '1' : '0', n.buffer ? '1' : '0', fmt(n.started), fmt(n.stopped), fmt(n.offset ?? 0), fmt(n.duration ?? -1), outs.join(',')];
+//       for (const name of PNAMES) {
+//         const p = (n as unknown as Record<string, P>)[name];
+//         if (!p.touched) continue;
+//         const ev = p.events.slice(-last).map((e) => `${e[0]},${fmt(e[1])},${fmt(e[2])},${fmt(e[3] ?? 0)}`);
+//         parts.push(`${name}=${fmt(p.value)}:${ev.join(';')}`);
+//       }
+//       out.push(parts.join('|'));
+//     }
+//     return out;
+//   }
+//
+//   export function hash(s: string): number {
+//     let h = 2166136261;
+//     const bytes = new TextEncoder().encode(s);
+//     for (const b of bytes) h = Math.imul(h ^ b, 16777619) >>> 0;
+//     return h;
+//   }
+
+uint32_t digestHash(const std::string& s) {
+  uint32_t h = 2166136261u;
+  for (unsigned char c : s) h = (h ^ c) * 16777619u;
+  return h;
+}
+
+/** the lines against the original's hashes: where they part, the line is shown */
+void sameDigest(const std::string& what, const std::vector<std::string>& lines, const std::vector<uint32_t>& want) {
+  if (lines.size() != want.size()) std::fprintf(stderr, "audio_test: %s: %zu nodes here, %zu in the original\n", what.c_str(), lines.size(), want.size());
+  for (size_t i = 0; i < lines.size() && i < want.size(); i++) {
+    if (digestHash(lines[i]) == want[i]) continue;
+    std::fprintf(stderr, "audio_test: %s: line %zu is not the original's:\n%s\n", what.c_str(), i, lines[i].c_str());
+    std::abort();
+  }
+  check(lines.size() == want.size(), what + ": as many nodes as in the original");
+}
+
+/**
+ * A short drive in four vehicles, every short sound, a truck's relay, air and alarm, the tram's bell, the
+ * horns of the emergency vehicles, a level crossing's bell, a march and a bang: everything they ask of
+ * the Web Audio API – which node feeds which, which setting is sent where, when, and how fast it is to
+ * follow – is what the original (node, v1.7.7) asks of its stand-in in the same scenario, with
+ * `Math.random = seeded(5)` and the clock in sixtieths of a second from nought.
+ */
+void everythingAskedAsInTheOriginal() {
+  // (sections: drive.car 44 drive.truck 44 drive.tram 44 drive.plane 44 clicks 125 air 2 sirens 36 bellCrowdBang 83 master 1)
+  const std::vector<uint32_t> ORIGINAL = {
+      2295313961u, 452035109u, 3661286333u, 3681471086u, 3042881322u, 240277903u, 519460764u, 2943397462u, 3026224982u, 1746535021u, 3889695842u, 1967645398u, 2298662330u,
+      1014142657u, 3604711831u, 2113198940u, 1974550981u, 1329721204u, 264359895u, 3202343493u, 125483909u, 3789324474u, 3873783177u, 715567428u, 2429029071u, 3559788119u,
+      3341585483u, 1284484232u, 1075688803u, 110365618u, 3004807812u, 2952678031u, 1495874348u, 3069730616u, 176740867u, 2093140939u, 2258784132u, 2399001822u, 1893943356u,
+      4284536654u, 2897269079u, 4151926452u, 4037551468u, 410517970u, 2295313961u, 452035109u, 3585166607u, 3681471086u, 3042881322u, 240277903u, 2996365609u, 4243538079u,
+      1209047901u, 2018438536u, 971118648u, 1761648907u, 2298662330u, 395471826u, 3604711831u, 1908325250u, 1120313448u, 1329721204u, 3018004635u, 3450478167u, 2713023951u,
+      2773240074u, 642175624u, 2070357340u, 2495890788u, 2102701216u, 2052829686u, 2659536946u, 3481533166u, 3138568083u, 1495857546u, 2212924973u, 3498571482u, 1931916201u,
+      176740867u, 1980103449u, 2770720395u, 1451924868u, 3371474223u, 1010411682u, 3919596512u, 4051407833u, 3110129503u, 3877402328u, 2295313961u, 452035109u, 3399778502u,
+      3681471086u, 3042881322u, 240277903u, 1044532378u, 2292381628u, 2283788330u, 2184361886u, 1247225380u, 3744924047u, 2298662330u, 2993035175u, 3604711831u, 4135719721u,
+      2719914273u, 1235003016u, 488210866u, 1075391469u, 3337392194u, 3678024951u, 3022545262u, 1180716781u, 2730192982u, 2663901871u, 38266917u, 3786910736u, 3445623266u,
+      1490258745u, 3935681728u, 4289630796u, 223357634u, 1685758128u, 176740867u, 882383479u, 2770720395u, 1451924868u, 3371474223u, 33614166u, 3919596512u, 4051407833u,
+      3110129503u, 3190887378u, 2295313961u, 452035109u, 731448962u, 3681471086u, 3042881322u, 240277903u, 797850894u, 2779612080u, 4013609172u, 520762393u, 877406356u,
+      960837832u, 2298662330u, 1665705011u, 3604711831u, 3708180814u, 3946713909u, 1329721204u, 2050829217u, 3962964200u, 1619255598u, 4094385828u, 1395789915u, 1904312433u,
+      3877282537u, 1909227857u, 1583600216u, 999940762u, 3336168322u, 3444386379u, 2893606395u, 3137594240u, 896055241u, 2773211325u, 176740867u, 3614658505u, 2770720395u,
+      1451924868u, 3371474223u, 2726041098u, 2110509233u, 1872141744u, 3110129503u, 4229683332u, 3256584485u, 3573038483u, 408792074u, 881563915u, 1745150178u, 198869012u,
+      1669007060u, 252347254u, 2335237559u, 2053727487u, 3910458215u, 1467605301u, 1516009216u, 718960654u, 2994286261u, 2048775235u, 840348409u, 1240128634u, 3950757033u,
+      2090979847u, 3910507514u, 2706905508u, 575656529u, 4252366434u, 1729171709u, 2526178448u, 3633471885u, 517238720u, 302946306u, 2195811182u, 412524377u, 781633821u,
+      149531359u, 2844977526u, 1946485219u, 3200982449u, 2715796010u, 4057999644u, 3491013223u, 2428035019u, 1614164589u, 3546638326u, 1786141186u, 1698144422u, 2979351876u,
+      3399488297u, 1145425179u, 385361568u, 2091397242u, 2379079466u, 1481375715u, 3025610397u, 2027405952u, 3056499115u, 3913059544u, 1611732928u, 1433384679u, 2623226977u,
+      3206842728u, 297266299u, 3773137697u, 4212757918u, 2228078330u, 2421035648u, 1928736458u, 4204172467u, 3422606831u, 421966322u, 2403749152u, 4146818164u, 1819678820u,
+      2884452597u, 3248827207u, 3621936804u, 3678336688u, 2618699114u, 3338038757u, 2364774634u, 1929254405u, 2112515413u, 4233792632u, 1175028801u, 1599823982u, 758251085u,
+      2234860368u, 3751279298u, 1174545829u, 1887666283u, 87811249u, 1068552786u, 2941824475u, 2364348481u, 1385497261u, 882742049u, 2334146107u, 3110036166u, 2181749530u,
+      3081686910u, 1140162085u, 3529614080u, 4151741981u, 3394811781u, 554338793u, 3395078135u, 3654534500u, 74505896u, 3136829701u, 3740032950u, 3584850697u, 2684359926u,
+      1327185030u, 1731293649u, 2385144209u, 541957785u, 73408696u, 3783916658u, 4113181342u, 3028557408u, 649833750u, 888451593u, 2080995474u, 2518203763u, 4224061447u,
+      2620580314u, 3850511508u, 2310916143u, 2523747018u, 61531471u, 482403216u, 2687416052u, 4277046669u, 2358983567u, 976358622u, 3202855735u, 1558591280u, 1277553807u,
+      3567631926u, 1239783806u, 8398113u, 3233718456u, 2672687306u, 2706621520u, 461805646u, 2815195789u, 2803545832u, 2560451514u, 4017594183u, 1895228795u, 2758669098u,
+      4277270900u, 2836819418u, 833922830u, 1945363263u, 2696568761u, 2364336401u, 4097557962u, 1394452674u, 2945913904u, 194143939u, 522033852u, 2076007300u, 3382499489u,
+      1097475656u, 2301379027u, 132902313u, 2291492075u, 410022847u, 1099040390u, 2912612785u, 2452067570u, 1540977495u, 3510064775u, 2123245971u, 195825666u, 404425693u,
+      3751991325u, 2959255189u, 3148912526u, 3839707389u, 1483225233u, 1277981133u, 2331903444u, 923634389u, 1767711044u, 2166931276u, 1605806043u, 3541325305u, 2971545579u,
+      1869950906u, 972590502u, 3836517207u, 2314734311u, 949242703u, 2961009793u, 2218931113u, 446824933u, 4243752610u, 2154337042u, 3848848627u, 3672440159u, 2871771076u,
+      2287729335u, 674222870u, 1126619929u, 3947233141u, 2547230596u, 3100871042u, 3170492999u, 1714538832u, 1857310159u, 941201035u, 2144106794u, 1109551748u, 581789339u,
+      3257230752u, 2670889077u, 3708297321u, 4145864727u, 2692654726u, 4223235053u, 3236493118u, 945942458u, 3743004107u, 271269964u, 976192250u, 297587053u, 1475671501u,
+      752813669u, 4236722525u, 1454988599u, 1974568489u, 3762447603u, 3840901297u, 943297897u, 2882276021u, 2127864679u, 1379076214u, 2416014018u, 3538820889u, 872947039u,
+      3181356979u, 4108717901u, 433078563u, 2346302700u, 1729379601u, 2723060057u, 2295313961u,
+  };
+  plat::native::manualClock(true);
+  rndSeed(5);
+  GameAudio a;
+  a.start();
+  const AudioContext ctx = a.context();
+  auto tick = [] { plat::native::advance(1000.0 / 60); };
+  std::vector<std::string> all;
+  auto take = [&](size_t from, size_t to, size_t last) {
+    const std::vector<std::string> lines = digestLines(ctx, from, to, last);
+    all.insert(all.end(), lines.begin(), lines.end());
+  };
+  auto next = [&ctx]() -> size_t { return audioNative::nodes(ctx).size(); };
+
+  // the voices of four vehicles, driven a little: where each setting is sent, and how fast it is to follow
+  const RpmScale truck{600, 2400};
+  for (SoundKind kind : {SoundKind::Car, SoundKind::Truck, SoundKind::Tram, SoundKind::Plane}) {
+    a.setVehicle(kind, kind == SoundKind::Truck ? &truck : nullptr);
+    for (int i = 0; i < 14; i++) {
+      tick();
+      a.update(state({.rpm = 700 + 150 * i,
+                      .load = (i % 5) / 4.0,
+                      .engineRunning = i != 13,
+                      .starter = false,
+                      .speed = 2 + 2.5 * i,
+                      .skid = i > 9 ? 0.5 : 0,
+                      .horn = i == 7 && kind != SoundKind::Tram,
+                      .rough = 1 + (i % 3),
+                      .braking = i > 11 ? 0.5 : 0,
+                      .curve = kind == SoundKind::Tram ? 0.03 : 0,
+                      .airborne = i > 10,
+                      .stallWarning = i == 12}));
+    }
+    take(1, 45, 20);
+  }
+  // every short sound – on a car's relay, on gravel, at speed
+  a.setVehicle(SoundKind::Car);
+  tick();
+  a.update(state({.rpm = 900, .speed = 12, .rough = 2.2}));
+  size_t mark = next();
+  for (ClickKind k : CLICK_KINDS) {
+    tick();
+    a.click(k);
+  }
+  tick();
+  a.update(state({.rpm = 900, .speed = 0.2, .rough = 1}));
+  a.click(ClickKind::Step);
+  a.click(ClickKind::Clack);
+  // a truck's relay, its air and its alarm; the tram's bell
+  a.setVehicle(SoundKind::Truck);
+  for (int i = 0; i < 40; i++) {
+    tick();
+    a.update(state({.rpm = 650, .speed = 1, .indicatorOn = true, .blinkOn = i % 20 < 10, .braking = i > 25 && i < 34 ? 0.7 : 0, .parkingBrake = i > 5 && i < 20, .reversing = i > 30}));
+  }
+  a.setVehicle(SoundKind::Tram);
+  for (int i = 0; i < 30; i++) {
+    tick();
+    a.update(state({.speed = 3, .indicatorOn = true, .blinkOn = i % 20 < 10, .horn = i < 25}));
+  }
+  take(mark, 100000, 20);
+  take(35, 37, 40);
+
+  // the horns of the emergency vehicles
+  mark = next();
+  {
+    Sirens sirens;
+    Ear ear;
+    ear.position = {3, 1.2, -4};
+    ear.matrixWorld.elements = {0.8, 0, -0.6, 0, 0, 1, 0, 0, 0.6, 0, 0.8, 0, 3, 1.2, -4, 1};
+    std::vector<Car> cars = {
+        Car{11, 3, -120, 0.3, 22, Emergency{true, 1, 0}},
+        Car{12, 80, 20, 2, 0, Emergency{false, 1, 0}},
+        Car{13, 300, 0, 0, 14, std::nullopt},
+        Car{14, 43, -4.5, -1.2, 9, Emergency{true, 1.02, 0.3}},
+        Car{15, -200, 60, 1, 30, Emergency{true, 0.97, 0.9}},
+        Car{16, 0, 900, 0, 0, Emergency{true, 1, 0}},
+        Car{17, 3.1, -4.2, 0, 5, Emergency{true, 1.01, 0.5}},
+    };
+    for (int i = 0; i < 12; i++) {
+      tick();
+      for (Car& c : cars) {
+        c.x += -std::sin(c.yaw) * c.v / 60;
+        c.z += -std::cos(c.yaw) * c.v / 60;
+      }
+      if (i == 8) cars[3].em.reset();
+      sirens.update(ctx, a.masterGain(), cars, ear, i >= 6, 4, -11);
+    }
+    for (int i = 0; i < 4; i++) {
+      plat::native::advance(500);
+      sirens.update(ctx, a.masterGain(), std::vector<Car>{cars[0]}, ear, false);
+    }
+    sirens.stop();
+  }
+  take(mark, 100000, 20);
+
+  // a level crossing's bell, a march, a bang
+  mark = next();
+  {
+    CrossingBell bell(a);
+    for (int i = 0; i < 70; i++) {
+      tick();
+      bell.update(i < 50 ? 9 + i : 400);
+    }
+    CrowdNoise crowd(a);
+    for (int i = 0; i < 90; i++) {
+      tick();
+      crowd.update(1.0 / 60, i < 60 ? 12 + i : INF, 900, i % 2 == 0);
+    }
+    for (int i = 0; i < 200; i++) {
+      tick();
+      crowd.update(1.0 / 60, INF, 0, false);
+    }
+    playBoom(ctx, a.masterGain(), 0.7);
+  }
+  take(mark, 100000, 20);
+  take(1, 2, 20);
+
+  // nodes 289 calls 1862
+  assert(audioNative::nodes(ctx).size() == 289 && audioNative::paramCalls(ctx) == 1862);
+  sameDigest("the scenario", all, ORIGINAL);
+  // (what is left to end by itself – strokes, whistles – ends now: the tests after this one begin with nothing waiting)
+  plat::native::advance(20000);
+  plat::native::drain();
+  assert(audioDetail::endedCount() == 0);
 }
 
 // ---------------------------------------------------------------- the host (platform/audio.h)
@@ -1611,6 +2065,8 @@ void theHost() {
 int main() {
   // (the device tests first: the drive that is compared with the original's begins as its clock does, at nought)
   asTheOriginalOnItsDevice();
+  everythingAskedAsInTheOriginal();
+  voicesHangTogetherAsInTheOriginal();
   nothingMadeWhileDriving();
   everyShortSoundPlays();
   bellHissBeep();
