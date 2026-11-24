@@ -95,6 +95,12 @@ Das Fehlerprotokoll verlinkt die zitierten Paragrafen der Straßenverkehrs-Ordnu
 Fahrerlaubnis-Verordnung auf <https://www.gesetze-im-internet.de/fev_2010/> (Bundesministerium der Justiz,
 Bundesamt für Justiz). Der Text der Vorschriften ist nicht Teil des Projekts.
 
+## Umrisse der Länder (Weltkarte)
+
+Umrisse der Länder, Küsten und Seen auf der Karte aller Regionen (`web/data/outline.bin`): Natural Earth 1:10m,
+Version 5.1.2, gemeinfrei – „Made with Natural Earth. Free vector and raster map data @ naturalearthdata.com."
+Für das Spiel umgerechnet, beschnitten und vereinfacht (`tools/build-outline.mjs`).
+
 ## Fremde Software
 
 | Paket | Verwendung | Lizenz |
