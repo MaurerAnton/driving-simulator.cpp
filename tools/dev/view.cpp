@@ -36,6 +36,8 @@ int main(int argc, char** argv) {
   std::string out = "view.png", mapDir = "/home/user/driving-simulator/public/map/";
   double x = 0, z = 0, height = 60, yaw = 0, pitch = -25, radius = 1400, sunEl = 52, sunAz = 215;
   int width = 1280, height_px = 720, shadows = 3072, frames = 30;
+  // --plain all|ground|terrain|bldg|mark|struct: those meshes with a plain Lambert material (what their shaders cost)
+  std::string plain;
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     auto next = [&]() -> const char* { return i + 1 < argc ? argv[++i] : ""; };
@@ -49,6 +51,7 @@ int main(int argc, char** argv) {
     else if (a == "--frames") frames = std::atoi(next());
     else if (a == "--map") mapDir = next();
     else if (a == "--sun") std::sscanf(next(), "%lf,%lf", &sunEl, &sunAz);
+    else if (a == "--plain") plain = next();
     else out = a;
   }
   if (!mapDir.empty() && mapDir.back() != '/') mapDir += '/';
@@ -84,6 +87,17 @@ int main(int argc, char** argv) {
   cam.rotation.set(pitch * PI / 180, -yaw * PI / 180, 0, Euler::YXZ);
   Vector3 focus(x, ground, z);
 
+  if (!plain.empty()) {
+    const MaterialPtr flat = lambert({.color = Color(0x8a9098)});
+    std::function<void(Object3D&)> walk = [&](Object3D& o) {
+      if (o.type == ObjectType::Mesh) {
+        const std::string name = o.name.empty() && o.parent && o.parent->type == ObjectType::LOD ? "terrain" : o.name;
+        if (plain == "all" || name == plain) static_cast<Mesh&>(o).material = flat;
+      }
+      for (const ObjectPtr& c : o.children) walk(*c);
+    };
+    walk(*app.tiles->group);
+  }
   // the first frame makes the programs and uploads everything; the ones after it are what a frame costs
   t0 = now();
   app.render(focus);
