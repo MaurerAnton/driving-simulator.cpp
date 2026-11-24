@@ -4,6 +4,7 @@
 // Needs tools/dev/serve.mjs running (FS_URL, default http://127.0.0.1:5180/) and Playwright's Chromium
 // (taken from the original repository's node_modules: FS_ORIGINAL, default /home/user/driving-simulator).
 // FS_MOBILE=1: a phone (touch, no mouse).  FS_STEPS: "key:KeyW:800,click:.btn,wait:500,eval:<js>" done in turn after the game is ready.
+// FS_GPU=1 draws with the machine's graphics chip (when the browser can reach it without a window).
 // Prints what the page wrote to the console, and window.__fs.info() at the end.
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -32,7 +33,12 @@ const base = process.env.FS_URL ?? 'http://127.0.0.1:5180/';
 const browser = await chromium.launch({
   executablePath: findChrome(),
   headless: true,
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl', '--no-sandbox'],
+  // FS_GPU=1: the machine's own graphics chip instead of the software renderer (for timings); FS_ARGS: other flags
+  args: process.env.FS_ARGS
+    ? process.env.FS_ARGS.split(' ')
+    : process.env.FS_GPU
+      ? ['--use-gl=angle', '--use-angle=gles-egl', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-webgl', '--no-sandbox', '--ozone-platform=headless']
+      : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl', '--no-sandbox'],
 });
 const mobile = !!process.env.FS_MOBILE;
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) }, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile });
