@@ -12,6 +12,7 @@
  */
 #include <cmath>
 #include <memory>
+#include <array>
 #include <optional>
 #include <string>
 #include <utility>
@@ -43,9 +44,11 @@
 #include "ui/hud.h"
 #include "ui/maplayers.h"
 #include "ui/touchstick.h"
+#include "ui/worldlayer.h"
 #include "world/loader.h"
 #include "world/regions.h"
 #include "world/types.h"
+#include "world/worldjson.h"
 #include "world/world.h"
 
 namespace fs {
@@ -64,21 +67,43 @@ SpawnJson streetSpot(std::string name, double x, double z, double yaw, bool roug
   return s;
 }
 
+/**
+ * 2.0: fetch the world layer: the outline and the regions' index of the site, and the site's own map shown
+ * among them – its extent and name from `here` (the site's map is the one loaded), else from its map.json
+ * (`mapBase`: where the site's map lies; a region is loaded instead of it).
+ */
+Task<void> loadWorldLayer(std::shared_ptr<WorldLayer> layer, std::string mapBase, std::optional<WorldMetaJson> here) {
+  std::optional<WorldMetaJson> meta = std::move(here);
+  if (!meta) {
+    try {
+      const plat::Response res = co_await plat::fetch(mapBase + "map.json");
+      MapIndexJson index;
+      if (res.ok() && parseMapIndexJson(res.text(), index)) meta = index.meta;
+    } catch (...) {
+      // (offline: the site's map is left out of the regions)
+    }
+  }
+  const std::array<double, 4> box = meta ? std::array<double, 4>{meta->minX, meta->minZ, meta->maxX, meta->maxZ} : std::array<double, 4>{0, 0, 0, 0};
+  co_await layer->load(plat::locationBase(), box, meta ? meta->name : std::string());
+}
+
 }  // namespace
 
 /** The address list (house numbers of the map), fetched when somebody first searches. */
-Task<std::shared_ptr<AddressIndex>> Game::loadAddresses() {
+Task<AddressIndex*> Game::loadAddresses() {
   if (!addressIndex.valid()) {
-    addressIndex = [](std::shared_ptr<MapLoader> map) -> Task<std::shared_ptr<AddressIndex>> {
+    // (the index is kept in `addresses` for as long as the game runs: the task gives its address)
+    addressIndex = [](std::shared_ptr<MapLoader> map, std::unique_ptr<AddressIndex>* keep) -> Task<AddressIndex*> {
       try {
         std::optional<AddressJson> a = co_await map->json<AddressJson>("addresses.json.gz");
         if (!a) a = co_await map->json<AddressJson>("addresses.json");
         if (!a) co_return nullptr;
-        co_return std::make_shared<AddressIndex>(*a);
+        *keep = std::make_unique<AddressIndex>(*a);
+        co_return keep->get();
       } catch (...) {
         co_return nullptr;
       }
-    }(app.map);
+    }(app.map, &addresses);
   }
   return addressIndex;
 }
@@ -126,7 +151,7 @@ void Game::teleportSpot(const SpawnJson& spot_) {
   }
   spawn = spot;
   traffic->clear();
-  if (rail) rail->clear();
+  // (later: rail.clear – game.ts:2180)
   // (later: tram – the tram put on the tracks anew at the stop nearest to the place chosen – game.ts:2181)
   // on foot: on the pavement there (and nobody rides a tram or a bus any more) – somebody who got out of the
   // vehicle gets out again beside it there (before, they stayed behind, tied to a vehicle far away)
@@ -167,6 +192,16 @@ void Game::openMap(bool closeUp) {
     mpos[0] = menuFocus.x;
     mpos[2] = menuFocus.z;
   } else vehicle->getModelPosition(mpos.data());
+  // 2.0: one map for all regions – the layer of every region (the countries' outlines, regions.json), made
+  //  once and handed to the map; its "Open this map" (BigMapHost::onOpenRegion: settings.region kept, the
+  //  page loaded anew) is given where the map is made (game.cpp)
+  if (!worldLayer) {
+    worldLayer = std::make_shared<WorldLayer>();
+    std::optional<WorldMetaJson> here;
+    if (app.regionId.empty()) here = app.world->json.meta;
+    loadWorldLayer(worldLayer, app.baseUrl, std::move(here)).detach();
+    bigMap->setWorld(worldLayer);
+  }
   bigMap->open(ui, closeUp);
 }
 
