@@ -15,6 +15,7 @@
 #include "game/craneplay.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
+#include "game/yardtask.h"
 #include "game/nav.h"
 #include "game/netstats.h"
 #include "game/releases.h"
@@ -33,7 +34,10 @@
 #include "render/plane.h"
 #include "render/props.h"
 #include "render/airfield.h"
+#include "render/semitruck.h"
 #include "render/signs.h"
+#include "render/truck.h"
+#include "render/yard.h"
 #include "sim/airfield.h"
 #include "sim/arrows.h"
 #include "sim/autopilot.h"
@@ -47,6 +51,7 @@
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "sim/trailer.h"
+#include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
 #include "ui/bigmap.h"
 #include "ui/geoip.h"
@@ -156,7 +161,8 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       fly(std::make_unique<FlyCam>()),
       flightAuto(std::make_unique<FlightAutopilot>()),
       flightAssist(std::make_unique<FlightAssist>(ASSIST_BEGINNER)),
-      flightControls(std::make_unique<FlightControls>()) {
+      flightControls(std::make_unique<FlightControls>()),
+      yardScene(std::make_unique<YardScene>()) {
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
   flightControls->engineOn = true;
   driver.steer = 0;
@@ -308,8 +314,8 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: services, spawnCars – game.ts:668)
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
-  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group);
-  // (later: railActors, passengerView, transit, yardScene, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts)
+  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
+  // (later: railActors, passengerView, transit, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
   if (world.json.yard) yardFrame.emplace(*world.json.yard);
   else yardFrame.reset();
   // (later: rail = new RailTraffic(world.json.rails) – game.ts:676)
@@ -762,14 +768,18 @@ void Game::toMenu() {
   if (demo && demo->tour) endDemo("ended");
   state = "menu";
   demo = nullptr;
-  // (later: endTasks, services.end – game.ts:1464)
+  endTasks();
+  // (later: services.end – game.ts:1464)
   if (crane) crane->dispose();
   crane = nullptr;
   // (later: endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1468)
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
   if (planeModel) planeModel->root->visible = false;
-  // (later: carTrailer, truck.trailer – game.ts:1477)
+  if (carTrailer) carTrailer->group->visible = false;
+  if (truck) {
+    truck->trailer->visible = false;
+  }
   input->enabled = false;
   hud->setHudVisible(false);
   audio->suspend();
@@ -795,12 +805,19 @@ VehicleModel& Game::ensureModel(const VehicleDef& def) {
     m = makeModel(def);
     models[modelKey(def)] = m;
     app.scene->add(m->root);
-    // (later: truck.trailer – game.ts:1510)
+    if (truck && m == truck) app.scene->add(truck->trailer);
     for (const std::unique_ptr<Mirror>& mirror : m->mirrors) mirror->setEnabled(settings.mirrors != "off");
     m->setCabinOpacity(settings.cabinOpacity);
     m->setDetail(settings.graphics.vehicleDetail);
   }
-  // (later: towedModel, carTrailer: the box trailer behind it – render/semitruck.ts, game.ts:1517)
+  // (the truck of class CE has its own trailer)
+  // (and the semi-trailer of the articulated lorry its own: render/semitruck.ts)
+  const std::shared_ptr<TowedModel> towed = def.trailer && def.model != "truck" ? towedModel(def.trailer, carTrailer) : carTrailer;
+  if (towed != carTrailer) {
+    if (carTrailer) app.scene->remove(carTrailer->group);
+    carTrailer = towed;
+    if (towed) app.scene->add(towed->group);
+  }
   return *m;
 }
 
@@ -837,11 +854,27 @@ void Game::parkedVisual(Vehicle& v) {
 VehicleModel* Game::makeModel(const VehicleDef& def) {
   const ModelKind& mk = def.model;
   if (mk == "car") return &car;
-  // (later: the other vehicles' models: truck, truckLight, truckHeavy, semi, bus, minibus, tractor, tram, walker, plane,
-  //  motorcycle, forklift – render/fleet.ts …, game.ts:1894)
-  if (mk == "towerCrane" || mk == "mobileCrane" || mk == "loaderCrane") {
+  std::unique_ptr<VehicleModel> made;
+  if (mk == "truck") {
+    auto t = std::make_unique<PlayerTruck>();
+    truck = t.get();
+    made = std::move(t);
+  } else if (mk == "truckLight") made = std::make_unique<PlayerTruck>(LIGHT_TRUCK);
+  else if (mk == "truckHeavy") made = std::make_unique<PlayerRigid>();
+  else if (mk == "semi") made = std::make_unique<PlayerSemi>();
+  else if (mk == "bus") made = std::make_unique<PlayerBus>();
+  else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
+  else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
+  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker; motorcycle – game.ts:1906)
+  // (the aeroplane's model is kept beside these: planeAdapter)
+  else if (mk == "towerCrane" || mk == "mobileCrane" || mk == "loaderCrane") {
     craneModels.push_back(makeCraneModel(def.crane.value_or("tower"), settings.quality == "low" ? "low" : "full"));
     return craneModels.back().get();
+  }
+  // (later: forklift – game.ts:1919)
+  if (made) {
+    vehicleModels.push_back(std::move(made));
+    return vehicleModels.back().get();
   }
   throw std::runtime_error("no model for the vehicle " + def.kind + " (" + mk + ") in this build");
 }
@@ -858,9 +891,12 @@ void Game::showModel(bool on) {
   // (later: spawnCars.keeps, the vehicle left standing stays drawn – game/spawncar.ts, game.ts:1937)
   for (const auto& [k, model] : models)
     if (model != &car) model->root->visible = on && k == key;
+  if (carTrailer) carTrailer->group->visible = on && def->trailer && def->model != "truck";
+  if (truck) {
+    truck->trailer->visible = on && def->kind == "truck";
+  }
   // (the aeroplane's model is kept beside the others: planeAdapter)
   if (planeModel) planeModel->root->visible = on && key == "plane";
-  // (later: carTrailer, truck.trailer – game.ts:1938)
 }
 
 }  // namespace fs

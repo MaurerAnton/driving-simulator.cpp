@@ -82,6 +82,9 @@ class SignRenderer;
 class Traffic;
 class TerrainSource;
 class TrafficRenderer;
+class PlayerTruck;
+class YardScene;
+class YardTask;
 class Trailer;
 class Vehicle;
 class WorldGround;
@@ -175,8 +178,9 @@ class Game {
   std::unique_ptr<SignRenderer> signs;
   PlayerCar car;
   const std::unique_ptr<TrafficRenderer> actors;
-  // (later: truck – game.ts:295)
-  /** the trailer behind the vehicle (null: none – the vehicles that pull one come later) */
+  /** the truck of the class-CE lessons with its trailer (built when it is first driven; owned by `vehicleModels`) */
+  PlayerTruck* truck = nullptr;
+  /** the trailer behind the vehicle (null: none) */
   std::unique_ptr<Trailer> trailer;
   /** the vehicle driven now (by its licence class), and the models of the vehicles made so far */
   const VehicleDef* def = &VEHICLES.at("car");
@@ -651,6 +655,37 @@ class Game {
   PlaneVisualState planeVisual(Aircraft& a);
   /** `this.airGround ?? this.ground` */
   Ground& flightGround();
+  // --- vehicles ---
+  /** the box trailer behind a car (class BE) – or the semi-trailer of the articulated lorry (render/semitruck.ts TowedModel) */
+  std::shared_ptr<TowedModel> carTrailer;
+  /** the models made for the vehicles other than the car (`models` points into them) */
+  std::vector<std::unique_ptr<VehicleModel>> vehicleModels;
+  // class CE: the practice yard and its tasks (game/ce.ts, game/yardtask.ts; game_ce.cpp)
+  const std::unique_ptr<YardScene> yardScene;
+  // (the yard's frame `yardFrame` is in the cranes' block)
+  /** the task on the yard now: its run, whether the yard is laid out, the order its steps on foot are offered in, a second try */
+  struct YardTaskNow {
+    std::unique_ptr<YardTask> run;
+    bool laid = false;
+    std::map<std::string, double> order;
+    bool second = false;
+  };
+  std::unique_ptr<YardTaskNow> task;
+  std::vector<TaskId> tasksLeft;
+  int taskCount = 0;
+  bool taskFailed = false;
+  std::string taskSub;
+  double laidTry = 0;
+  /** A place on a road wide enough to start with a combination of 16 m, near a start point. */
+  SpawnJson truckSpot(const SpawnJson& near);
+  /** The next task on the practice yard: lay it out and stand the combination at its start. */
+  void nextTask();
+  void endTasks();
+  /** Put the vehicle somewhere else in the middle of a lesson (the next task, the road after the yard). */
+  void placeAgain();
+  void taskDone(bool ok);
+  /** Judge the task on the yard and say what is to be done. */
+  void updateTask(double dt);
 };
 
 }  // namespace fs

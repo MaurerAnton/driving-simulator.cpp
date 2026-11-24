@@ -270,8 +270,8 @@ bool Game::flyHold() {
 
 /** May the player be teleported now (ui/worldtap.ts)?  In a drive of one's own, in a vehicle on the road or on foot. */
 bool Game::canTeleport() {
-  // (later: task, watcher, showOn – game.ts:5285)
-  if (!settings.teleportTap || state != "drive" || lesson || (demo && demo->active)) return false;
+  // (later: watcher, showOn – game.ts:5285)
+  if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide, wrecked – game.ts:5286)
   // (later: walker – game.ts:5287)
   // (later: tram, forklift – game.ts:5288)
@@ -285,8 +285,8 @@ bool Game::canTeleport() {
  * back into the seat first.
  */
 bool Game::canDrive() {
-  // (later: task, watcher, showOn – game.ts:5298)
-  if (!settings.teleportTap || state != "drive" || lesson || (demo && demo->active)) return false;
+  // (later: watcher, showOn – game.ts:5298)
+  if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide, wrecked – game.ts:5299)
   // (later: walker – game.ts:5300)
   // (later: tram, forklift – game.ts:5301)
@@ -356,8 +356,8 @@ void Game::turnAround() {
 
 /** May the vehicle be turned round now (input action 'turn', F3)?  A road vehicle while driving. */
 bool Game::canTurnAround() {
-  // (later: task, watcher, showOn – game.ts:5373)
-  if (state != "drive" || lesson || (demo && demo->active)) return false;
+  // (later: watcher, showOn – game.ts:5373)
+  if (state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide – game.ts:5374)
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane
   // (later: walker, tram, forklift – game.ts:5376)

@@ -19,6 +19,7 @@
 #include "game/nav.h"
 #include "game/routepresets.h"
 #include "game/track.h"
+#include "game/yardtask.h"
 #include "i18n/index.h"
 #include "input/input.h"
 #include "platform/frame.h"
@@ -31,7 +32,9 @@
 #include "render/pedlights.h"
 #include "render/plane.h"
 #include "render/props.h"
+#include "render/yard.h"
 #include "render/signs.h"
+#include "render/truck.h"
 #include "sim/autodriver.h"
 #include "sim/autopilot.h"
 #include "sim/flight.h"
@@ -396,7 +399,11 @@ void Game::frame(double now) {
     root.position.set(mpos[0], mpos[1], mpos[2]);
     root.quaternion.set(v.quat[0], v.quat[1], v.quat[2], v.quat[3]);
     root.updateMatrixWorld(true);
-    // (later: the truck's trailer and the box trailer placed; the motorcycle's lean – game.ts:6605)
+    if (const Trailer* t = trailer.get()) {
+      if (truck && def->kind == "truck") truck->setTrailer(t->x, t->y, t->z, t->yaw, t->pitch, t->wheelSpin, t->coupled);
+      if (carTrailer && def->model != "truck") carTrailer->place(t->x, t->y, t->z, t->yaw, t->pitch, t->wheelSpin, lastVisual);
+    }
+    // (later: the motorcycle's lean – game.ts:6608)
     // the aeroplane: where the flight has it, turned every way it is
     if (aircraft && planeModel) {
       Aircraft& ac = *aircraft;
@@ -542,8 +549,7 @@ void Game::updateVisuals(double dt) {
   const bool plane = def->model == "plane" && planeModel;
   if (!plane) model.update(s, dt, time);
   // the map on the vehicle's own screen, in the driver's seat – the corner map is hidden meanwhile (render/navscreen.ts)
-  // (later: the other models' own navScreen – game.ts:6917)
-  VehicleScreen* screen = &model == &car && !plane ? carScreen.get() : nullptr;
+  VehicleScreen* screen = &model == &car && !plane ? carScreen.get() : plane ? nullptr : model.navScreen;
   const bool onScreen = screen && settings.mapOnScreen && cameraMode == "cockpit";
   // (a tap on the screen opens the big map – or, as the settings choose, brings the map back into the corner: ui/screentap.ts)
   if (!screenTap) screenTap = std::make_unique<ScreenTap>(app.canvas, app.camera, [this] { return settings.screenTap; }, [this] { openMap(); });
@@ -615,8 +621,8 @@ void Game::updateVisuals(double dt) {
     speak(h.what, h.dist, navText);
     // § 9 StVO: get in lane in good time – the route goes on from a particular lane
     if (h.lane != 0) navText += " – " + tr(h.lane < 0 ? "laneLeft" : "laneRight", lang);
-  } else if (lesson && lesson->kind == "basics") navText = lessonLine;
-  // (later: the tasks on the yard, the bus on a line: their line – game.ts:6995)
+  } else if ((lesson && lesson->kind == "basics") || task) navText = lessonLine;
+  // (later: the drills; the bus on a line: its line – game.ts:6995)
   std::string tip = time < tipUntil ? tipText : "";
   // on a touch screen the tip says what to tap – and is itself the button for it
   std::string tipAction;
@@ -662,8 +668,8 @@ void Game::updateVisuals(double dt) {
   hs.zone = ctx.zone;
   hs.junction = ctx.junction;
   hs.navText = navText;
-  // (later: the tasks on the yard: their sub line – game.ts:7041)
-  hs.navSub = lesson && lesson->kind != "basics" ? lessonLine : ctx.roadName;
+  // (later: the drills – game.ts:7041)
+  hs.navSub = task ? taskSub : lesson && lesson->kind != "basics" ? lessonLine : ctx.roadName;
   hs.navArrow = h.arrow;
   hs.navActive = (lesson || demo) && h.dist >= 0 && h.what != "navFollow" && h.what != "routeDone";
   hs.tip = tip;
@@ -807,8 +813,9 @@ void Game::updateCamera(double dt) {
     // (With a trailer it circles the coupling – the middle of the combination – and looks from
     // higher up, so that the trailer does not hide the road and its end can be watched.)
     const bool long_ = def->long_;
-    // (later: task.run.judge – reversing on the yard, game.ts:7395)
-    const bool reversing = false;
+    // (While reversing on the yard it looks down steeply on the trailer's axles: what matters is
+    // where the trailer's end goes, and that lies behind.)
+    const bool reversing = task && task->run->judge;
     const double lift = std::min(1.5, std::max(0.03, (reversing ? 1.05 : long_ ? 0.42 : 0.2) - c.lookPitch));
     const double reach = c.lookZoom * std::cos(lift);
     const double up = long_ ? 2.2 : 1.1;

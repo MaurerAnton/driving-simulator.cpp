@@ -107,8 +107,7 @@ struct VehicleDef {
  * `VEHICLES[kind]`: the vehicles by their kind.
  *
  * Not every kind has its vehicle in every build: one whose physics come from a part of the
- * simulation that is not there (the articulated lorry and the three-axle truck: sim/semitrailer.h;
- * the cranes: sim/crane.h; the forklift: sim/forklift.h; the aeroplane: sim/flightspec.h) is left
+ * simulation that is not there (the cranes: sim/crane.h; the forklift: sim/forklift.h; the aeroplane: sim/flightspec.h) is left
  * out – `find` then gives null for its kind, `at` throws.
  */
 class VehicleTable {
