@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** canvas.h in the browser: the real 2D context (platform/web/library_fahrsim.js). */
+#include <emscripten.h>
+
 #include <cstdlib>
+#include <unordered_map>
 
 #include "platform/canvas.h"
 
@@ -16,6 +19,57 @@ int fsc_gradient(int c, int radial, double a, double b, double d, double e, doub
 void fsc_get_image_data(int c, int x, int y, int w, int h, uint8_t* out);
 void fsc_put_image_data(int c, const uint8_t* data, int w, int h, int x, int y);
 char* fsc_to_data_url(int canvas, const char* type, double quality);
+}
+
+extern "C" {
+void fsc_image_load(int id, const char* url);
+void fsc_image_decode(int id, const uint8_t* bytes, int n, const char* mime);
+void fsc_image_free(int handle);
+}
+
+namespace fs {
+
+namespace {
+std::unordered_map<int, Resolver<Image>>& waiting() {
+  static std::unordered_map<int, Resolver<Image>> m;
+  return m;
+}
+int nextImage = 1;
+}  // namespace
+
+Task<Image> loadImage(std::string url) {
+  int id = nextImage++;
+  Resolver<Image> r;
+  waiting().emplace(id, r);
+  fsc_image_load(id, url.c_str());
+  return r.task();
+}
+
+Task<Image> decodeImage(Bytes bytes, std::string mimeType) {
+  int id = nextImage++;
+  Resolver<Image> r;
+  waiting().emplace(id, r);
+  fsc_image_decode(id, bytes.data(), static_cast<int>(bytes.size()), mimeType.c_str());
+  return r.task();
+}
+
+void freeImage(Image& image) {
+  if (image.handle) fsc_image_free(image.handle);
+  image = Image();
+}
+
+}  // namespace fs
+
+extern "C" EMSCRIPTEN_KEEPALIVE void fsc_image_done(int id, int handle, int width, int height) {
+  auto it = fs::waiting().find(id);
+  if (it == fs::waiting().end()) return;
+  fs::Resolver<fs::Image> r = it->second;
+  fs::waiting().erase(it);
+  fs::Image img;
+  img.handle = handle;
+  img.width = width;
+  img.height = height;
+  r.resolve(img);
 }
 
 namespace fs::canvasBackend {

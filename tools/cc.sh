@@ -5,6 +5,7 @@
 . "$(dirname "$0")/env.sh"
 status=0
 for f in "$@"; do
-  g++ -std=gnu++20 -fsyntax-only -O0 -Wall -Wextra -Wno-unused-parameter -I"$FS_ROOT/src" -I"$FS_ROOT" -DFS_NATIVE_GL=1 -DFS_HAVE_PNG=1 "$f" || status=1
+  # (at most two of these checks at a time on this machine, beside the one build)
+  FS_LOCK="/tmp/fahrsim-cc-$(( $$ % 2 )).lock" fs_locked g++ -std=gnu++20 -fsyntax-only -O0 -Wall -Wextra -Wno-unused-parameter -I"$FS_ROOT/src" -I"$FS_ROOT" -DFS_NATIVE_GL=1 -DFS_HAVE_PNG=1 "$f" || status=1
 done
 exit $status
