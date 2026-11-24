@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include <stdexcept>
 #include <string>
 
 #include "core/task.h"
@@ -20,6 +21,11 @@ namespace fs::plat::native {
  */
 void mount(const std::string& prefix, const std::string& dir);
 void unmountAll();
+/**
+ * Addresses that nothing is mounted for are fetched from the real network (with the `curl`
+ * program) – for the tools that look at the published maps; off by default, and never on in a test.
+ */
+void useNetwork(bool on);
 /** what locationSearch() answers ("?start=free") */
 void setSearch(const std::string& search);
 /** the clock: `true` – nowMs()/dateMs() only move when advance() is called (tests); false – the real clock */
