@@ -11,7 +11,8 @@
  * middle of the town, as in tests/traffic.sim.ts: nobody brakes for it) or ghost (a car that
  * drives east along the second row again and again, through red lights and whoever is in its
  * way: the cars brake for it, are cut up by it, and are run into) or parked (the anchor, and two
- * vehicles parked for good in a lane: the traffic goes round them).
+ * vehicles parked for good in a lane: the traffic goes round them) or buses (the anchor, and a bus
+ * stop on every street: half of what appears is a city bus that calls at them).
  *
  * The traffic draws its numbers from its own generator (a fixed seed), so both runs see the
  * same.  The people on foot and the cyclists the original's traffic makes for itself are not
@@ -46,6 +47,11 @@ traffic.targetCount = 20;
 traffic.crowd.target = 0;
 traffic.cyclists.update = (): void => {};
 
+if (PLAYER === 'buses') {
+  // a stop half-way along every street long enough for one: every other vehicle that appears is a city bus
+  traffic.busStops = (lane: any) => (lane.len > 60 ? [{ s: lane.len * 0.5, id: lane.id * 64 }] : []);
+  traffic.busShare = 0.5;
+}
 if (PLAYER === 'parked') {
   // two vehicles parked for good in a lane: eastbound on the second row, southbound on the third column
   traffic.obstacles = [

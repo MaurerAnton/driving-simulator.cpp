@@ -7,6 +7,8 @@
  *
  *   node tools/diff/sim_drive.ts /home/user/driving-simulator /tmp/town.json lights 300 12 > a.txt
  *   build/sim_drive /tmp/town.json lights 300 12 > b.txt        (or: --make in place of the file)
+ *
+ * Two more arguments: the variant (tour | deadend | leftlane | reckless) and the vehicle (car | truck), as there.
  *   tools/diff/compare.py a.txt b.txt
  */
 #include <cmath>
@@ -45,8 +47,16 @@ int main(int argc, char** argv) {
   const std::string which = argc > 2 ? argv[2] : "lights";
   const double SECONDS = argc > 3 ? jsNumber(argv[3]) : 300;
   const int CARS = argc > 4 ? static_cast<int>(jsNumber(argv[4])) : 12;
+  const std::string VARIANT = argc > 5 ? argv[5] : "tour";
+  const std::string VEHICLE = argc > 6 ? argv[6] : "car";
+  // the vehicle: the compact car with the automatic gearbox, or the truck (measured from the middle of its wheelbase: its front 3.75 m ahead)
+  const VehicleSpec& SPEC = VEHICLE == "truck" ? TRUCK : COMPACT_CAR_AUTOMATIC;
+  const double FRONT = VEHICLE == "truck" ? 3.75 : 2.14;
+  const double LENGTH = SPEC.length.value_or(4.28);
+  const double WIDTH = SPEC.width.value_or(1.79);
   // (the town as tests/town.h makes it – for the numbers of its streets – and its roads as given)
-  town::Town town = town::makeTown(simdiff::townOptions(which));
+  const town::TownOptions opt = simdiff::townOptions(which);
+  town::Town town = town::makeTown(opt);
   WorldJson json = town.json;
   if (file != "--make") {
     std::ifstream in(file);
@@ -64,15 +74,18 @@ int main(int argc, char** argv) {
   traffic.targetCount = CARS;
   RuleMonitor rules(world, lanes, signals, traffic);
   rules.strict = true;
+  if (VEHICLE == "truck") rules.truck(true);
   Flat terrain;
   WorldGround ground(world, terrain);
-  Vehicle v(COMPACT_CAR_AUTOMATIC, ground);
+  Vehicle v(SPEC, ground);
   PolySample smp = newPolySample();
   SurfaceHit hit = newSurfaceHit();
 
-  // from the street between the junctions (0, 1) and (1, 1), eastwards
-  Lane* start = lanes.edgeLanes[static_cast<size_t>(town.street(0, 1, 1, 1))].fwd[0];
-  smp = lanePoint(*start, 15, smp);
+  // from the street between the junctions (0, 1) and (1, 1), eastwards – or (deadend) northwards up the last column, towards the cul-de-sac
+  const std::vector<Lane*>& first = VARIANT == "deadend" ? lanes.edgeLanes[static_cast<size_t>(town.street(opt.cols - 1, 0, opt.cols - 1, 1))].back : lanes.edgeLanes[static_cast<size_t>(town.street(0, 1, 1, 1))].fwd;
+  Lane* start = first[0];
+  // (leftlane: the car stands in the lane beside the one its way begins on, where there is one – it has to get in lane)
+  smp = lanePoint(VARIANT == "leftlane" && first.size() > 1 ? *first[1] : *start, 15, smp);
   v.teleport(smp.x, 100 + 0.02, smp.z, jsAtan2(-smp.tx, -smp.tz));
   v.resetDrivetrain(true);
 
@@ -117,11 +130,11 @@ int main(int argc, char** argv) {
     return false;
   };
   while (route.size() > 1 && beenOn(route.size() - 1, route.back()->to->edge)) route.pop_back();
-  const double FRONT = 2.14;
-  const double LENGTH = 4.28;
   AutoDriverOptions opts;
-  opts.spec = COMPACT_CAR_AUTOMATIC;
+  opts.spec = SPEC;
   opts.front = FRONT;
+  opts.truck = VEHICLE == "truck";
+  opts.obey = VARIANT != "reckless";
   AutoDriver driver(world, signals, rules, &traffic, opts);
   const Lane* last = route.back()->to;
   smp = lanePoint(*last, last->len * 0.6, smp);
@@ -166,7 +179,7 @@ int main(int argc, char** argv) {
     me.yaw = v.yaw;
     me.speed = v.speed;
     me.length = LENGTH;
-    me.width = 1.79;
+    me.width = WIDTH;
     me.lane = lane;
     me.s = laneS - LENGTH / 2;
     traffic.update(DT, me);

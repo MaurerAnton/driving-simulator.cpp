@@ -53,6 +53,11 @@ int main(int argc, char** argv) {
   Traffic traffic(world, graph, signals);
   traffic.targetCount = 20;
 
+  if (PLAYER == "buses") {
+    // a stop half-way along every street long enough for one: every other vehicle that appears is a city bus
+    traffic.busStops = [](const Lane& lane) { return lane.len > 60 ? std::vector<BusStopOnLane>{{lane.len * 0.5, lane.id * 64}} : std::vector<BusStopOnLane>{}; };
+    traffic.busShare = 0.5;
+  }
   PlayerState parkedA;
   PlayerState parkedB;
   if (PLAYER == "parked") {
