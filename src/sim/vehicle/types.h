@@ -1,161 +1,192 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Origin: src/sim/vehicle/types.ts @ v1.7.7
 /**
- * Vehicle model types: the driver's inputs, the ground the tyres stand on,
- * the vehicle specification and the per-wheel state.
+ * Public types of the vehicle dynamics model.
  *
- * Origin: src/sim/vehicle/types.ts (MaurerAnton/driving-simulator @ 5b6ddc7,
- * v0.1.0).
+ * Conventions
+ *  - World: x = east, y = up, z = south (north is -Z), metres, right-handed.
+ *  - Body:  +X = right, +Y = up, +Z = backward (forward is -Z); origin at the
+ *    centre of mass.  The quaternion [x,y,z,w] maps body → world.
+ *  - yaw: rotation about +Y; 0 faces north, positive turns LEFT.
+ *  - steer input: +1 = steering wheel fully to the right.
  */
 #pragma once
 
 #include <array>
+#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace fs {
 
-/** What the driver asks the car to do. */
+struct GroundSample {
+  /** surface height */
+  double y = 0;
+  /** unit surface normal */
+  double nx = 0;
+  double ny = 1;
+  double nz = 0;
+  /** friction multiplier: 1 dry asphalt … 0.4 wet grass */
+  double grip = 1;
+  /** rolling-resistance multiplier: 1 asphalt … 4 grass */
+  double rolling = 1;
+};
+
+class Ground {
+ public:
+  virtual ~Ground() = default;
+  /**
+   * Surface under world (x, z).  `yRef` is the height of the querying wheel,
+   * which lets the world choose between a bridge deck and the road below.
+   */
+  virtual void sample(double x, double z, double yRef, GroundSample& out) = 0;
+};
+
 struct DriverInput {
-  double steer = 0;      // -1 … 1 (steering wheel position)
-  double throttle = 0;   // 0 … 1
-  double brake = 0;      // 0 … 1
-  double clutch = 0;     // 0 … 1 (pedal travel)
-  double handbrake = 0;  // 0 … 1
-  /** manual: -1 R, 0 N, 1…6; automatic: -2 P, -1 R, 0 N, 1 D */
+  /** -1 … +1, desired steering-wheel position (+ = right) */
+  double steer = 0;
+  double throttle = 0;
+  double brake = 0;
+  /** clutch pedal, 1 = fully pressed (disengaged) */
+  double clutch = 0;
+  double handbrake = 0;
+  /** manual: -1 R, 0 N, 1…6.  automatic: -2 P, -1 R, 0 N, 1 D */
   int gear = 0;
   bool ignition = true;
   bool starter = false;
 };
 
-/** What the ground under one wheel looks like. */
-struct GroundSample {
-  bool hit = false;
-  double y = 0;
-  double nx = 0, ny = 1, nz = 0;
-  double grip = 1;
-  double rolling = 1;
-};
-
-/** The terrain the vehicle queries (implemented by WorldGround). */
-class Ground {
- public:
-  virtual ~Ground() = default;
-  /**
-   * Sample the ground at (x, z).  `yRef` picks the right deck where roads
-   * cross at different levels; the result is written into `out`.
-   */
-  virtual void sample(double x, double z, double yRef, GroundSample& out) = 0;
-  /** Surface roughness for the audio (1 asphalt … 3 gravel). */
-  virtual double roughnessAt(double x, double z) {
-    (void)x;
-    (void)z;
-    return 1;
-  }
-};
-
-/** Per-wheel state, refreshed every step. */
 struct WheelState {
+  /** road-wheel steering angle (rad, + = right) */
   double steer = 0;
-  double spin = 0;         // radians rolled
-  double omega = 0;        // rad/s
-  double compression = 0;  // m
+  /** accumulated rotation for rendering (rad) */
+  double spin = 0;
+  /** angular speed (rad/s, + = rolling forward) */
+  double omega = 0;
+  /** suspension compression from full droop (m) */
+  double compression = 0;
   bool contact = false;
-  double load = 0;         // N
+  /** normal load (N) */
+  double load = 0;
   double slipRatio = 0;
   double slipAngle = 0;
-  double skid = 0;         // 0 … 1
-  double hx = 0, hy = 0, hz = 0;  // contact point (world)
+  /** 0 … 1: how far the tyre is beyond its grip limit */
+  double skid = 0;
+  /** world position of the wheel centre */
+  double hx = 0;
+  double hy = 0;
+  double hz = 0;
+  /** grip multiplier of the surface under the wheel */
   double grip = 1;
 };
 
-/** The vehicle's physical constants. */
 struct VehicleSpec {
   std::string name;
-  double mass = 1375;            // kg
-  /** yaw, pitch, roll (kg m²) */
-  std::array<double, 3> inertia{1900, 2000, 500};
-  double wheelBase = 2.63;       // m
-  double track = 1.54;           // m
-  double cgHeight = 0.54;        // m
-  /** distance from the centre of gravity to the front axle (m) */
-  double cgToFront = 1.052;
-  double wheelRadius = 0.316;    // m
-  double wheelInertia = 1.1;     // kg m²
+  /** total mass incl. driver (kg) */
+  double mass = 0;
+  /** principal inertias about body X (pitch), Y (yaw), Z (roll) in kg·m² */
+  std::array<double, 3> inertia{0, 0, 0};
+  double wheelbase = 0;
+  double track = 0;
+  /** centre of mass: height above ground at rest, distance behind the front axle */
+  double cgHeight = 0;
+  double cgToFront = 0;
+  double wheelRadius = 0;
+  double wheelInertia = 0;
 
-  // ride frequencies ≈ 1.35 Hz front / 1.5 Hz rear, damping ratio ≈ 0.33
-  std::array<double, 2> springRate{29600, 24400};
-  std::array<double, 2> damperBump{1700, 1250};
-  std::array<double, 2> damperRebound{3000, 2250};
-  std::array<double, 2> antiRoll{14000, 7000};
-  double travel = 0.24;          // m of suspension travel
+  // suspension, per wheel: [front, rear]
+  std::array<double, 2> springRate{0, 0};
+  std::array<double, 2> damperBump{0, 0};
+  std::array<double, 2> damperRebound{0, 0};
+  std::array<double, 2> antiRoll{0, 0};
+  /** total wheel travel from full droop to the bump stop (m) */
+  double travel = 0;
 
-  double muPeak = 1.05;
-  double slipRatioPeak = 0.11;
-  double slipAnglePeak = 0.13;
-  double loadSensitivity = 0.1;
-  double relaxLong = 0.15;       // m
-  double relaxLat = 0.32;        // m
-  double rollingResistance = 0.011;
+  // tyres
+  double muPeak = 0;
+  /** slip ratio and slip angle (rad) at peak grip on dry asphalt */
+  double slipRatioPeak = 0;
+  double slipAnglePeak = 0;
+  double loadSensitivity = 0;
+  double relaxLong = 0;
+  double relaxLat = 0;
+  double rollingResistance = 0;
 
-  std::vector<std::pair<double, double>> torqueCurve;  // [rpm, Nm]
-  double idleRpm = 800;
-  double limiterRpm = 6500;
-  double stallRpm = 400;
-  double engineInertia = 0.16;   // kg m²
-  /** engine friction: [constant Nm, per-rpm Nm/rpm] */
-  std::array<double, 2> engineFriction{14, 0.0085};
+  // engine
+  /** [rpm, N·m] full-throttle torque curve */
+  std::vector<std::array<double, 2>> torqueCurve;
+  double idleRpm = 0;
+  double limiterRpm = 0;
+  double stallRpm = 0;
+  double engineInertia = 0;
+  /** friction torque = a + b·rpm (N·m) */
+  std::array<double, 2> engineFriction{0, 0};
 
-  std::string transmission = "manual";  // 'manual' | 'automatic'
-  /** the forward gears (the truck's automated box has eight) */
-  std::vector<double> gearRatios{3.77, 2.09, 1.32, 0.98, 0.78, 0.64};
-  double reverseRatio = 3.6;
-  double finalDrive = 3.65;
-  double clutchTorque = 420;     // Nm
-  double drivelineEfficiency = 0.92;
+  // driveline
+  /** 'manual' | 'automatic' */
+  std::string transmission = "manual";
+  /** forward ratios, index 0 = 1st gear */
+  std::vector<double> gearRatios;
+  double reverseRatio = 0;
+  double finalDrive = 0;
+  double clutchTorque = 0;
+  /** share of the engine torque that reaches the wheels (gearbox + differential losses) */
+  double drivelineEfficiency = 0;
+  /** operate the clutch for the driver (manual gearbox) */
   bool autoClutch = false;
 
-  double brakeTorque = 5200;     // Nm, total
-  double brakeBiasFront = 0.68;
-  double handbrakeTorque = 2800; // Nm
-  bool abs = true;
+  // brakes
+  /** total brake torque at full pedal (N·m, all four wheels) */
+  double brakeTorque = 0;
+  double brakeBiasFront = 0;
+  double handbrakeTorque = 0;
+  bool abs = false;
 
-  double steeringRatio = 14.5;
-  double maxWheelAngle = 0.576;  // rad at the road wheel
+  // steering
+  double steeringRatio = 0;
+  double maxWheelAngle = 0;
 
-  double dragArea = 0.65;        // Cd·A
+  // aerodynamics: drag area Cd·A (m²)
+  double dragArea = 0;
 
   // ---- what differs for a truck (a car leaves these out) ----
   /** the rear wheels are driven (default: the front wheels) */
   bool rearDrive = false;
   /** outer length and width of the vehicle (m); default: a compact car */
-  double length = 0, width = 0;
+  std::optional<double> length = std::nullopt;
+  std::optional<double> width = std::nullopt;
   /**
    * Corners of the body shell relative to the point on the ground below the
    * middle of the wheelbase (x right, y up, z back) – what touches the ground
    * when the vehicle lies on its side or roof.  Default: a compact car.
    */
-  std::vector<std::array<double, 3>> bodyPoints;
+  std::optional<std::vector<std::array<double, 3>>> bodyPoints = std::nullopt;
   /**
    * The automatic gearbox: shift points as engine speed (rpm) at no and at
    * full throttle, up to which speed a kick-down shifts back, from which
    * speed of the gearbox input (rad/s) the converter locks up, and the
    * converter's capacity (N·m per (rad/s)²).  Default: a petrol car.
-   * `set` says whether these are the vehicle's own (a car leaves them out).
+   * (The original's field is `auto`, a word C++ keeps for itself.)
    */
-  bool hasAuto = false;
-  struct AutoBox {
+  struct Auto {
     std::array<double, 2> up{0, 0};
     std::array<double, 2> down{0, 0};
     double kickdownRpm = 0;
     double lockOmega = 0;
     double converter = 0;
-  } autoBox;
+  };
+  std::optional<Auto> auto_ = std::nullopt;
+  /**
+   * The bump stop at the end of the travel, per wheel: its stiffness (N/m) and
+   * its damping (N·s/m, acting both ways while it is pressed).  Default: a
+   * car's – hard enough for 1.4 t, far too hard for a light machine, which it
+   * would throw into the air off a kerb.
+   */
+  struct BumpStop {
+    double stiffness = 0;
+    double damping = 0;
+  };
+  std::optional<BumpStop> bumpStop = std::nullopt;
 };
-
-/** One of the built-in vehicles (COMPACT_CAR, …), see spec.h. */
-const VehicleSpec& compactCar();
-const VehicleSpec& compactCarAutoclutch();
-const VehicleSpec& compactCarAutomatic();
 
 }  // namespace fs
