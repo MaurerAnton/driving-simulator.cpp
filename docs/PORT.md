@@ -86,9 +86,11 @@ searched for in the C++.
     tools/check.sh               build everything and run all tests
 
 The machine this is developed on is a tablet with four small cores and 8 GB of memory, and
-several of us compile at the same time: build one target at a time (`tools/t.sh` uses two
-compiler processes), never start a second build while one is running, and prefer `tools/cc.sh`
-while writing.
+several of us compile at the same time.  The tools take turns by themselves: only one build
+runs at a time on the whole machine (a lock, `tools/env.sh`), so `tools/t.sh` may sit and wait
+for another agent's build – that is not a hang.  Always build through the tools (never call
+`cmake --build`, `ninja` or `g++` yourself: that would run beside the queue), and prefer
+`tools/cc.sh` while writing.
 
 Tests are plain programs with `assert()` (live in every native build). Mirror the original's
 test file where there is one (`tests/world/lanes.test.ts` → `tests/lanes_test.cpp`): the same
