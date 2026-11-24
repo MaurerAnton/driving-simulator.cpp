@@ -30,11 +30,14 @@
 #include "render/far.h"
 #include "render/mirrors.h"
 #include "render/pedlights.h"
+#include "render/plane.h"
 #include "render/props.h"
 #include "render/yard.h"
 #include "render/signs.h"
 #include "render/truck.h"
 #include "sim/autodriver.h"
+#include "sim/autopilot.h"
+#include "sim/flight.h"
 #include "sim/collision.h"
 #include "sim/follow.h"
 #include "sim/ground.h"
@@ -385,20 +388,30 @@ void Game::frame(double now) {
     tPart = now;
   };
   VehicleModel& model = this->model();
+  // (the aeroplane's model is kept beside the road vehicles': planeAdapter)
+  Group& root = def->model == "plane" && planeModel ? *planeModel->root : *model.root;
   // (in the menu the vehicle shown stands still: it is not driven)
-  const bool haveCar = vehicle && model.root->visible && state != "menu" && state != "loading";
+  const bool haveCar = vehicle && root.visible && state != "menu" && state != "loading";
   // (later: the replay, placeReplay – game.ts:6597)
   if (haveCar) {
     Vehicle& v = *vehicle;
     v.getModelPosition(mpos.data());
-    model.root->position.set(mpos[0], mpos[1], mpos[2]);
-    model.root->quaternion.set(v.quat[0], v.quat[1], v.quat[2], v.quat[3]);
-    model.root->updateMatrixWorld(true);
+    root.position.set(mpos[0], mpos[1], mpos[2]);
+    root.quaternion.set(v.quat[0], v.quat[1], v.quat[2], v.quat[3]);
+    root.updateMatrixWorld(true);
     if (const Trailer* t = trailer.get()) {
       if (truck && def->kind == "truck") truck->setTrailer(t->x, t->y, t->z, t->yaw, t->pitch, t->wheelSpin, t->coupled);
       if (carTrailer && def->model != "truck") carTrailer->place(t->x, t->y, t->z, t->yaw, t->pitch, t->wheelSpin, lastVisual);
     }
-    // (later: the motorcycle's lean; the aeroplane – game.ts:6608)
+    // (later: the motorcycle's lean – game.ts:6608)
+    // the aeroplane: where the flight has it, turned every way it is
+    if (aircraft && planeModel) {
+      Aircraft& ac = *aircraft;
+      root.position.set(ac.pos.x, ac.pos.y, ac.pos.z);
+      root.quaternion.set(ac.q[0], ac.q[1], ac.q[2], ac.q[3]);
+      root.updateMatrixWorld(true);
+      planeModel->update(planeVisual(ac), dt, time);
+    }
     const std::array<double, 2> f = focus();
     tiles.update(f[0], f[1]);
     props->update(f[0], f[1]);
@@ -532,9 +545,11 @@ void Game::updateVisuals(double dt) {
   lastVisual = &s;
   // (later: services.visual: the fuel gauge, the dirt – game.ts:6914)
   VehicleModel& model = this->model();
-  model.update(s, dt, time);
+  // (the aeroplane's model moves with the flight, in frame: planeVisual – it has no screen)
+  const bool plane = def->model == "plane" && planeModel;
+  if (!plane) model.update(s, dt, time);
   // the map on the vehicle's own screen, in the driver's seat – the corner map is hidden meanwhile (render/navscreen.ts)
-  VehicleScreen* screen = &model == &car ? carScreen.get() : model.navScreen;
+  VehicleScreen* screen = &model == &car && !plane ? carScreen.get() : plane ? nullptr : model.navScreen;
   const bool onScreen = screen && settings.mapOnScreen && cameraMode == "cockpit";
   // (a tap on the screen opens the big map – or, as the settings choose, brings the map back into the corner: ui/screentap.ts)
   if (!screenTap) screenTap = std::make_unique<ScreenTap>(app.canvas, app.camera, [this] { return settings.screenTap; }, [this] { openMap(); });
@@ -553,7 +568,7 @@ void Game::updateVisuals(double dt) {
     rough = std::max(rough, w.grip < 0.75 ? 2.4 : 1.0);
   }
   {
-    // (later: the aeroplane's and the tram's sounds – game.ts:6937)
+    // (later: the tram's sounds – game.ts:6941)
     AudioState a;
     a.rpm = v.rpm;
     a.load = v.engineLoad;
@@ -568,6 +583,24 @@ void Game::updateVisuals(double dt) {
     a.braking = driver.brake;
     a.parkingBrake = c.handbrake > 0.5;
     a.reversing = v.gear == -1;
+    if (aircraft) {
+      // the aeroplane: its engine and propeller, the wind, the stall warning
+      const Aircraft& ac = *aircraft;
+      a = AudioState();
+      a.rpm = ac.rpm();
+      a.load = flight.throttle;
+      a.engineRunning = ac.engineRunning();
+      a.starter = false;
+      a.speed = ac.ias();
+      a.skid = 0;
+      a.indicatorOn = false;
+      a.blinkOn = false;
+      a.horn = false;
+      a.rough = 1;
+      a.airborne = !ac.onGround();
+      a.stallWarning = ac.stallWarning();
+      a.braking = flightControls->brake;
+    }
     audio->update(a);
   }
 
@@ -649,7 +682,7 @@ void Game::updateVisuals(double dt) {
   hs.autopilotDriving = autopilotDriving();
   // (the reminder of the keys is the car's: not for the tram – its lesson says how it is driven – nor for the
   // aeroplane, whose keys the tip line names)
-  hs.noKeyHints = false;
+  hs.noKeyHints = aircraft != nullptr;
   hs.indicator = c.indicator;
   hs.hazard = c.hazard;
   hs.blinkOn = s.blinkOn;
@@ -681,8 +714,34 @@ void Game::updateVisuals(double dt) {
   }
   // (later: a lesson watched: the instructor says what the car does – game.ts:7082; the tram's line of the display – game.ts:7083;
   //  on the bus, riding along, on foot in the town, on foot round the vehicle – game.ts:7132; getting out is offered – game.ts:7200;
-  //  a passenger, the buttons beside the person on foot – game.ts:7205; flying – game.ts:7217; watching – game.ts:7242;
-  //  services.hud – game.ts:7247)
+  //  a passenger, the buttons beside the person on foot – game.ts:7205)
+  if (aircraft) {
+    // flying: how fast through the air (the strip in km/h, the line in knots), how high, climbing or sinking
+    const Aircraft& ac = *aircraft;
+    const FlightAutopilot& ap = *flightAuto;
+    hs.speedKmh = ac.ias() * 3.6;
+    hs.rpm = ac.rpm();
+    hs.rpmMax = 2800;
+    hs.gear = std::to_string(flight.flaps * 10) + "°";
+    hs.limit = 0;
+    hs.zone = 0;
+    hs.junction = std::nullopt;
+    hs.navText = tr("flyStatus", lang,
+                    {{"ias", jsRound(ac.ias() * 1.94384)}, {"alt", jsRound((ac.altitude() * 3.28084) / 10) * 10}, {"vs", jsRound((ac.verticalSpeed() * 196.85) / 50) * 50}});
+    if (ap.engaged()) {
+      // (on the runway there is no height to hold yet)
+      const double alt = ap.state.targetAltitude, hdg = ap.state.targetHeading;
+      hs.navSub = tr("apStatus", lang,
+                     {{"what", tr(apPhaseKey(ap.state), lang)},
+                      {"alt", std::isfinite(alt) ? jsStr(jsRound((alt * 3.28084) / 50) * 50) : std::string("–")},
+                      {"hdg", std::isfinite(hdg) ? padStart(jsStr(jsMod(jsRound(hdg), 360)), 3, '0') : std::string("–")}});
+    } else hs.navSub = tr("flySub", lang, {{"t", jsRound(flight.throttle * 100)}, {"f", flight.flaps * 10}, {"rpm", jsRound(ac.rpm() / 10) * 10}});
+    hs.navArrow = 0;
+    hs.navActive = false;
+    hs.tipAction = "";
+    hs.tip = time < tipUntil ? tipText : ac.stallWarning() ? tr("flyStall", lang) : time - startTime < 20 ? tr(touch ? "flyHelpTouch" : "flyHelp", lang) : "";
+  }
+  // (later: watching – game.ts:7242; services.hud – game.ts:7247)
   // (later: on foot below the tower crane: the walker's place – game.ts:7248)
   if (crane) crane->hud(hs, touch);
   // (later: forklift.hud – game.ts:7249)
@@ -718,13 +777,15 @@ void Game::updateCamera(double dt) {
     cam.updateProjectionMatrix();
     return;
   }
-  Group& car = *model().root;
+  // (the aeroplane's model is kept beside the road vehicles': planeAdapter)
+  const bool plane = def->model == "plane" && planeModel;
+  Group& car = plane ? *planeModel->root : *model().root;
   Vehicle& v = *vehicle;
   const Controls& c = input->c;
   // the eye is always needed for the mirrors
   Vector3& lean = tmpV.set(-v.accLat * 0.004, 0, v.accLong * 0.005);
   lean.clampLength(0, 0.06);
-  eyeWorld.copy(model().eye).add(lean).applyMatrix4(car.matrixWorld);
+  eyeWorld.copy(plane ? planeModel->eye : model().eye).add(lean).applyMatrix4(car.matrixWorld);
   // working a crane: from the operator's seat, or round the hook (game/craneplay.ts)  (later: not on foot – game.ts:7302)
   if (CraneModel* cm = crane ? craneModel() : nullptr; cm && crane->camera(cam, cameraMode, c, dt, *cm)) {
     cam.updateProjectionMatrix();
@@ -740,8 +801,8 @@ void Game::updateCamera(double dt) {
     // (later: lessonWatch – game.ts:7372)
     const double want = demo && demo->active ? demo->look * 0.8 : 0;
     demoHead += std::max(-dt * 5, std::min(dt * 5, want - demoHead));
-    // (later: a rider's gaze and lean (PlayerBike), the aeroplane's – game.ts:7375)
-    const double gaze = 0;
+    // (later: a rider's gaze and lean (PlayerBike) – game.ts:7375)
+    const double gaze = aircraft ? 0.17 : 0;
     tmpQ.setFromEuler(Euler(c.lookPitch - gaze, c.lookYaw + demoHead, 0, Euler::YXZ));
     cam.quaternion.copy(car.quaternion).multiply(tmpQ);
   } else if (cameraMode == "chase") {

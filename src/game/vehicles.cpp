@@ -14,10 +14,9 @@
 
 // A vehicle whose physics come from a part of the simulation that is not in the port is left out of
 // the table (see VehicleTable); it is there as soon as that part's header is.
-#if __has_include("sim/flightspec.h")
+// (the aeroplane is in the port: sim/flightspec.h – included as such, the compiler's cache does not notice a header that comes into being)
 #include "sim/flightspec.h"
 #define FS_VEHICLES_PLANE 1
-#endif
 #include "sim/crane.h"
 #if __has_include("sim/forklift.h")
 #include "sim/forklift.h"

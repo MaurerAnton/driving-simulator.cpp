@@ -227,8 +227,8 @@ void Game::closeMap() {
 
 /** The free camera flies, apart from the vehicle (not from the aeroplane, the tram or the forklift, nor on foot or watching: there it goes with them as before). */
 bool Game::flyFree() {
-  // (later: walker, watcher, aircraft, tram, forklift, doorT – game.ts:5183)
-  return cameraMode == "free" && state == "drive" && !(crane && crane->operating);
+  // (later: walker, watcher, tram, forklift, doorT – game.ts:5183)
+  return cameraMode == "free" && state == "drive" && !aircraft && !(crane && crane->operating);
 }
 
 /** The flying camera (game/flycam.ts): from where the camera was – or from behind the vehicle – wherever it is flown. */
@@ -274,8 +274,8 @@ bool Game::canTeleport() {
   if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide, wrecked – game.ts:5286)
   // (later: walker – game.ts:5287)
-  // (later: aircraft, tram, forklift – game.ts:5288)
-  return !(crane && crane->operating);
+  // (later: tram, forklift – game.ts:5288)
+  return !aircraft && !(crane && crane->operating);
 }
 
 /**
@@ -325,7 +325,11 @@ void Game::teleportHere(double x, double y, double z, double yaw) {
 void Game::driveHere(double x, double z) {
   if (!canDrive()) return;
   const std::string lang = settings.lang;
-  // (later: aircraft – the aeroplane needs no road: startTrip flies it there and circles the place – game.ts:5343)
+  if (aircraft) {
+    // (the aeroplane needs no road: startTrip flies it there and circles the place)
+    startTrip({streetSpot("", x, z, 0)}, false, nullptr);
+    return;
+  }
   const std::optional<SpawnJson> road = roadSpot(x, z, "", 150);
   if (!road) {
     tipText = tr("teleportNoRoad", lang);
@@ -356,8 +360,8 @@ bool Game::canTurnAround() {
   if (state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide – game.ts:5374)
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane
-  // (later: walker, aircraft, tram, forklift – game.ts:5376)
-  return !crane;
+  // (later: walker, tram, forklift – game.ts:5376)
+  return !aircraft && !crane;
 }
 
 }  // namespace fs
