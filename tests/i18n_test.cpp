@@ -16,6 +16,12 @@
  * the files, the words of the learning modes, the citations, the native host's Intl.
  *
  *   tools/t.sh i18n_test
+ *
+ * And the comparison with the original itself, answer by answer (every text of every language
+ * as tr() gives it, read out, cut into pieces; rules, citations, key names, quantities, the
+ * words of the learning modes; the checker's findings) – see tools/i18n-export.mjs:
+ *
+ *   node tools/i18n-export.mjs --answers /tmp/i18n && tools/t.sh i18n_test --answers /tmp/i18n && diff -r /tmp/i18n/original /tmp/i18n/port
  */
 #include <algorithm>
 #include <cstdio>
@@ -1211,9 +1217,209 @@ void theNativeHostsIntl() {
   EQ(plat::optionsJson(plat::ListFormat{.style = "long", .type = "conjunction"}), "{\"style\":\"long\",\"type\":\"conjunction\"}");
 }
 
+// ============================================================================================
+// The comparison with the original: the port's answers to what tools/i18n-export.mjs --answers
+// asked the original (the same lines, in the same order – exportAnswers() there).
+// ============================================================================================
+
+std::string esc(const std::string& s) {
+  std::string out;
+  for (char c : s) {
+    if (c == '\\') out += "\\\\";
+    else if (c == '\n') out += "\\n";
+    else if (c == '\r') out += "\\r";
+    else if (c == '\t') out += "\\t";
+    else out += c;
+  }
+  return out;
+}
+std::string unesc(const std::string& s) {
+  std::string out;
+  for (size_t i = 0; i < s.size(); i++) {
+    if (s[i] == '\\' && i + 1 < s.size()) {
+      i++;
+      out += s[i] == 'n' ? '\n' : s[i] == 'r' ? '\r' : s[i] == 't' ? '\t' : s[i];
+    } else out += s[i];
+  }
+  return out;
+}
+/** the lines of a file of dir/in, as they were before they were written */
+std::vector<std::string> linesAsked(const std::string& path) {
+  std::vector<std::string> out = split(readFile(path), "\n");
+  if (!out.empty()) out.pop_back();
+  for (std::string& line : out) line = unesc(line);
+  return out;
+}
+
+/** the values a text is filled with: a number, a word, a text with signs in it – by the place of each placeholder in the English text */
+TrParams paramsOf(const std::string& key) {
+  TrParams p;
+  const std::string* text = en().find(key);
+  if (!text) return p;
+  std::vector<std::string> seen;
+  const std::string& s = *text;
+  int i = 0;
+  for (size_t at = 0; at < s.size(); at++) {
+    if (s[at] != '{') continue;
+    size_t j = at + 1;
+    while (j < s.size() && wordChar(s[j])) j++;
+    if (j == at + 1 || j >= s.size() || s[j] != '}') continue;
+    const std::string name = s.substr(at + 1, j - at - 1);
+    at = j;
+    if (std::find(seen.begin(), seen.end(), name) != seen.end()) continue;
+    seen.push_back(name);
+    if (i % 3 == 0) p.add({name, 12.5});
+    else if (i % 3 == 1) p.add({name, "<" + name + ">"});
+    else p.add({name, "a $& b {d} c"});
+    i++;
+  }
+  return p;
+}
+
+void answers(const std::string& dir) {
+  const std::string US = "\x1f";
+  std::filesystem::create_directories(dir + "/port");
+  auto write = [&](const std::string& name, const std::string& text) {
+    std::ofstream f(dir + "/port/" + name, std::ios::binary);
+    f << text;
+    OK(static_cast<bool>(f), dir + "/port/" + name + " cannot be written");
+  };
+  plat::native::mount("http://localhost/lang/", "web/lang/");
+  std::vector<std::string> codes;
+  for (const LangInfo& l : LANGS) {
+    OK(await(loadLang(l.code)), l.code);
+    codes.push_back(l.code);
+  }
+  std::vector<std::string> withUnknown = codes;
+  withUnknown.push_back("xx");
+  const std::vector<std::string> keys = en().keys();
+
+  // every text of every language (and of one that is not there), with keys and with the buttons of a touch screen
+  {
+    std::string out;
+    std::vector<std::string> all = keys;
+    all.push_back("no.such.key");
+    for (const std::string& l : withUnknown) {
+      for (const std::string& k : all) {
+        const TrParams p = paramsOf(k);
+        setKeyStyle(KeyStyle::Keys);
+        const std::string a = tr(k, l, p);
+        setKeyStyle(KeyStyle::Touch);
+        const std::string b = tr(k, l, p);
+        out += l + "\t" + k + "\t" + esc(a) + "\t" + (a == b ? "=" : esc(b)) + "\n";
+      }
+    }
+    setKeyStyle(KeyStyle::Keys);
+    write("tr.txt", out);
+  }
+
+  // the same texts ready to be read out and cut into pieces – and texts made to be hard
+  {
+    std::string out;
+    const std::vector<std::string> hard = linesAsked(dir + "/in/hard.txt");
+    auto row = [&](const std::string& l, const std::string& k, const std::string& text) {
+      out += l + "\t" + k + "\t" + esc(speakable(text, l));
+      // (a character beyond U+FFFF is cut in two by the original where the port keeps it whole: such a text is not cut here)
+      bool beyond = false;
+      for (char32_t c : decodeUtf8(text)) beyond = beyond || c > 0xFFFF;
+      if (beyond) out += "\t-";
+      else
+        for (int size : {180, 60, 25, 7, 1}) out += "\t" + esc(join(splitForSpeech(text, size), US));
+      out += "\n";
+    };
+    for (const std::string& l : codes) {
+      for (const std::string& k : keys) row(l, k, tr(k, l, paramsOf(k)));
+      for (size_t i = 0; i < hard.size(); i++) row(l, "hard" + std::to_string(i), hard[i]);
+    }
+    write("speak.txt", out);
+  }
+
+  // rules, lessons, quantities, citations, the choice of a language, the names of the keys
+  {
+    std::string out;
+    for (const std::string& l : withUnknown) {
+      std::vector<std::string> ids = VIOLATION_REFS.keys();
+      ids.push_back("nothing");
+      for (const std::string& id : ids)
+        out += "ref\t" + l + "\t" + id + "\t" + esc(violationRef(id, l)) + "\t" + esc(violationTitle(id, l, {{"speed", 62}, {"limit", 50}, {"n", 3}})) + "\t" + esc(violationWhy(id, l)) + "\n";
+      for (const char* id : {"basics", "rbl", "motorway", "ceExam", "nope"}) out += "lesson\t" + l + "\t" + id + "\t" + esc(lessonTitle(id, l)) + "\t" + esc(lessonIntro(id, l)) + "\n";
+      out += "lang\t" + l + "\t" + (isRtl(l) ? "true" : "false") + "\t" + localeOf(l) + "\t" + langInfo(l).name + "\n";
+      const std::pair<double, int> quantities[] = {{5.12, 1}, {1234.5, 1}, {7, 0}, {35, 0}, {0.4, 0}, {1, 0}, {2, 2}, {21, 0}, {1e6, 0}, {-3.5, 1}};
+      const std::pair<Unit, const char*> units[] = {{Unit::Kilometer, "kilometer"}, {Unit::Meter, "meter"}, {Unit::Minute, "minute"}};
+      for (const auto& [v, d] : quantities)
+        for (const auto& [u, name] : units) out += "unit\t" + l + "\t" + jsStr(v) + "\t" + std::to_string(d) + "\t" + name + "\t" + esc(formatUnit(v, u, l, d)) + "\n";
+      // (the native host has the dates of German and English): 17 May 2023, 1970, the last minute of 2026, 29 February 2024
+      if (l == "de" || l == "en" || l == "xx")
+        for (double t : {1684281600000.0, 0.0, 1798761540000.0, 1709164800000.0}) out += "month\t" + l + "\t" + jsStr(t) + "\t" + esc(formatMonth(t, l)) + "\n";
+    }
+    for (const std::string& t : linesAsked(dir + "/in/cited.txt")) {
+      out += "cite\t" + esc(t) + "\t";
+      for (const CitationPart& part : citationParts(t)) out += "[" + esc(part.text) + "|" + (part.url ? *part.url : "-") + "]";
+      out += "\n";
+    }
+    for (const std::string& list : linesAsked(dir + "/in/preferred.txt")) out += "pick\t" + list + "\t" + pickLang(list.empty() ? std::vector<std::string>{} : split(list, ",")) + "\n";
+    std::vector<std::string> keyCodes = {"Space", "Enter", "NumpadEnter", "ShiftLeft", "ShiftRight", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Digit0",
+                                         "Digit1", "Digit9", "Period", "F1", "F12", "Tab", "Comma", "Key", "Digit", ""};
+    for (char c = 'A'; c <= 'Z'; c++) keyCodes.push_back(std::string("Key") + c);
+    for (const std::string& l : withUnknown) {
+      std::vector<std::string> names, touch;
+      for (const std::string& c : keyCodes) {
+        names.push_back(esc(keyName(c, l)));
+        touch.push_back(esc(touchLabel(c, l, [&](std::string_view k) { return tr(k, l); })));
+      }
+      out += "keys\t" + l + "\t" + join(names, " ") + "\t" + join(touch, US) + "\n";
+    }
+    write("misc.txt", out);
+  }
+
+  // the words of the learning modes, in every language that has them and in one that has not
+  {
+    std::string out;
+    std::vector<std::string> langs = EXAM_LANGS;
+    langs.push_back("xx");
+    for (const std::string& l : langs) {
+      const ExamTexts t = await(loadExamTexts(l));
+      const std::pair<const Record<ExamText>*, const char*> parts[] = {{&t.questions, "questions"}, {&t.danger, "danger"}};
+      for (const auto& [part, name] : parts) {
+        for (const auto& [id, w] : *part) {
+          std::vector<std::string> a;
+          for (const std::string& x : w.a) a.push_back(esc(x));
+          out += l + "\t" + name + "\t" + id + "\t" + esc(w.q) + "\t" + join(a, US) + "\t" + esc(w.why) + "\n";
+        }
+      }
+      for (const auto& [id, w] : t.signs) out += l + "\tsigns\t" + id + "\t" + esc(w) + "\n";
+    }
+    write("exam.txt", out);
+  }
+
+  // the checker: every language, languages taken for one another, and a translation spoilt in many ways
+  {
+    std::string out;
+    auto say = [&](const std::string& name, const Report& r) {
+      out += "# " + name + ": " + std::to_string(r.errors.size()) + " errors, " + std::to_string(r.warnings.size()) + " warnings\n";
+      for (const std::string& e : r.errors) out += "E " + esc(e) + "\n";
+      for (const std::string& w : r.warnings) out += "W " + esc(w) + "\n";
+    };
+    for (const std::string& l : codes) say(l, checkDict(l, *dictOf(l)));
+    const std::pair<const char*, const char*> pairs[] = {{"ru", "en"}, {"de", "fr"}, {"zh", "ja"}, {"ja", "de"}, {"xx", "de"}, {"en", "de"}, {"el", "ru"}, {"ar", "fa"},
+                                                         {"ko", "zh"}, {"hi", "bn"}, {"fr", "en"}, {"uk", "ru"}, {"bn", "hi"}, {"fa", "ur"}, {"tr", "vi"}, {"bg", "el"}};
+    for (const auto& [code, other] : pairs) say(std::string(code) + " with the texts of " + other, checkDict(code, *dictOf(other)));
+    say("fr against de", checkDict("fr", *dictOf("fr"), *dictOf("de")));
+    Dict spoilt;
+    OK(i18n::parseDict(trim(readFile(dir + "/in/spoilt.json")), spoilt));
+    for (const char* code : {"xx", "de", "zh", "ru", "en"}) say(std::string(code) + " with spoilt texts", checkDict(code, spoilt));
+    write("check.txt", out);
+  }
+  std::printf("i18n_test: the port's answers are in %s/port\n", dir.c_str());
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  if (argc == 3 && std::string(argv[1]) == "--answers") {
+    answers(argv[2]);
+    return 0;
+  }
   // the port's own: the files, and what is compiled in
   loadsOnlyWhatIsThere();
   theReaderOfTheFiles();
