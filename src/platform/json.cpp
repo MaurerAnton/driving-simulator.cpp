@@ -73,6 +73,55 @@ bool arrayIndex(std::string_view key, uint32_t& out) {
   return true;
 }
 
+/** Number::toString of a number that is one (see jsNumberText) */
+std::string numberText(double x) {
+  if (x == 0) return "0";
+  char buf[48];
+  const auto r = std::to_chars(buf, buf + sizeof buf, x, std::chars_format::scientific);
+  // "-d.ddde±XX": the digits, and the power of ten of the first one
+  const char* p = buf;
+  std::string out;
+  if (*p == '-') {
+    out += '-';
+    p++;
+  }
+  std::string digits;
+  for (; p < r.ptr && *p != 'e'; p++)
+    if (*p != '.') digits += *p;
+  int e = 0;
+  if (p < r.ptr) {
+    p++;
+    const bool neg = *p == '-';
+    if (*p == '-' || *p == '+') p++;
+    for (; p < r.ptr; p++) e = e * 10 + (*p - '0');
+    if (neg) e = -e;
+  }
+  const int k = static_cast<int>(digits.size());
+  const int n = e + 1;  // the number is 0.digits × 10^n
+  if (k <= n && n <= 21) {
+    out += digits;
+    out.append(static_cast<size_t>(n - k), '0');
+  } else if (0 < n && n <= 21) {
+    out.append(digits, 0, static_cast<size_t>(n));
+    out += '.';
+    out.append(digits, static_cast<size_t>(n), std::string::npos);
+  } else if (-6 < n && n <= 0) {
+    out += "0.";
+    out.append(static_cast<size_t>(-n), '0');
+    out += digits;
+  } else {
+    out += digits[0];
+    if (k > 1) {
+      out += '.';
+      out.append(digits, 1, std::string::npos);
+    }
+    out += 'e';
+    out += n - 1 < 0 ? '-' : '+';
+    out += std::to_string(n - 1 < 0 ? 1 - n : n - 1);
+  }
+  return out;
+}
+
 void quote(std::string& out, std::string_view s) {
   static const char* const HEX = "0123456789abcdef";
   out += '"';
@@ -108,6 +157,12 @@ void quote(std::string& out, std::string_view s) {
 }
 
 }  // namespace
+
+std::string jsNumberText(double x) {
+  if (x != x) return "NaN";
+  if (std::isinf(x)) return x > 0 ? "Infinity" : "-Infinity";
+  return numberText(x);
+}
 
 // ---------------------------------------------------------------------------
 // JsonReader
@@ -490,7 +545,7 @@ void JsonWriter::key(std::string_view k) {
 
 void JsonWriter::number(double v) {
   value();
-  if (std::isfinite(v)) out_ += jsStr(v);
+  if (std::isfinite(v)) out_ += numberText(v);
   else out_ += "null";
 }
 
@@ -627,7 +682,7 @@ const Json kNull;
 
 std::string Json::asStr() const {
   if (kind == Kind::String) return str;
-  if (kind == Kind::Number) return jsStr(number);
+  if (kind == Kind::Number) return jsNumberText(number);
   return "";
 }
 
