@@ -17,7 +17,8 @@
  * What the original hands out as a promise is a `Task` here.  The big things a
  * map has once (the network of the whole region, its tracks, its stops …) are
  * handed out behind a shared pointer – null where the original has null –, so
- * that nobody copies them.
+ * that nobody copies them; the task that brings them is the loader's own, read
+ * as often as one likes: `auto net = co_await map.net();`.
  */
 #pragma once
 
@@ -133,25 +134,25 @@ class MapLoader : public std::enable_shared_from_this<MapLoader> {
   }
 
   /** Every road of the map in a few numbers (for routes and the big map) – null for a map in one piece. */
-  Task<std::shared_ptr<const NetData>> net();
+  const Task<std::shared_ptr<const NetData>>& net();
 
   /** The tracks trams and trains run on. */
-  Task<std::shared_ptr<const std::vector<RailJson>>> rails();
+  const Task<std::shared_ptr<const std::vector<RailJson>>>& rails();
 
   /** The stops of the region – null for a map without them (one built before version 1.2.0, a test map). */
-  Task<std::shared_ptr<const StopsJson>> stops();
+  const Task<std::shared_ptr<const StopsJson>>& stops();
 
   /** The far view of the region: its ground on a coarse grid (far.bin.gz, inflated) – null for a map without it. */
-  Task<std::shared_ptr<const Bytes>> far();
+  const Task<std::shared_ptr<const Bytes>>& far();
 
   /** The lines of the trams – null for a map without them. */
-  Task<std::shared_ptr<const LinesJson>> lines();
+  const Task<std::shared_ptr<const LinesJson>>& lines();
 
   /** The timetables of the trams (timetable.json.gz) – null for a map without them. */
-  Task<std::shared_ptr<const TimetableJson>> timetable();
+  const Task<std::shared_ptr<const TimetableJson>>& timetable();
 
   /** The airfields of the region – null for a map without them. */
-  Task<std::shared_ptr<const AirJson>> air();
+  const Task<std::shared_ptr<const AirJson>>& air();
 
   /** (made by `open`) */
   MapLoader(std::shared_ptr<MapFiles> files, std::unique_ptr<World> world, TileGrid tiles, std::optional<GridSet> chunks);

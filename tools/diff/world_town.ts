@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * What the original makes of a small test town (tests/game/town.ts), printed
- * as numbers: the lines tests/world_test.cpp and tests/lanes_test.cpp expect
- * from the port (they hold this output and print the same themselves).
+ * as numbers: the lines tests/world_test.cpp, tests/lanes_test.cpp,
+ * tests/xsection_test.cpp and tests/netfile_test.cpp expect from the port (they print the same themselves
+ * and compare with this output, kept under tests/fixtures).
  *
  *   cd /home/user/driving-simulator
- *   node /path/to/port/tools/diff/world_town.ts --part world   > …   (the text in tests/world_test.cpp)
- *   node /path/to/port/tools/diff/world_town.ts --part lanes   > …   (the text in tests/lanes_test.cpp)
+ *   node /path/to/port/tools/diff/world_town.ts --part world   > tests/fixtures/world-town.txt
+ *   node /path/to/port/tools/diff/world_town.ts --part lanes   > tests/fixtures/lanes-town.txt
  *   node /path/to/port/tools/diff/world_town.ts --part xsection > tests/fixtures/xsection-towns.json
+ *   node /path/to/port/tools/diff/world_town.ts --part values   > tests/fixtures/xsection-values.txt
+ *   node /path/to/port/tools/diff/world_town.ts --part net      > tests/fixtures/net-town.txt
  *
  * The last one writes the little towns of tests/world/xsection.test.ts as the
  * map build makes them from OpenStreetMap's tags (the port has no map build:
@@ -266,6 +269,184 @@ if (part === 'xsection') {
     ]),
   };
   lines.push(JSON.stringify(fixture));
+}
+
+if (part === 'values') {
+  // the cross-section of a road, what calms the traffic on it, what narrows it: the helpers asked one by one
+  const xs = await import(src('world/xsection.ts'));
+  const rf = await import(src('world/roadfeatures.ts'));
+  const nw = await import(src('world/narrowing.ts'));
+  const sides: Array<Record<string, number> | undefined> = [undefined, {}, { p: 1 }, { p: 2, po: 1 }, { p: 2, po: 2, pw: 4.5 }, { p: 3 }, { p: 4, po: 1, v: 1.5 }, { p: 5, c: 1 }, { c: 1, cw: 1.85 }, { c: 2 }, { c: 2, cw: 2, v: 0.8, k: 1 }, { k: 2, g: 0.3 }, { k: 7 }, { p: 0, pw: 3 }, { el: 0 }, { el: 1, g: 0 }, { p: 2, g: 0.5 }];
+  const pair = (v: [number, number] | null): unknown[] => v ?? ['-', '-'];
+  for (const s of sides) {
+    out('side', xs.parkWidth(s), xs.sideInner(s), xs.sideOuter(s), xs.kerbHeight(s), xs.sideIsPlain(s), xs.gutterWidth(s, true, 0.12), xs.gutterWidth(s, false, 0.12), xs.gutterWidth(s, true, 0.03), xs.gutterWidth(s, true, 0), xs.edgeLineOn(s, true), xs.edgeLineOn(s, false));
+    for (const [half, beyond] of [[3.5, 2.5], [6, 0], [4, 6.5]]) {
+      const l = xs.sideLayout(half, beyond, s);
+      out('layout', l.kerb, l.kerbH, l.laneEdge, ...pair(l.cycleLane), ...pair(l.park), ...pair(l.verge), ...pair(l.track), ...pair(l.walk), l.outer);
+    }
+  }
+  out('depth', xs.parkDepth(0), xs.parkDepth(1), xs.parkDepth(2), xs.parkDepth(9));
+  out('median', xs.medianBits(undefined), xs.medianBits(''), xs.medianBits('grass'), xs.medianBits('grass;trees;hedge'), xs.medianBits(' Grass ; TREE;parking;paved;sett;nonsense'), xs.medianBits('cobblestone;paving_stones'));
+  out('calmKind', ...['table', 'raised_table', 'hump', 'bump', 'cushion', 'choker', ''].map((v) => rf.calmKind(v)));
+  const road = { calm: [20, 1, 4, 0.08, 45, 2, 3.7, 0.08, 3, 3, 0.6, 0.06, 97, 4, 2.5, 0.06, 60, 1, 4, 0.1], len: 100, cutA: 5, cutB: 6 };
+  for (let i = 0; i < road.calm.length; i += 4) out('centre', rf.calmCentre(road, i), rf.calmHalfLength(road.calm[i + 1], road.calm[i + 2]));
+  const lifts: number[] = [];
+  for (let s = 0; s <= 100; s += 0.37) lifts.push(rf.calmLift(road, s));
+  out('lift', ...lifts);
+  out('breaks', ...rf.calmBreaks(road));
+  const tight = { calm: [5, 1, 4, 0.08], len: 8, cutA: 3, cutB: 3 };
+  out('noroom', rf.calmCentre(tight, 0), rf.calmLift(tight, 4), rf.calmLift({ calm: null, len: 8, cutA: 0, cutB: 0 }, 4), rf.calmBreaks({ calm: null, len: 1, cutA: 0, cutB: 0 }).length, rf.calmBreaks(tight).length);
+  const arms = (mouths: number[]): unknown[] => {
+    const node = { arms: [] as unknown[] };
+    for (const m of mouths) node.arms.push({ edge: { mouth: m }, node });
+    return node.arms;
+  };
+  out('mouth', ...[[1, 0, 0], [1, 1, 0], [1, 0, 0, 1], [0, 0], [1]].flatMap((m) => arms(m).map((a) => rf.flushMouth(a))));
+  const feats = [
+    { kind: 'bump', s: 30, tags: { traffic_calming: 'choker' } },
+    { kind: 'bump', s: 50, tags: { traffic_calming: 'chicane', length: '6' } },
+    { kind: 'bump', s: 70.123, tags: { traffic_calming: 'choker', side: 'left', 'traffic_calming:depth': '1.234', beacon: 'yes' } },
+    { kind: 'bump', s: 80, tags: { traffic_calming: 'choker', 'traffic_calming:side': 'right', planted: 'no', tree: 'no', length: '50' } },
+    { kind: 'bump', s: 90, tags: { traffic_calming: 'hump' } },
+    { kind: 'crossing', s: 95, tags: { traffic_calming: 'choker' } },
+    { kind: 'bump', s: 10, tags: { traffic_calming: 'chicane', length: 'abc', 'traffic_calming:beacon': 'yes', side: '' } },
+  ];
+  const bo = nw.buildOutEntries(feats);
+  out('entries', ...bo);
+  const roads = [
+    { width: 5.5, marginL: 0, marginR: 0, laneW: 2.75, lanesF: 1, lanesB: 1, flags: 0, len: 100, cutA: 4, cutB: 4 },
+    { width: 7, marginL: 0.25, marginR: 0.5, laneW: 3.25, lanesF: 1, lanesB: 1, flags: 64, len: 100, cutA: 0, cutB: 0 },
+    { width: 3.5, marginL: 0, marginR: 0, laneW: 3.5, lanesF: 1, lanesB: 0, flags: 0, len: 100, cutA: 0, cutB: 0 },
+    { width: 13, marginL: 0, marginR: 0, laneW: 3.25, lanesF: 2, lanesB: 2, flags: 0, len: 60, cutA: 20, cutB: 20 },
+  ];
+  for (const e of roads) {
+    out('room', nw.buildOutRoom(e, 1, false), nw.buildOutRoom(e, -1, false), nw.buildOutRoom(e, 1, true), nw.buildOutRoom(e, -1, true));
+    for (const n of nw.narrowingsOf(e, bo)) out('narrowing', n.s0, n.s1, n.at, n.side, n.depth, n.lo, n.hi, n.single, n.flags);
+  }
+  out('none', nw.narrowingsOf(roads[0], null).length, nw.narrowingsOf(roads[0], undefined).length, nw.narrowingsOf(roads[0], []).length);
+}
+
+if (part === 'net') {
+  // the road network of a whole map as one small file: made of the town, written, read, searched by place, changed by a diff
+  const { packNet, unpackNet, routeGraphOfNet, netPolyline, POLY_UNIT } = await import(src('world/netfile.ts'));
+  const { NetIndex } = await import(src('world/netindex.ts'));
+  const nd = await import(src('world/netdiff.ts'));
+  const town = makeTown(townOptions(false));
+  const world = town.world;
+  const g = routeGraphOf(town.lanes);
+  const E = world.edges.length;
+  const sum = (b: ArrayLike<number>): number => {
+    let t = 0;
+    for (let i = 0; i < b.length; i++) t += b[i] * ((i % 251) + 1);
+    return t;
+  };
+  const waySpeed = new Uint8Array(E * 2);
+  const polyFirst = new Uint32Array(E + 1);
+  const poly: number[] = [];
+  for (const e of world.edges) {
+    const el = town.lanes.edgeLanes[e.id];
+    waySpeed[e.id * 2] = el.fwd.length ? Math.min(255, Math.round(el.fwd[0].limit * 3.6)) : 0;
+    waySpeed[e.id * 2 + 1] = el.back.length ? Math.min(255, Math.round(el.back[0].limit * 3.6)) : 0;
+    polyFirst[e.id] = poly.length / 2;
+    // the points between its ends, each as the step from the one before in quarter metres
+    let x = Math.fround(e.a.x);
+    let z = Math.fround(e.a.z);
+    const p = e.pl.pts;
+    for (let i = 1; i < e.pl.cum.length - 1; i++) {
+      const sx = Math.round((p[i * 3] - x) / POLY_UNIT);
+      const sz = Math.round((p[i * 3 + 2] - z) / POLY_UNIT);
+      poly.push(sx, sz);
+      x += sx * POLY_UNIT;
+      z += sz * POLY_UNIT;
+    }
+  }
+  polyFirst[E] = poly.length / 2;
+  const net = {
+    nodeX: Float32Array.from(world.nodes, (n: { x: number }) => n.x + 0.1),
+    nodeZ: Float32Array.from(world.nodes, (n: { z: number }) => n.z - 0.3),
+    edgeA: Uint32Array.from(world.edges, (e: { a: { id: number } }) => e.a.id),
+    edgeB: Uint32Array.from(world.edges, (e: { b: { id: number } }) => e.b.id),
+    edgeLen: Float32Array.from(world.edges, (e: { len: number }) => e.len + 0.07),
+    edgeCls: Uint8Array.from(world.edges, (e: { id: number; cls: number }) => (e.id % 5 === 0 ? 6 : e.cls)),
+    wayKind: g.kind,
+    waySpeed,
+    first: g.first,
+    to: g.to,
+    turn: g.turn,
+    across: Uint16Array.from(g.across, (v: number) => Math.round(v * 10)),
+    polyFirst,
+    poly: Int16Array.from(poly),
+  };
+  const bytes = packNet(net);
+  out('packed', bytes.length, sum(bytes), new TextDecoder().decode(bytes.subarray(8, 8 + new DataView(bytes.buffer).getUint32(4, true))).trim());
+  const back = unpackNet(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  out('back', sumOf(back.nodeX), sumOf(back.nodeZ), sumOf(back.edgeA), sumOf(back.edgeB), sumOf(back.edgeLen), sumOf(back.edgeCls), sumOf(back.wayKind), sumOf(back.waySpeed), sumOf(back.first), sumOf(back.to), sumOf(back.turn), sumOf(back.across), sumOf(back.polyFirst), sumOf(back.poly));
+  const rg = routeGraphOfNet(back);
+  out('rg', rg.n, sumOf(rg.len), sumOf(rg.secs), sumOf(rg.kind), sumOf(rg.cls), sumOf(rg.x0), sumOf(rg.z0), sumOf(rg.x1), sumOf(rg.z1), sumOf(rg.first), sumOf(rg.to), sumOf(rg.turn), sumOf(rg.across), sumOf(rg.firstIn), sumOf(rg.from), sumOf(rg.inTurn));
+  const index = new NetIndex(back);
+  out('main', ...Array.from(index.main));
+  for (let e = 0; e < E; e += 4) out('course', e, ...netPolyline(back, e));
+  const usable = (e: number): boolean => e % 2 === 1;
+  for (const [x, z, maxDist] of [[50, 3, 10], [50, 3, 2], [150, 148, 80], [-30, -30, 50], [103, 97, 5], [330, 5, 40], [1000, 1000, 50], [99.9, 60, 200]]) {
+    const a = index.nearest(x, z, maxDist);
+    const b = index.nearest(x, z, maxDist, usable);
+    out('nearest', a ? a.edge : -1, a ? a.x : 0, a ? a.z : 0, a ? a.yaw : 0, a ? a.d : 0, b ? b.edge : -1, b ? b.d : 0);
+  }
+  for (const [x0, z0, x1, z1] of [[90, 90, 160, 110], [-50, -50, 500, 500], [900, 900, 1100, 1100], [-2000, -10, 3000, 10], [150, 50, 150, 50]]) {
+    const all: number[] = [];
+    const big: number[] = [];
+    index.edgesInBox(x0, z0, x1, z1, (e: number) => all.push(e));
+    index.edgesInBox(x0, z0, x1, z1, (e: number) => big.push(e), true);
+    out('box', all.join(',') || '-', big.join(',') || '-');
+  }
+  {
+    const path = { text: '', moveTo(x: number, z: number): void { this.text += `M${x},${z}`; }, lineTo(x: number, z: number): void { this.text += `L${x},${z}`; } };
+    index.trace(3, path);
+    index.trace(E - 1, path);
+    out('trace', path.text);
+  }
+  for (const [a, b] of [[0, 20], [6, 1], [9, 30], [2, 2]]) {
+    const r = quickest(index.graph, a, b);
+    out('quickest', a, b, r ? r.length : -1, ...(r ?? []));
+  }
+  // a correction of values as a diff
+  out('fingerprint', nd.fingerprint(back));
+  const neu = { ...back, wayKind: back.wayKind.slice(), across: back.across.slice(), turn: back.turn.slice(), edgeCls: back.edgeCls.slice(), waySpeed: back.waySpeed.slice() };
+  neu.wayKind[3] ^= 64;
+  neu.wayKind[20] = 255;
+  neu.across[0] = 65535;
+  neu.across[7] += 13;
+  neu.turn[5] = (neu.turn[5] + 1) % 4;
+  neu.waySpeed[11] = 30;
+  const diff = nd.netDiff(back, neu);
+  out('diff', diff.v, diff.kind, diff.edges, diff.hash, JSON.stringify(diff.set));
+  const packedDiff = nd.packNetDiff(diff);
+  out('difftext', new TextDecoder().decode(packedDiff));
+  const read = nd.unpackNetDiff(packedDiff);
+  const applied = nd.applyNetDiff(back, read);
+  let same = true;
+  for (const name of ['wayKind', 'waySpeed', 'turn', 'across', 'edgeCls', 'first', 'to', 'edgeA']) for (let i = 0; i < applied[name].length; i++) if (applied[name][i] !== neu[name][i]) same = false;
+  out('applied', same, nd.matchesFingerprint(back, read), nd.matchesFingerprint(applied, read), sumOf(applied.wayKind), sumOf(applied.across), sumOf(applied.turn), sumOf(applied.waySpeed), sumOf(back.wayKind), sumOf(back.across));
+  out('nodiff', JSON.stringify(nd.netDiff(back, back).set), new TextDecoder().decode(nd.packNetDiff(nd.netDiff(back, back))));
+  const fails = (f: () => unknown): string => {
+    try {
+      f();
+      return 'no error';
+    } catch (err) {
+      return (err as Error).message;
+    }
+  };
+  out('wrongKind', fails(() => nd.applyNetDiff(back, { ...read, kind: 'other' })));
+  out('wrongHash', fails(() => nd.applyNetDiff(back, { ...read, hash: 'abc' })));
+  out('wrongEdges', fails(() => nd.applyNetDiff(back, { ...read, edges: 1 })));
+  out('wrongSection', fails(() => nd.applyNetDiff(back, { ...read, set: { first: [[0, 1]] } })));
+  out('outOfRange', fails(() => nd.applyNetDiff(back, { ...read, set: { turn: [[100000, 1]] } })), fails(() => nd.applyNetDiff(back, { ...read, set: { turn: [[-1, 1]] } })));
+  out('wraps', nd.applyNetDiff(back, { ...read, set: { wayKind: [[0, 300], [1, -1], [2, 2.9]], across: [[1, 70000]] } }).wayKind.slice(0, 3).join(','), nd.applyNetDiff(back, { ...read, set: { across: [[1, 70000]] } }).across[1]);
+  out('changedLength', fails(() => nd.netDiff(back, { ...back, turn: back.turn.slice(1) })));
+  const enc = (t: string): Uint8Array => new TextEncoder().encode(t);
+  out('unpack', nd.unpackNetDiff(enc('garbage')) === null, nd.unpackNetDiff(enc('{"v":2,"kind":"netdiff","hash":"x","set":{}}')) === null, nd.unpackNetDiff(enc('{"v":1,"kind":"net","hash":"x","set":{}}')) === null, nd.unpackNetDiff(enc('{"v":1,"kind":"netdiff","hash":7,"set":{}}')) === null, nd.unpackNetDiff(enc('{"v":1,"kind":"netdiff","hash":"x"}')) === null, nd.unpackNetDiff(enc('{"v":1,"kind":"netdiff","edges":5,"hash":"x","set":{"turn":[[1,2]]}}')) !== null, nd.unpackNetDiff(enc('null')) === null, nd.unpackNetDiff(enc('[]')) === null);
+  // (a file cut off inside its first eight bytes: the original fails with a message of its engine's – that it fails is what counts)
+  out('notNet', fails(() => unpackNet(nd.packNetDiff(diff).buffer)), fails(() => unpackNet(new TextEncoder().encode('FSB1').buffer)) !== 'no error');
 }
 
 void samplePolyline;

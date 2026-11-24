@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -343,7 +344,12 @@ class UnpackedTile {
 UnpackedTile unpackTile(std::vector<uint8_t> buf);
 
 /** Tile index of a world coordinate. */
-inline int tileIndex(double v, double min, double size) { return static_cast<int>(std::floor((v - min) / size)); }
+inline int tileIndex(double v, double min, double size) {
+  const double i = std::floor((v - min) / size);
+  // (a place that is no number lies in no tile: an index no map has)
+  if (!(i > -2e9 && i < 2e9)) return std::numeric_limits<int>::min();
+  return static_cast<int>(i);
+}
 
 std::string tileKey(int ix, int iz);
 
