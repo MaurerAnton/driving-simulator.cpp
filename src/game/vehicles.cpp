@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "render/carBody.h"
+#include "sim/semitrailer.h"
 #include "sim/trailer.h"
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
@@ -24,10 +25,6 @@
 #if __has_include("sim/forklift.h")
 #include "sim/forklift.h"
 #define FS_VEHICLES_FORKLIFT 1
-#endif
-#if __has_include("sim/semitrailer.h")
-#include "sim/semitrailer.h"
-#define FS_VEHICLES_SEMI 1
 #endif
 
 namespace fs {
@@ -223,7 +220,6 @@ Table build() {
     add(d);
   }
   add(MOTO_DEF);
-#ifdef FS_VEHICLES_SEMI
   // class C: the three-axle rigid truck (render/semitruck.ts) – bigger than the 7.5-tonner of C1 and unlike it
   {
     VehicleDef d = truck;
@@ -247,7 +243,6 @@ Table build() {
     d.zoomMax = 34;
     add(d);
   }
-#endif
   {
     VehicleDef d = truck;
     d.kind = "truck";
@@ -262,7 +257,6 @@ Table build() {
     d.power = 354;
     add(d);
   }
-#ifdef FS_VEHICLES_SEMI
   // class CE as well: the articulated lorry – tractor unit and semi-trailer (sim/semitrailer.ts)
   {
     VehicleDef d = truck;
@@ -286,7 +280,6 @@ Table build() {
     d.zoomMax = 48;
     add(d);
   }
-#endif
   add(BUS_DEF);
   {
     VehicleDef d = car;
