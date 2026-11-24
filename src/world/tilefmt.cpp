@@ -14,6 +14,8 @@
 #include <cstring>
 #include <stdexcept>
 
+#include "world/facade.h"
+
 namespace fs {
 
 namespace {
@@ -167,6 +169,81 @@ SectionType typeOf(const std::string& t) {
   return SectionType::F32;
 }
 
+/** The bytes one element of `t` takes. */
+size_t typeBytes(SectionType t);
+
+/** Wrap a step to the width of the element (the typed arrays wrap their sums). */
+int64_t wrapTo(int64_t d, size_t bytes) {
+  if (bytes == 4) return static_cast<int32_t>(static_cast<uint32_t>(d));
+  if (bytes == 2) return static_cast<int16_t>(static_cast<uint16_t>(d));
+  return static_cast<int8_t>(static_cast<uint8_t>(d));
+}
+
+/** Zigzag: the sign in the low bit (as the map build writes it). */
+uint64_t zigTo(int64_t d, size_t bytes) {
+  uint64_t u = static_cast<uint64_t>(d);
+  if (bytes == 4) return (static_cast<uint32_t>(d << 1) ^ static_cast<uint32_t>(d >> 31));
+  if (bytes == 2) return (static_cast<uint16_t>(d << 1) ^ static_cast<uint16_t>(d >> 15));
+  return (static_cast<uint8_t>(d << 1) ^ static_cast<uint8_t>(d >> 7));
+}
+
+int64_t unzig(uint64_t u) { return static_cast<int64_t>((u >> 1) ^ (~(u & 1) + 1)); }
+
+/**
+ * Decode a section stored in a coding into the plain numbers (the JS
+ * decodeSection): PLANES/DELTA component by component, GRID as the
+ * differences from what the neighbours say.
+ */
+void decodeSection(const uint8_t* bytes, const SectionInfo& info, std::vector<double>& out) {
+  const size_t B = typeBytes(info.t);
+  const size_t n = info.n;
+  const int coding = info.c;
+  const size_t stride = static_cast<size_t>(std::max(1, info.s));
+  out.assign(n, 0);
+  const size_t groups = coding == CODING_GRID ? 1 : stride;
+  if (groups == 0) return;
+  const size_t per = n / groups;
+  auto word = [&](size_t base, size_t i) -> uint64_t {
+    uint64_t v = bytes[base + i];
+    if (B > 1) v |= static_cast<uint64_t>(bytes[base + per + i]) << 8;
+    if (B > 2) v |= static_cast<uint64_t>(bytes[base + 2 * per + i]) << 16;
+    if (B > 3) v |= static_cast<uint64_t>(bytes[base + 3 * per + i]) << 24;
+    return v;
+  };
+  for (size_t c = 0; c < groups; c++) {
+    const size_t base = c * B * per;
+    int64_t prev = 0;
+    for (size_t i = 0; i < per; i++) {
+      uint64_t v = word(base, i);
+      if (coding == CODING_GRID) {
+        const size_t col = i % stride;
+        const double left = col > 0 ? out[i - 1] : 0;
+        const double up = i >= stride ? out[i - stride] : 0;
+        const double ul = col > 0 && i >= stride ? out[i - stride - 1] : 0;
+        out[i] = static_cast<double>(unzig(v)) + left + up - ul;
+      } else if (coding == CODING_DELTA) {
+        // (the element wraps the sum the way the steps were wrapped)
+        int64_t sum = wrapTo(prev + unzig(v), B);
+        out[c * per + i] = static_cast<double>(sum);
+        prev = sum;
+      } else {
+        out[c * per + i] = static_cast<double>(v);
+      }
+    }
+  }
+}
+
+/** The bytes one element of `t` takes. */
+size_t typeBytes(SectionType t) {
+  switch (t) {
+    case SectionType::U8:
+    case SectionType::I8: return 1;
+    case SectionType::U16:
+    case SectionType::I16: return 2;
+    default: return 4;
+  }
+}
+
 const char* typeName(SectionType t) {
   switch (t) {
     case SectionType::U8: return "u8";
@@ -178,16 +255,6 @@ const char* typeName(SectionType t) {
     case SectionType::F32: return "f32";
   }
   return "u8";
-}
-
-size_t typeBytes(SectionType t) {
-  switch (t) {
-    case SectionType::U8:
-    case SectionType::I8: return 1;
-    case SectionType::U16:
-    case SectionType::I16: return 2;
-    default: return 4;
-  }
 }
 
 }  // namespace
@@ -221,6 +288,7 @@ UnpackedTile unpackTile(const std::vector<uint8_t>& buf) {
     else if (key == "terrainMin") h.terrainMin = r.parseNumber();
     else if (key == "terrainScale") h.terrainScale = r.parseNumber();
     else if (key == "coverN") h.coverN = static_cast<int>(r.parseNumber());
+    else if (key == "clr") h.clr = static_cast<int>(r.parseNumber());
     else if (key == "signs") {
       r.expect('[');
       if (!r.tryConsume(']')) {
@@ -304,6 +372,8 @@ UnpackedTile unpackTile(const std::vector<uint8_t>& buf) {
               if (k == "off") info.off = static_cast<size_t>(r.parseNumber());
               else if (k == "n") info.n = static_cast<size_t>(r.parseNumber());
               else if (k == "t") info.t = typeOf(r.parseString());
+              else if (k == "c") info.c = static_cast<int>(r.parseNumber());
+              else if (k == "s") info.s = static_cast<int>(r.parseNumber());
               else r.skipValue();
               if (r.tryConsume(',')) continue;
               r.expect('}');
@@ -330,8 +400,14 @@ UnpackedTile unpackTile(const std::vector<uint8_t>& buf) {
     size_t bytes = info.n * typeBytes(info.t);
     if (base + info.off + bytes > buf.size()) continue;
     std::vector<double> out;
-    out.reserve(info.n);
     const uint8_t* p = buf.data() + base + info.off;
+    if (info.c != CODING_RAW) {
+      // stored in a coding: decoded here (the JS does it when first asked for)
+      decodeSection(p, info, out);
+      tile.sections[kv.first] = std::move(out);
+      continue;
+    }
+    out.reserve(info.n);
     switch (info.t) {
       case SectionType::U8:
         for (size_t i = 0; i < info.n; i++) out.push_back(p[i]);
@@ -377,7 +453,99 @@ UnpackedTile unpackTile(const std::vector<uint8_t>& buf) {
     }
     tile.sections[kv.first] = std::move(out);
   }
+
+  // What older tiles hold as plain numbers is worked out from what the new
+  // ones store instead (the JS does it in get(), when first asked for):
+  // the faces of the buildings, the trees, and the outlines of buildings.
+  if (!tile.sections.count("bldg_a16")) {
+    const std::vector<double>* pos = tile.get("bldg_pos");
+    const std::vector<double>* run = tile.get("bldg_run");
+    const std::vector<double>* uvx = tile.get("bldg_uvx");
+    if (pos && run) {
+      std::vector<int16_t> pos16(pos->size());
+      for (size_t i = 0; i < pos->size(); i++)
+        pos16[i] = static_cast<int16_t>((*pos)[i]);
+      std::vector<uint16_t> run16(run->size());
+      for (size_t i = 0; i < run->size(); i++)
+        run16[i] = static_cast<uint16_t>((*run)[i]);
+      std::vector<int16_t> uvx16;
+      if (uvx) {
+        uvx16.resize(uvx->size());
+        for (size_t i = 0; i < uvx->size(); i++)
+          uvx16[i] = static_cast<int16_t>((*uvx)[i]);
+      }
+      std::vector<double> posd(pos->size());
+      for (size_t i = 0; i < pos->size(); i++) posd[i] = (*pos)[i];
+      std::vector<int16_t> faces = unpackFaces(posd, run16, uvx ? &uvx16 : nullptr);
+      std::vector<double> out(faces.size());
+      for (size_t i = 0; i < faces.size(); i++) out[i] = faces[i];
+      tile.sections["bldg_a16"] = std::move(out);
+    }
+  }
+  if (!tile.sections.count("trees")) {
+    const std::vector<double>* xz = tile.get("treeXZ");
+    const std::vector<double>* q = tile.get("treeQ");
+    const std::vector<double>* hk = tile.get("treeHK");
+    const std::vector<double>* hgt = tile.get("hgt");
+    std::vector<double> trees;
+    if (xz && hk && hgt) {
+      const size_t n = xz->size() / 2;
+      trees.resize(n * 5);
+      for (size_t i = 0; i < n; i++) {
+        const double x = h.cx + (*xz)[i * 2] * TREE_SCALE;
+        const double z = h.cz + (*xz)[i * 2 + 1] * TREE_SCALE;
+        trees[i * 5] = x;
+        trees[i * 5 + 1] = tileGround(h, *hgt, x, z);
+        trees[i * 5 + 2] = z;
+        trees[i * 5 + 3] = (*hk)[i] * TREE_HEIGHT_SCALE;
+        trees[i * 5 + 4] = (*hk)[n + i];
+      }
+    } else if (q && hk) {
+      const size_t n = q->size() / 3;
+      trees.resize(n * 5);
+      for (size_t i = 0; i < n; i++) {
+        trees[i * 5] = h.cx + (*q)[i * 3] * TREE_Q_SCALE;
+        trees[i * 5 + 1] = h.yBase + (*q)[i * 3 + 1] * TREE_Q_SCALE;
+        trees[i * 5 + 2] = h.cz + (*q)[i * 3 + 2] * TREE_Q_SCALE;
+        trees[i * 5 + 3] = (*hk)[i] * TREE_HEIGHT_SCALE;
+        trees[i * 5 + 4] = (*hk)[n + i];
+      }
+    }
+    if (!trees.empty()) tile.sections["trees"] = std::move(trees);
+  }
+  if (!tile.sections.count("collPts")) {
+    const std::vector<double>* q = tile.get("collQ");
+    if (q) {
+      std::vector<double> rings(q->size());
+      for (size_t i = 0; i < q->size(); i += 2) {
+        rings[i] = h.cx + (*q)[i] * RING_SCALE;
+        rings[i + 1] = h.cz + (*q)[i + 1] * RING_SCALE;
+      }
+      tile.sections["collPts"] = std::move(rings);
+    }
+  }
   return tile;
+}
+
+double tileGround(const TileHeader& h, const std::vector<double>& hgt, double x, double z) {
+  const int n = h.terrainN;
+  if (n < 2 || hgt.size() < static_cast<size_t>(n) * n) return 0;
+  const double step = h.size / (n - 1);
+  const double fx = std::max(0.0, std::min(n - 1.0001, (x - (h.cx - h.size / 2)) / step));
+  const double fz = std::max(0.0, std::min(n - 1.0001, (z - (h.cz - h.size / 2)) / step));
+  const int i = static_cast<int>(std::floor(fx));
+  const int j = static_cast<int>(std::floor(fz));
+  const double tx = fx - i;
+  const double tz = fz - j;
+  const size_t k = static_cast<size_t>(j) * n + i;
+  const double h00 = hgt[k];
+  const double h10 = hgt[k + 1];
+  const double h01 = hgt[k + static_cast<size_t>(n)];
+  const double h11 = hgt[k + static_cast<size_t>(n) + 1];
+  const double v = tx + tz <= 1
+                       ? h00 + (h10 - h00) * tx + (h01 - h00) * tz
+                       : h11 + (h01 - h11) * (1 - tx) + (h10 - h11) * (1 - tz);
+  return h.terrainMin + v * h.terrainScale;
 }
 
 int tileIndex(double v, double min, double size) {

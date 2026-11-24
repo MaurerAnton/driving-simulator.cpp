@@ -86,10 +86,30 @@ struct TileObject {
 
 enum class SectionType { U8, I8, U16, I16, U32, I32, F32 };
 
+/**
+ * How a section of whole numbers is stored.  Vertices, indices and heights
+ * change little from one to the next: stored as the steps between them, with
+ * the low and the high bytes apart, they take half the room once deflated.
+ * Which way is smallest depends on the data – the map build tries them.
+ */
+enum Coding : int {
+  /** as they are */
+  CODING_RAW = 0,
+  /** component by component (all x, then all y, …), low bytes before high bytes */
+  CODING_PLANES = 1,
+  /** the same, of the step from the number of the same component before */
+  CODING_DELTA = 2,
+  /** a grid with rows of `s` numbers: what the neighbours to the left and above do not foretell */
+  CODING_GRID = 3,
+};
+
 struct SectionInfo {
   size_t off = 0;
   size_t n = 0;
   SectionType t = SectionType::U8;
+  /** how the numbers are stored (CODING; 0: as they are) and, for that, how many belong together */
+  int c = CODING_RAW;
+  int s = 1;
 };
 
 struct TileHeader {
@@ -103,6 +123,8 @@ struct TileHeader {
   int coverN = 0;
   std::vector<SignPost> signs;
   std::vector<TileObject> objects;
+  /** 1: nothing of this tile stands in a lane – the map build saw to it (src/sim/clearlanes.ts) */
+  int clr = 0;
   std::map<std::string, SectionInfo> sections;
 };
 
@@ -129,8 +151,25 @@ struct UnpackedTile {
 /**
  * Parse an FSB1 tile (gzip already inflated by the fetch layer).
  * Throws std::runtime_error on a bad magic, as the JS unpackTile does.
+ *
+ * The sections that are stored in a coding are decoded when they are first
+ * asked for, and the ones that follow from other sections (the faces of
+ * buildings, the trees, the outlines of buildings) are worked out then.
  */
 UnpackedTile unpackTile(const std::vector<uint8_t>& buf);
+
+/**
+ * The height of a tile's ground at a place in it, from its grid of heights
+ * (section hgt) – the surface the game draws: two triangles per cell, split
+ * along the diagonal from its second to its third corner.
+ */
+double tileGround(const TileHeader& h, const std::vector<double>& hgt, double x, double z);
+
+/** (the first tiles of this kind: x, y, z per tree in steps of 2 cm, section treeQ) */
+constexpr double TREE_SCALE = 0.1;
+constexpr double TREE_Q_SCALE = 0.02;
+constexpr double TREE_HEIGHT_SCALE = 0.2;
+constexpr double RING_SCALE = 0.02;
 
 /** Tile index of a world coordinate. */
 int tileIndex(double v, double min, double size);
