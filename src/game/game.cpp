@@ -30,9 +30,14 @@
 #include "render/crane.h"
 #include "render/far.h"
 #include "render/pedlights.h"
+#include "render/plane.h"
 #include "render/props.h"
+#include "render/airfield.h"
 #include "render/signs.h"
+#include "sim/airfield.h"
 #include "sim/arrows.h"
+#include "sim/autopilot.h"
+#include "sim/flight.h"
 #include "sim/autodriver.h"
 #include "sim/clearlanes.h"
 #include "sim/collision.h"
@@ -148,7 +153,12 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       faultLog(std::make_unique<FaultLog>()),
       path(std::make_unique<DrivenPath>()),
       showNewsOnce(newsDue(playedBefore())),
-      fly(std::make_unique<FlyCam>()) {
+      fly(std::make_unique<FlyCam>()),
+      flightAuto(std::make_unique<FlightAutopilot>()),
+      flightAssist(std::make_unique<FlightAssist>(ASSIST_BEGINNER)),
+      flightControls(std::make_unique<FlightControls>()) {
+  // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
+  flightControls->engineOn = true;
   driver.steer = 0;
   driver.throttle = 0;
   driver.brake = 0;
@@ -293,11 +303,13 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: transit, traffic.crowd's blocked, toStop, standing – game.ts:656)
   actors->view = app.camera.get();
   // (later: actors.highOf, the traffic's main beam – game/beamplay.ts, game.ts:663)
-  // (later: airfieldView, services, spawnCars – game.ts:664)
+  airfieldView = std::make_unique<AirfieldRenderer>([this](double x, double z) { return groundHeight(x, z); },
+                                                    [this](double x, double z) { return !std::isnan(this->app.tiles->heightAt(x, z)); });
+  // (later: services, spawnCars – game.ts:668)
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
-  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group);
-  // (later: railActors, passengerView, transit, airfieldView, yardScene, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
+  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group);
+  // (later: railActors, passengerView, transit, yardScene, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts)
   if (world.json.yard) yardFrame.emplace(*world.json.yard);
   else yardFrame.reset();
   // (later: rail = new RailTraffic(world.json.rails) – game.ts:676)
@@ -315,7 +327,7 @@ Task<void> Game::boot(URLSearchParams q) {
     // (later: navigator.connection.saveData, which the host has no word for yet – game.ts:707)
     const bool saving = false;
     if (!saving || autoTour > 0 || !autoDemo.empty() || !autoMap.empty()) wantNet();
-    // (later: app.map.rails(), air(), lines(), timetable() – game.ts:709)
+    // (later: app.map.rails(), lines(), timetable() – game.ts:709; air(): below, once the display is there)
     // the ground of the whole region, coarse: what lies beyond the tiles
     [](Game* self) -> Task<void> {
       const std::shared_ptr<const Bytes> buf = co_await self->app.map->far();
@@ -330,10 +342,17 @@ Task<void> Game::boot(URLSearchParams q) {
   loading.remove();
 
   hud = std::make_unique<Hud>(ui, settings, world);
+  if (app.map->pieces) {
+    // the airfields: drawn on the ground, firm under an aeroplane's wheels, and the ends of their runways to take off from
+    // (2.0: asked for once the display is there, which is given the ends of the runways – game.ts:721 asks with the tracks)
+    [](Game* self) -> Task<void> { self->airRead(co_await self->app.map->air()); }(this).detach();
+  }
   // (later: signalTimers – game.ts:781)
   input = std::make_unique<Input>(app.canvas, settings);
   input->onAction([this](const Action& a) { onAction(a); });
-  hud->onStart = [this](const StartRequest& req) { begin(req.mode, req.spawn, false, req.address ? &*req.address : nullptr); };
+  hud->onStart = [this](const StartRequest& req) {
+    begin(req.mode, req.spawn, false, req.address ? &*req.address : nullptr, req.stop ? &*req.stop : nullptr, req.runway ? &*req.runway : nullptr);
+  };
   // (later: hud.onMenuPreview, transit.departuresFor – game.ts:788)
   hud->onResume = [this] { resume(); };
   // (later: hud.onReality – game.ts:798)
@@ -359,7 +378,12 @@ Task<void> Game::boot(URLSearchParams q) {
     return AddressIndex::Near{mpos[0], mpos[2]};
   };
   hud->onDemo = [this] {
-    // (later: the aeroplane's autopilot, toggleFlightAuto – game.ts:891)
+    // the aeroplane: its autopilot on (a demonstration flight from the runway, else holding height and heading) or off
+    if (aircraft) {
+      toggleFlightAuto();
+      if (state == "pause") resume();
+      return;
+    }
     openMap();
     bigMap->plan();
   };
@@ -414,7 +438,8 @@ Task<void> Game::boot(URLSearchParams q) {
       mapRoads = std::make_unique<RoadSource>(roadSource(*g, netIndex.get(), world));
       return mapRoads.get();
     };
-    // (later: flying, teleportAir – game.ts:959)
+    host.flying = [this] { return aircraft != nullptr; };
+    host.teleportAir = [this](const SpawnJson& spot, double height) { flyFrom(spot, height); };
     host.close = [this] { closeMap(); };
     // 2.0: one map for all regions – which one is open, and "Open this map": the choice is kept and the game starts anew with it
     host.region = [this] { return this->app.regionId; };
@@ -653,6 +678,8 @@ void Game::applySettings() {
     model->setCabinOpacity(s.cabinOpacity);
     model->setDetail(gx.vehicleDetail);
   }
+  // (the aeroplane's model is kept beside the others: planeAdapter)
+  if (planeModel) planeModel->setCabinOpacity(s.cabinOpacity);
   audio->setVolume(s.volume);
   // the music: off, now and then, or more often (made as it plays: audio/music.ts)
   audio->setMusic(s.music, s.musicVolume);
@@ -741,6 +768,7 @@ void Game::toMenu() {
   // (later: endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1468)
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
+  if (planeModel) planeModel->root->visible = false;
   // (later: carTrailer, truck.trailer – game.ts:1477)
   input->enabled = false;
   hud->setHudVisible(false);
@@ -830,6 +858,8 @@ void Game::showModel(bool on) {
   // (later: spawnCars.keeps, the vehicle left standing stays drawn – game/spawncar.ts, game.ts:1937)
   for (const auto& [k, model] : models)
     if (model != &car) model->root->visible = on && k == key;
+  // (the aeroplane's model is kept beside the others: planeAdapter)
+  if (planeModel) planeModel->root->visible = on && key == "plane";
   // (later: carTrailer, truck.trailer – game.ts:1938)
 }
 
