@@ -20,6 +20,8 @@ struct ShaderParams {
   bool map = false;
   /** an alpha map: its green channel is the opacity (MeshBasic/Lambert/Phong .alphaMap) */
   bool alphaMap = false;
+  /** an emissive map (MeshLambert/Phong .emissiveMap) */
+  bool emissiveMap = false;
   bool vertexColors = false;
   bool instancing = false;
   bool instancingColor = false;

@@ -167,6 +167,7 @@ std::shared_ptr<Material> Material::clone() const {
   m->polygonOffsetFactor = polygonOffsetFactor;
   m->polygonOffsetUnits = polygonOffsetUnits;
   m->emissive.copy(emissive);
+  m->emissiveMap = emissiveMap;
   m->emissiveIntensity = emissiveIntensity;
   m->specular.copy(specular);
   m->shininess = shininess;
