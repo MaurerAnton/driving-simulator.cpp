@@ -29,11 +29,13 @@
 #include "core/task.h"
 #include "engine/engine.h"
 #include "game/app.h"
+#include "game/ce.h"
 #include "game/lessonplaces.h"
 #include "game/settings.h"
 #include "game/vehicles.h"
 #include "platform/dom.h"
 #include "render/car.h"
+#include "render/fleet.h"
 #include "render/navscreen.h"
 #include "render/tiles.h"
 #include "sim/playerstate.h"
@@ -53,6 +55,10 @@ class AddressIndex;
 using AddressHit = StartAddress;
 class ArcadeDrive;
 class AutoDriver;
+class CraneModel;
+class CraneWork;
+/** (sim/crane.h: 'tower' | 'mobile' | 'loader') */
+using CraneType = std::string;
 class DrivenPath;
 class FarTerrain;
 class FaultLog;
@@ -98,11 +104,7 @@ using CameraMode = std::string;
 
 inline constexpr double PHYS_DT = 1.0 / 240;
 
-/**
- * Which model a vehicle is drawn with (render/fleet.ts: VehicleModel is what all of them have in common).
- * (later: the other vehicles' models – render/fleet.ts; until then the car's is the only one)
- */
-using VehicleModel = PlayerCar;
+// (Which model a vehicle is drawn with: render/fleet.h VehicleModel is what all of them have in common.)
 
 /** Which model a vehicle is drawn with: its kind of model – for a motorcycle, the build of its class. */
 std::string modelKey(const VehicleDef& def);
@@ -175,7 +177,7 @@ class Game {
   const CarVisualState* lastVisual = nullptr;
   /** the truck with the trailer of the class CE (its yard tasks, the coupling) */
   bool isTruck() const { return def->model == "truck" || def->model == "semi"; }
-  // (later: yardScene, yardFrame, task, tasksLeft, taskCount, taskFailed, taskSub, drill, drillScene, drillPos, laidTry – game.ts:320)
+  // (later: yardScene, task, tasksLeft, taskCount, taskFailed, taskSub, drill, drillScene, drillPos, laidTry – game.ts:320)
   /** where the drive in traffic begins once the tasks on the yard are done */
   std::optional<SpawnJson> roadSpawn;
   /**
@@ -564,6 +566,26 @@ class Game {
     double sim = 0, visuals = 0, scene = 0, mirrors = 0, render = 0, total = 0;
     int frames = 0;
   } frameTimes;
+
+  // --- the cranes ---
+  /** the practice yard's frame (game/ce.ts YardFrame; null: the map has none) – the cranes' construction site is laid on it */
+  std::optional<YardFrame> yardFrame;
+  /** the work with a crane on the construction site (game/craneplay.ts; null: no crane is worked) */
+  std::unique_ptr<CraneWork> crane;
+  /** the cranes' models made so far (`models` points at them) */
+  std::vector<std::unique_ptr<CraneModel>> craneModels;
+  /** The work with a crane (game/craneplay.ts), told what it needs of the game. */
+  std::unique_ptr<CraneWork> makeCraneWork(const CraneType& type);
+  /** The crane: from driving it to working it, and back (the door key, or the button). */
+  void craneToggle();
+  /**
+   * A step of a crane at work: its controls, the crane and its hook, the
+   * loads, the tasks (game/craneplay.ts) – its vehicle stands meanwhile –
+   * and the traffic beyond the site.
+   */
+  void stepCrane(double dt);
+  /** `isCraneModel(this.model)`: the model of the vehicle driven now as a crane's (render/crane.ts) – null: it is none */
+  CraneModel* craneModel();
 };
 
 }  // namespace fs

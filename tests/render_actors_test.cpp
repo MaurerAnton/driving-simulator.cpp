@@ -80,27 +80,6 @@ struct TestEmergency : EmergencyFleet {
   void update(const std::vector<TrafficCar*>& list, double) override { cars = list.size(); }
 };
 
-struct TestBus : PlayerBus {
-  std::string ref, to;
-  CarVisualState last;
-  double at = -1;
-  static inline int made = 0;
-  static inline TestBus* newest = nullptr;
-  TestBus() {
-    made++;
-    newest = this;
-    root->add(make<Mesh>(make<BufferGeometry>(), basic()));
-  }
-  void setLine(const std::string& r, const std::string& t) override {
-    ref = r;
-    to = t;
-  }
-  void update(const CarVisualState& s, double, double now) override {
-    last = s;
-    at = now;
-  }
-};
-
 struct TestCyclist : CyclistModel {
   int colour = 0;
   double phase = 0, roll = 0;
@@ -215,13 +194,13 @@ void theHooks() {
   {
     TrafficRenderer traffic;
     traffic.update({car, bus, police, fire}, {&walkers[0], &walkers[1]}, 1, {&riders[0], &riders[1]});
-    assert(traffic.group->children.size() == 1);
+    // (the car – and the bus: render/fleet is translated, its model is no hook any more)
+    assert(traffic.group->children.size() == 2 && traffic.group->children[1]->name == "bus");
   }
 
   // ---- with them ----
   PeopleRenderer::create = [](int capacity) { return std::make_unique<TestPeople>(capacity); };
   EmergencyFleet::create = []() { return std::make_unique<TestEmergency>(); };
-  PlayerBus::create = []() { return std::make_unique<TestBus>(); };
   CyclistModel::create = [](int colour) { return std::make_unique<TestCyclist>(colour); };
   {
     TrafficRenderer traffic;
@@ -242,22 +221,18 @@ void theHooks() {
     traffic.update({car, bus, police, fire}, {}, 0);
     // (every car of the list goes to the emergency vehicles' picture, which takes its own; the car and the bus are drawn here)
     assert(TestEmergency::made->cars == 4);
-    assert(traffic.group->children.size() == 4 && TestBus::made == 1);
-    TestBus& model = *TestBus::newest;
-    assert(traffic.group->children[3] == model.root && model.root->children[0]->castShadow);
-    assert(near(model.root->position.x, 21) && near(model.root->position.z, -6.5) && near(model.root->position.y, bus->y));
-    assert(model.ref == "500" && model.to == "Baunatal" && near(model.at, 0));
-    const CarVisualState& s = model.last;
-    assert(s.indicator == 1 && s.blinkOn && s.braking && near(s.speedKmh, 36) && s.lowBeam && s.automatic);
-    assert(s.wheelSpin == std::vector<double>({2.5, 2.5, 2.5, 2.5}) && s.wheelSteer == std::vector<double>({0.15, 0.15, 0, 0}) && s.wheelY == std::vector<double>({0.48, 0.48, 0.48, 0.48}));
+    assert(traffic.group->children.size() == 4);
+    const ObjectPtr model = traffic.group->children[3];
+    assert(model->name == "bus" && model->children[0]->castShadow);
+    assert(near(model->position.x, 21) && near(model->position.z, -6.5) && near(model->position.y, bus->y));
     // a bus without a line shows none; gone, its model waits for the next bus
     bus->bus->line.reset();
     traffic.update({bus}, {}, 0.4);
-    assert(model.ref.empty() && model.to.empty() && !model.last.blinkOn && traffic.group->children.size() == 3);
+    assert(traffic.group->children.size() == 3);
     traffic.update({}, {}, 1);
-    assert(traffic.group->children.size() == 2 && model.root->parent == nullptr);
+    assert(traffic.group->children.size() == 2 && model->parent == nullptr);
     traffic.update({bus}, {}, 2);
-    assert(TestBus::made == 1 && model.root->parent == traffic.group.get());
+    assert(model->parent == traffic.group.get());
 
     // cyclists: a model each, in their colour, posed as they ride – or lie
     riders[0].x = 5, riders[0].y = 100, riders[0].z = -7, riders[0].yaw = 0.5, riders[0].colour = 0x3d8bff, riders[0].phase = 1.5, riders[0].roll = 9, riders[0].down = 0;
@@ -299,7 +274,6 @@ void theHooks() {
   }
   PeopleRenderer::create = nullptr;
   EmergencyFleet::create = nullptr;
-  PlayerBus::create = nullptr;
   CyclistModel::create = nullptr;
 }
 
