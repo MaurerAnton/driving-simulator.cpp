@@ -8,6 +8,7 @@
  * areas and kerbs, crossings, the surface on a grid of points, map matching,
  * the lookups by place, forbidden turns, the cuts of a junction.
  */
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -140,12 +141,17 @@ int main() {
     // the roads and junctions by their numbers, with gaps: nothing beyond the end, nothing below zero
     assert(world.edges[static_cast<int64_t>(world.edges.size())] == nullptr && world.edges[-1] == nullptr && world.nodes[100000] == nullptr);
     assert(world.edges.count() == world.allEdges.size() && world.nodes.count() == world.allNodes.size());
-    // the sets are gone through in the order of the numbers here (a map in one piece is added in that order)
+    // the sets are gone through in the order things were added: the roads by their numbers, the junctions as the roads first
+    // named them (a map in one piece is added as one piece: roads first – with their ends –, then the junctions)
     {
       int next = 0;
       for (const Edge* edge : world.allEdges) assert(edge->id == next++);
-      next = 0;
-      for (const Node* node : world.allNodes) assert(node->id == next++);
+      std::vector<int> firstNamed;
+      for (const Edge* edge : world.allEdges)
+        for (int id : {edge->a->id, edge->b->id})
+          if (std::find(firstNamed.begin(), firstNamed.end(), id) == firstNamed.end()) firstNamed.push_back(id);
+      size_t k = 0;
+      for (const Node* node : world.allNodes) assert(k < firstNamed.size() && node->id == firstNamed[k++]);
     }
     // the arms of a road are its own: they point back at it and at the junctions at its ends
     for (const Edge* edge : world.allEdges) {
