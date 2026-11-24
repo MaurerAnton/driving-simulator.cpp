@@ -151,7 +151,6 @@ std::shared_ptr<Material> Material::clone() const {
   m->color.copy(color);
   m->map = map;
   m->alphaMap = alphaMap;
-  m->emissiveMap = emissiveMap;
   m->vertexColors = vertexColors;
   m->transparent = transparent;
   m->opacity = opacity;
