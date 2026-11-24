@@ -27,7 +27,11 @@
 #include "render/pedlights.h"
 #include "render/props.h"
 #include "render/signs.h"
+#include "render/plane.h"
+#include "sim/airfield.h"
 #include "sim/autodriver.h"
+#include "sim/autopilot.h"
+#include "sim/flight.h"
 #include "sim/collision.h"
 #include "sim/follow.h"
 #include "sim/ground.h"
@@ -53,9 +57,11 @@
 
 namespace fs {
 
-void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, const AddressHit* addressAsked) {
+void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, const AddressHit* addressAsked, const TramStopChoice* stop,
+                 const RunwayChoice* runwayAsked) {
   std::string mode = modeAsked;
   std::optional<AddressHit> address = addressAsked ? std::optional<AddressHit>(*addressAsked) : std::nullopt;
+  const std::optional<RunwayChoice> runway = runwayAsked ? std::optional<RunwayChoice>(*runwayAsked) : std::nullopt;
   // (later: the theory lessons, THEORY_MODE – game.ts:2732)
   // a set route from the menu (game/routepresets.ts): a drive of one's own from its first place – the route begins once there
   const RoutePreset* preset = presetOfMode(mode);
@@ -79,11 +85,11 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     *ask = lessonStartPanel(
         [lang](const std::string& k, const TrParams& v) { return tr(k, lang, v); }, settings, app.world->json.spawns,
         LessonStartOptions{.title = lessonTitle(lessonAsked->id, lang), .place = !address && placeKindOf(*lessonAsked).has_value(), .watch = false},
-        [this, ask, mode, spawnIdx, skipIntro, address] {
+        [this, ask, mode, spawnIdx, skipIntro, address, runway] {
           ask->remove();
           saveSettings(settings);
           lessonChosen = true;
-          begin(mode, spawnIdx, skipIntro, address ? &*address : nullptr);
+          begin(mode, spawnIdx, skipIntro, address ? &*address : nullptr, nullptr, runway ? &*runway : nullptr);
         },
         [ask] { ask->remove(); });
     ui.append(*ask);
@@ -91,7 +97,18 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   }
   // (later: watchLesson = lessonChosen && settings.lessonWatch – game.ts:2757)
   lessonChosen = false;
-  // (later: a flight asked for before the airfields were read – game.ts:2759)
+  {
+    const VehicleDef* asked = VEHICLES.find(settings.vehicle);
+    if (asked && asked->kind == "plane" && !runway && !air && !airAwaited && app.map->pieces) {
+      // (a flight asked for by a link before the airfields were read: it begins once they are)
+      airAwaited = true;
+      [](Game* self, std::string mode, int spawnIdx, bool skipIntro, std::optional<AddressHit> address) -> Task<void> {
+        co_await self->app.map->air();
+        self->begin(mode, spawnIdx, skipIntro, address ? &*address : nullptr);
+      }(this, mode, spawnIdx, skipIntro, address).detach();
+      return;
+    }
+  }
   World& world = *app.world;
   audio->start();
   spawnStreet = address ? address->street : "";
@@ -117,7 +134,28 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     spawn = here;
     parkedAt.reset();
   }
-  // (later: on foot from the stop Baunatal Stadtmitte; the aeroplane at the end of its runway; the tram at its stop; the test place – game.ts:2775)
+  // (later: on foot from the stop Baunatal Stadtmitte – game.ts:2775)
+  // (the aeroplane: at the end of the runway chosen in the menu – the first of the map's if none was)
+  aircraft = nullptr;
+  planePending = false;
+  ui.removeClass("flying");
+  {
+    const VehicleDef* asked = VEHICLES.find(settings.vehicle);
+    if (asked && asked->kind == "plane") {
+      const std::optional<RunwayChoice> r = runway ? runway : firstRunway();
+      if (r) {
+        SpawnJson at;
+        at.name = r->field + " " + r->end;
+        at.x = r->x;
+        at.z = r->z;
+        at.yaw = r->yaw;
+        at.kind = "street";
+        spawn = at;
+        planePending = true;
+      }
+    }
+  }
+  // (later: the tram at its stop; the test place – game.ts:2795)
   lesson = nullptr;
   for (const LessonDef& l : LESSONS)
     if (l.id == mode) {
@@ -129,7 +167,12 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   // (later: wrecked, explosion, leaveWalk, footAfterJump, clearPreview, menuPreview, recorder.clear, riding, busRide, busService, busNav,
   //  railActors.hidden, passengerView, doorT, opens, fadeEl, planeDemoPending – game.ts:2818)
   // ("demo" and "tour" are free drives that begin with the map open, for planning – the tram's drives by itself at once)
-  planDemo = mode == "demo" || mode == "tour";
+  {
+    const VehicleDef* asked = VEHICLES.find(settings.vehicle);
+    const bool plane = asked && asked->kind == "plane";
+    planeDemoPending = mode == "demo" && plane;
+    planDemo = (mode == "demo" || mode == "tour") && !plane;
+  }
   hud->canTeleport = !lesson;
   hud->canFinish = !lesson;
   keepClock = false;
@@ -149,7 +192,8 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
   // (later: the other vehicles' models – render/fleet.ts – and the trailers behind them – sim/semitrailer.ts makeTrailer, render/semitruck.ts:
   //  until they are there, a vehicle that is not drawn as the car alone is driven as the car)
-  if (def->model != "car" || def->trailer) def = &VEHICLES.at("car");
+  // (the aeroplane is drawn and flown: render/plane.h, sim/flight.h)
+  if ((def->model != "car" && def->model != "plane") || def->trailer) def = &VEHICLES.at("car");
   // (later: the tram: tram, tramAt, tramWait – game.ts:2853)
   // (ways for the truck with its trailer avoid turns that double back within a few metres)
   lanes->longVehicle = def->long_;
@@ -162,7 +206,9 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   // (later: wading.reset – game.ts:2865)
   // the sound of this kind of vehicle (its engine's revs – the tram and the aeroplane have their own)
   audio->setVehicle(soundKindOf(def->kind), spec);
-  ensureModel(*def);
+  // (the aeroplane's model is kept beside the road vehicles': planeAdapter)
+  if (def->model == "plane") planeAdapter();
+  else ensureModel(*def);
   // (later: trailer = makeTrailer(def.trailer, ground), linkTowed – game.ts:2869)
   trailer = nullptr;
   hud->gearbox(spec.transmission == "automatic" && ((def->model != "car" && def->model != "motorcycle") || settings.arcadeDrive) ? std::optional<Transmission>("automatic") : std::nullopt);
@@ -226,7 +272,17 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
 
 /** Called every frame while waiting for the terrain under the start point. */
 void Game::tryPlace() {
-  // (later: the tram at the stop nearest to the place chosen; the aeroplane at the end of the runway – game.ts:2968)
+  // (later: the tram at the stop nearest to the place chosen – game.ts:2968)
+  if (planePending) {
+    // the aeroplane: on its wheels at the end of the runway, once the ground there is there
+    const SpawnJson p = *spawn;
+    hud->setLoadingProgress(app.tiles->progress);
+    if (std::isnan(app.tiles->heightAt(p.x, p.z)) || !app.tiles->settled()) return;
+    planePending = false;
+    if (airAgl > 0) startPlaneAir(p, airAgl);
+    else startPlane(p);
+    return;
+  }
   SpawnJson sp = *spawn;
   // how far the loading is: the roads around the place, then the tiles (the bar of the loading screen)
   hud->setLoadingProgress(app.map->pieces ? 0.35 * app.map->progress(sp.x, sp.z, 1500) + 0.65 * app.tiles->progress : app.tiles->progress);
@@ -421,7 +477,13 @@ void Game::onAction(const std::string& a) {
     else if (state == "map") closeMap();
     // (later: the reality view, the replay, the theory – game.ts:3844)
   }
-  // (later: 'open', 'door': on foot, the flaps, the bus's and the tram's doors, the forklift, the cranes, the test place – game.ts:3847;
+  // (later: 'open', 'door': on foot – game.ts:3847)
+  else if (a == "door" && state == "drive" && aircraft) {
+    // the flap lever, a notch at a time: 0°, 10°, 20°, 30° – and back up
+    flight.flaps = (flight.flaps + 1) % 4;
+    audio->click("tick");
+  }
+  // (later: 'door': the bus's and the tram's doors, the forklift, the cranes, the test place – game.ts:3857;
   //  'view' in the replay, on foot, on the forklift; 'panto' – game.ts:3893)
   else if (a == "view" && state == "drive") {
     // the driver's seat → behind the car → the free camera → …
@@ -438,8 +500,9 @@ void Game::onAction(const std::string& a) {
       saveSettings(settings);
     }
   } else if (a == "reset" && state == "drive") {
-    // (later: in the aeroplane the key is its autopilot – game.ts:3927)
-    resetToRoad();
+    // (in the aeroplane there is no road to be put back on: the key is its autopilot)
+    if (aircraft) toggleFlightAuto();
+    else resetToRoad();
   } else if (a == "turn") {
     // F3, or "Turn around" in the ⋯ sheet: into the lane of the other direction, or on the spot
     turnAround();
@@ -584,8 +647,8 @@ void Game::toAutomatic() {
 
 /** Arcade driving for the road vehicle driven now (not the tram, the aeroplane, the forklift, a crane at work, nor on foot or watching). */
 bool Game::arcadeNow() {
-  // (later: … !watcher, !tram, !aircraft, !forklift, !crane.operating, not on foot, !wrecked – game.ts:4068)
-  return settings.arcadeDrive;
+  // (later: … !watcher, !tram, !forklift, !crane.operating, not on foot, !wrecked – game.ts:4068)
+  return settings.arcadeDrive && !aircraft;
 }
 
 void Game::stepDrive(double dt) {
@@ -597,7 +660,13 @@ void Game::stepDrive(double dt) {
     c.lookYaw = (*debugLook)[0];
     c.lookPitch = (*debugLook)[1];
   }
-  // (later: stepWatch, stepTram, stepFoot, stepFlight, stepCrane, stepForklift – game.ts:4080)
+  // (later: stepWatch, stepTram, stepFoot – game.ts:4080)
+  if (aircraft) {
+    // (later: out of the parked aeroplane, on foot beside it: stepFoot – game.ts:4094)
+    stepFlight(dt);
+    return;
+  }
+  // (later: stepCrane, stepForklift – game.ts:4100)
   DriverInput& d = driver;
   d.steer = c.steer;
   d.throttle = c.throttle;
@@ -854,7 +923,18 @@ void Game::changeVehicle(const VehicleKind& kind) {
   if (demo) endDemo("ended");
   settings.vehicle = kind;
   saveSettings(settings);
-  // (later: the tram at the nearest stop, the aeroplane at the end of the nearest runway – game.ts:4855)
+  // (later: the tram at the nearest stop – game.ts:4855)
+  const VehicleDef* k = VEHICLES.find(kind);
+  if (k && k->kind == "plane") {
+    const std::optional<LandingRunway> near = air ? landingRunway(air->airfields, x, z, 300) : std::nullopt;
+    std::optional<RunwayChoice> r;
+    if (near) {
+      const RunwayStart s = runwayStart(*near->runway, near->fromSecond);
+      r = RunwayChoice{.field = near->field->name, .end = runwayEnd(*near->runway, near->fromSecond), .x = s.x, .z = s.z, .yaw = s.yaw};
+    }
+    begin("free", 0, true, nullptr, nullptr, r ? &*r : nullptr);
+    return;
+  }
   const AddressHit here{.label = tr("mapPlace", settings.lang), .street = "", .x = x, .z = z, .exact = false};
   begin("free", 0, true, &here);
 }

@@ -90,6 +90,22 @@ class WorldTap;
 struct ResultSummary;
 struct RoadSource;
 struct TourPreview;
+// (the aeroplane: src/sim/flight.h, autopilot.h, airfield.h; src/render/plane.h, airfield.h; ui/hud.h)
+class Aircraft;
+class AirfieldGround;
+class AirfieldRenderer;
+struct AirJson;
+class FlightAssist;
+class FlightAutopilot;
+struct FlightControls;
+class Ground;
+class PlaneModel;
+struct PlaneVisualState;
+struct RunwayChoice;
+struct TramStopChoice;
+struct AutopilotState;
+/** What the aeroplane's autopilot is doing, in a few words a pilot would use (a text key) – game_plane.cpp. */
+std::string apPhaseKey(const AutopilotState& st);
 
 /** 'loading' | 'menu' | 'intro' | 'placing' | 'drive' | 'pause' | 'reality' | 'map' | 'result' | 'replay' | 'theory' */
 using State = std::string;
@@ -469,8 +485,9 @@ class Game {
     std::string text;
   };
   std::optional<PendingIntro> pendingIntro;
-  /** `address`: null – none */
-  void begin(const std::string& mode, int spawnIdx, bool skipIntro = false, const AddressHit* address = nullptr);
+  /** `address`, `stop`, `runway`: null – none */
+  void begin(const std::string& mode, int spawnIdx, bool skipIntro = false, const AddressHit* address = nullptr, const TramStopChoice* stop = nullptr,
+             const RunwayChoice* runway = nullptr);
   void tryPlace();
   void resume();
   std::array<double, 2> focus();
@@ -564,6 +581,55 @@ class Game {
     double sim = 0, visuals = 0, scene = 0, mirrors = 0, render = 0, total = 0;
     int frames = 0;
   } frameTimes;
+
+  // --- the aeroplane ---
+  /** the aeroplane being flown (null: none), its model, and the airfields of the map with their firm ground */
+  std::unique_ptr<Aircraft> aircraft;
+  std::unique_ptr<PlaneModel> planeModel;
+  std::shared_ptr<const AirJson> air;
+  /** the aeroplane's autopilot (take-off, holding height and heading, to a place, the circuit and landing), and the help for flying by hand */
+  std::unique_ptr<FlightAutopilot> flightAuto;
+  std::unique_ptr<FlightAssist> flightAssist;
+  /** how long the stick has been moved while the autopilot flies (taking over), and a demonstration flight to begin once the aeroplane stands */
+  double flightTake = 0;
+  /** where the autopilot is to fly once it has taken off (a place chosen on the map while standing on the runway) */
+  struct FlightGoto {
+    double x = 0, z = 0, alt = 0;
+  };
+  std::optional<FlightGoto> flightGoto;
+  bool planeDemoPending = false;
+  std::unique_ptr<AirfieldGround> airGround;
+  std::unique_ptr<AirfieldRenderer> airfieldView;
+  /** a flight is to begin once the runway is placed */
+  bool planePending = false;
+  /** the throttle lever (0 … 1), the flap lever (0 … 3: 0°, 10°, 20°, 30°), the trim (−1 … 1), when it crashed */
+  struct FlightLevers {
+    double throttle = 0;
+    int flaps = 1;
+    double trim = 0.15;
+    double crashT = -1;
+  } flight;
+  std::unique_ptr<FlightControls> flightControls;
+  /** free flight: how high above the ground the aeroplane is to be put (0: on the runway – flyFrom) */
+  double airAgl = 0;
+  /** whether a flight asked for before the airfields were read has waited for them (once is enough: a map may have none) */
+  bool airAwaited = false;
+  /** the airfields of the map, once they are read: their ground, how they are drawn, the ends of their runways in the menu */
+  void airRead(std::shared_ptr<const AirJson> json);
+  void flyFrom(const SpawnJson& spot, double agl);
+  void startPlaneAir(const SpawnJson& sp, double agl);
+  double groundHeight(double x, double z);
+  std::optional<RunwayChoice> firstRunway();
+  /** the aeroplane's model, made the first time it is flown (the original's planeAdapter, kept beside the road vehicles' models) */
+  PlaneModel& planeAdapter();
+  void startPlane(const SpawnJson& sp);
+  void placePlaneProxy();
+  void stepFlight(double dt);
+  void toggleFlightAuto();
+  void afterFlightStep(Aircraft& a, double dt);
+  PlaneVisualState planeVisual(Aircraft& a);
+  /** `this.airGround ?? this.ground` */
+  Ground& flightGround();
 };
 
 }  // namespace fs
