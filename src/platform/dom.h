@@ -23,6 +23,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <utility>
@@ -142,12 +143,21 @@ bool hasPointerCapture(int h, int pointerId);
 /** document.fullscreenElement, document.activeElement, document.pointerLockElement (0: none) */
 int documentElementOf(const char* which);
 void exitFullscreen();
+// (for dom::collect: see there)
+/** one more than the largest handle in use */
+int handleLimit();
+/** how many Els name the handle now */
+int refCount(int h);
+/** for every handle below `limit`: is its element in the page (1/0), and which detached tree it hangs in (0: in the page, or no element) */
+void liveness(int limit, std::vector<uint8_t>& connected, std::vector<int>& tree);
+/** the page forgets what it kept for a listener that was dropped */
+void forgetListener(int listener);
 }  // namespace backend
 
 namespace detail {
 /** the handles of the Els copied while a census is taken (what a handler holds on to) */
 extern std::vector<int>* census;
-int addListener(Handler fn);
+int addListener(Handler fn, int owner);
 void dropListener(int id);
 Handler wrap(std::function<void()> fn);
 }  // namespace detail
@@ -381,7 +391,7 @@ class El {
   using Options = ListenOptions;
   /** addEventListener: returns what off() takes */
   int on(const std::string& type, Handler fn, Options o = Options()) const {
-    int id = detail::addListener(std::move(fn));
+    int id = detail::addListener(std::move(fn), h_);
     backend::listen(h_, type.c_str(), id, (o.capture ? 1 : 0) | (o.passive ? 2 : 0) | (o.once ? 4 : 0));
     return id;
   }
@@ -393,7 +403,7 @@ class El {
   }
   /** el.on<type> = fn (replaces what was there); an empty fn is `= null` */
   const El& handler(const std::string& type, Handler fn) const {
-    int id = fn ? detail::addListener(std::move(fn)) : 0;
+    int id = fn ? detail::addListener(std::move(fn), h_) : 0;
     int old = backend::setHandler(h_, type.c_str(), id);
     if (old) detail::dropListener(old);
     return *this;
@@ -447,5 +457,18 @@ El fullscreenElement();
 El activeElement();
 El pointerLockElement();
 void exitFullscreen();
+
+/**
+ * Let go of the handlers of elements nothing can reach any more.
+ *
+ * A handler usually names elements (`b.onclick([b, panel] { … })`), and so an
+ * element and its own handler hold each other: without help, every menu that was
+ * built and thrown away would stay in memory for ever.  collect() finds the
+ * elements that are neither in the page nor named by anything but handlers of
+ * elements that are themselves gone (what a handler names is noted when it is
+ * added), and drops their handlers – after which the elements go by themselves.
+ * The game calls it now and then, between two frames.  Returns how many handlers went.
+ */
+int collect();
 
 }  // namespace fs::dom

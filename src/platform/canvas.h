@@ -21,9 +21,12 @@
 #include <string>
 #include <vector>
 
+#include "core/task.h"
 #include "platform/dom.h"
 
 namespace fs {
+
+using Bytes = std::vector<uint8_t>;
 
 class Ctx2D;
 
@@ -58,6 +61,16 @@ struct Image {
   int width = 0, height = 0;
   explicit operator bool() const { return handle != 0; }
 };
+
+/**
+ * `const img = new Image(); img.src = url; await img.decode()`: a picture from an
+ * address (a failed one has handle 0).  Natively there are no pictures: always 0.
+ */
+Task<Image> loadImage(std::string url);
+/** a picture from bytes that are a JPEG, PNG or WebP file (createImageBitmap of a Blob) */
+Task<Image> decodeImage(Bytes bytes, std::string mimeType = "image/jpeg");
+/** let the host forget a picture (its handle is dead afterwards) */
+void freeImage(Image& image);
 
 class Canvas {
  public:
@@ -187,7 +200,6 @@ enum Op {
   Save, Restore, Translate, Rotate, Scale, Transform, SetTransform, ResetTransform,
   BeginPath, ClosePath, MoveTo, LineTo, Arc, ArcTo, Ellipse, Rect, RoundRect, QuadTo, BezierTo, Fill, FillEvenOdd, Stroke, Clip,
   FillRect, StrokeRect, ClearRect,
-  DrawCanvas3, DrawCanvas5, DrawCanvas9, DrawImage3, DrawImage5, DrawImage9,
   FillGradient, StrokeGradient,
   // str
   FillStyle = 100, StrokeStyle, LineCap, LineJoin, Font, TextAlign, TextBaseline, Direction, LetterSpacing, Composite, ShadowColor, Filter,
@@ -199,6 +211,8 @@ void num(int ctx, int op, double a = 0, double b = 0, double c = 0, double d = 0
 void str(int ctx, int op, const char* s, double a = 0, double b = 0, double c = 0);
 void lineDash(int ctx, const double* segments, int n);
 void polyline(int ctx, const double* xy, int n, bool close);
+/** drawImage of a canvas (its element) or of a decoded picture: `n` numbers follow (2: dx dy; 4: + dw dh; 8: sx sy sw sh dx dy dw dh) */
+void drawImage(int ctx, bool fromCanvas, int source, const double* v, int n);
 void measure(int ctx, const char* text, double out[5]);
 int gradient(int ctx, bool radial, double a, double b, double c, double d, double e, double f);
 void getImageData(int ctx, int x, int y, int w, int h, uint8_t* out);
