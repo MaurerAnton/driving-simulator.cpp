@@ -343,6 +343,87 @@ void thePlayer() {
   assert(audioNative::created(ctx) == after);   // off: nothing more is made
 }
 
+// ---------------------------------------------------------------- everything that is asked of the Web Audio API
+
+/** a number as the digest writes it: whole numbers as they are, the others to nine places (JavaScript's toExponential(8)) */
+std::string digestNumber(double x) {
+  char b[48];
+  if (x == std::floor(x) && std::abs(x) < 1e15) {
+    if (x == 0) return "0";
+    std::snprintf(b, sizeof b, "%.0f", x);
+    return b;
+  }
+  std::snprintf(b, sizeof b, "%.8e", x);
+  std::string s = b;
+  const size_t e = s.find('e');
+  std::string exponent = s.substr(e + 2);
+  while (exponent.size() > 1 && exponent[0] == '0') exponent.erase(0, 1);
+  return s.substr(0, e + 2) + exponent;
+}
+
+/**
+ * The nodes of a context from number `from` up to `to` (0: the loudspeakers, then in the order they were
+ * made), each as a line: its kind and type, how it was started and stopped, what it feeds, and of every
+ * setting that was touched its value and the last `last` things asked of it (what, value, time, time
+ * constant).  The original's stand-in for the Web Audio API writes the same lines of what the original
+ * asks of it; a line is compared by its hash (FNV-1a).
+ */
+std::vector<std::string> digestLines(const AudioContext& ctx, size_t from, size_t to, size_t last) {
+  const std::vector<const audioNative::NodeInfo*> nodes = audioNative::nodes(ctx);
+  auto indexOf = [&nodes](int id) -> std::string {
+    for (size_t i = 0; i < nodes.size(); i++)
+      if (nodes[i]->id == id) return std::to_string(i);
+    return "?";
+  };
+  static const char* const NAMES[] = {"gain", "frequency", "detune", "Q", "pan", "delayTime", "threshold", "knee", "ratio", "attack", "release"};
+  std::vector<std::string> out;
+  for (size_t i = from; i < std::min(to, nodes.size()); i++) {
+    const audioNative::NodeInfo& n = *nodes[i];
+    // (an oscillator that was given a wave: the stand-in keeps the type it had, a browser and this host say 'custom')
+    std::string line = std::to_string(i) + "|" + n.kind + "|" + (n.wave ? std::string("sine") : n.type) + "|" + (n.loop ? "1" : "0") + "|" + (n.buffer ? "1" : "0") + "|" +
+                       digestNumber(n.started) + "|" + digestNumber(n.stopped) + "|" + digestNumber(n.offset) + "|" + digestNumber(n.duration) + "|";
+    std::string outs;
+    for (int o : n.outputs) outs += (outs.empty() ? "" : ",") + indexOf(o);
+    for (const auto& o : n.paramOutputs) outs += (outs.empty() ? "" : ",") + indexOf(o.first) + "." + o.second;
+    line += outs;
+    for (const char* name : NAMES) {
+      const audioNative::ParamInfo& p = n.param(name);
+      // (touched: set, or sent somewhere – a setting whose plans were only cancelled is not)
+      bool touched = false;
+      std::vector<const audioNative::ParamEvent*> asked;
+      for (const audioNative::ParamEvent& e : p.events) {
+        if (e.what != "cancel") touched = true;
+        if (e.what != "value") asked.push_back(&e);
+      }
+      if (!touched) continue;
+      line += std::string("|") + name + "=" + digestNumber(p.value) + ":";
+      for (size_t k = asked.size() > last ? asked.size() - last : 0; k < asked.size(); k++) {
+        const audioNative::ParamEvent& e = *asked[k];
+        line += (line.back() == ':' ? "" : ";") + e.what + "," + digestNumber(e.value) + "," + digestNumber(e.time) + "," + digestNumber(e.timeConstant);
+      }
+    }
+    out.push_back(line);
+  }
+  return out;
+}
+
+uint32_t digestHash(const std::string& s) {
+  uint32_t h = 2166136261u;
+  for (unsigned char c : s) h = (h ^ c) * 16777619u;
+  return h;
+}
+
+/** the lines against the original's hashes: where they part, the line is shown */
+void sameDigest(const std::string& what, const std::vector<std::string>& lines, const std::vector<uint32_t>& want) {
+  if (lines.size() != want.size()) std::fprintf(stderr, "audio_music_test: %s: %zu nodes here, %zu in the original\n", what.c_str(), lines.size(), want.size());
+  for (size_t i = 0; i < lines.size() && i < want.size(); i++) {
+    if (digestHash(lines[i]) == want[i]) continue;
+    std::fprintf(stderr, "audio_music_test: %s: line %zu is not the original's:\n%s\n", what.c_str(), i, lines[i].c_str());
+    std::abort();
+  }
+  check(lines.size() == want.size(), what + ": as many nodes as in the original");
+}
+
 // ---------------------------------------------------------------- the player of the original
 
 /**
@@ -373,6 +454,26 @@ void asTheOriginalsPlayer() {
   for (int i = 0; i < 80; i++) step(0.25);
   if (created(ctx) != 200 || paramCalls(ctx) != 286) std::fprintf(stderr, "audio_music_test: after 80 steps %d nodes, %d oscillators, %d gains, %ld settings (200, 86, 102, 286 in the original)\n", created(ctx), made(ctx, "osc"), made(ctx, "gain"), paramCalls(ctx));
   assert(created(ctx) == 200 && made(ctx, "osc") == 86 && made(ctx, "gain") == 102 && paramCalls(ctx) == 286);   // music.after80 200 86 102 286
+  // … and every one of these nodes is the original's: what it is, what it feeds, when it starts and stops, what is asked of its settings
+  const std::vector<uint32_t> ORIGINAL = {
+      282407515u, 2962159108u, 1034673337u, 561914607u, 2793959594u, 2211708893u, 2658696605u, 1168028332u, 2764879760u, 1816358507u, 2293906049u, 2511034986u, 2865996325u,
+      583464975u, 3114260933u, 2028503108u, 1405813196u, 2814076609u, 521648815u, 2118196474u, 1412630290u, 4017196367u, 1845102945u, 3702230131u, 1877739361u, 417985466u,
+      3817285871u, 1923160014u, 3594251252u, 468142433u, 3986129393u, 1004862757u, 4113503122u, 4012014252u, 2223843605u, 92738665u, 1055295170u, 2452312776u, 899444875u,
+      325336177u, 1519280703u, 2415073138u, 2138140234u, 2466568518u, 1456365800u, 2251159280u, 3079967885u, 3472215071u, 3673678730u, 3311916626u, 4088425688u, 1806987731u,
+      3012429029u, 807934628u, 2058806906u, 875702102u, 3458121574u, 958192264u, 3030378616u, 87275118u, 1627527538u, 2697921818u, 338683929u, 282881813u, 3434314878u, 923213666u,
+      1064172193u, 2178924582u, 1618504082u, 1489862116u, 1226628172u, 1935720969u, 2313560579u, 1090802432u, 2486486537u, 3190380929u, 3103665976u, 2574110856u, 688687573u,
+      1219432256u, 990005860u, 3499859794u, 2690797045u, 973756116u, 2361428400u, 1275518742u, 3010904564u, 735764064u, 2174524461u, 2926916751u, 2711994044u, 257657897u,
+      3578546953u, 1045547415u, 3937854408u, 1792185752u, 371604011u, 2170492884u, 2151210043u, 443798952u, 3875293446u, 1952244202u, 1380141136u, 1820754556u, 759714193u,
+      3785244459u, 61742780u, 923317731u, 322337423u, 4246346595u, 1719127462u, 2855750641u, 2071386735u, 3794346673u, 642630923u, 4236606811u, 42527201u, 1577386492u,
+      4071284875u, 771811233u, 1484733380u, 3613940002u, 2931371180u, 2636536861u, 2889759492u, 384522349u, 3692882911u, 2708445947u, 3612874977u, 1780575223u, 3556394723u,
+      2429514610u, 3934532058u, 1080072136u, 2822084885u, 2772142300u, 3178871948u, 89606772u, 282236310u, 699854585u, 3464065090u, 1172167831u, 2169994335u, 1827037676u,
+      3979955216u, 2221999073u, 3978291896u, 1857909097u, 3837908463u, 955105388u, 3876591223u, 3065485511u, 1815385195u, 595864455u, 781905744u, 3532518613u, 2914744139u,
+      1285992646u, 2426780850u, 3989789009u, 647578183u, 1015989459u, 3038262878u, 1435995762u, 3459595632u, 1661050355u, 2937695420u, 3010962766u, 199257099u, 1590209580u,
+      3059391715u, 425191380u, 902289989u, 788939772u, 157088690u, 1219331247u, 3573566329u, 3781268974u, 281909153u, 1512670994u, 3666777588u, 1707911023u, 1235940754u,
+      3980068351u, 3706094187u, 2189841339u, 3782829796u, 4237878685u, 351383343u, 1108384975u, 3337452148u, 424151811u, 1767161978u, 2402566389u, 3848361310u, 4030238321u,
+      281681451u, 965837341u, 985483468u, 3549494166u,
+  };
+  sameDigest("the music's first seconds", digestLines(ctx, 1, 100000, 20), ORIGINAL);
   int k = 0;
   for (; k < 4 * 240 && music.playing(); k++) step(0.25);
   if (k != 369 || created(ctx) != 1006) std::fprintf(stderr, "audio_music_test: the piece ended after %d steps, %d nodes, %ld settings (369, 1006, 1579 in the original)\n", k, created(ctx), paramCalls(ctx));
