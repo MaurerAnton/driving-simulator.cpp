@@ -15,7 +15,9 @@
 
 #include <memory>
 #include <optional>
+#include <array>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "core/task.h"
@@ -51,14 +53,28 @@ class WorldLayer {
    * shown as a region among the others.
    */
   Task<void> load(std::string siteBase, std::array<double, 4> siteMap, std::string siteName);
+  /**
+   * The same from what is already at hand (the game has read the index itself; a test
+   * brings its own): the outline (an empty one: no background), the regions of the index
+   * (null: none), the site's own map.  The layer is ready afterwards.
+   */
+  void set(WorldOutline outline, const RegionIndex* index, std::array<double, 4> siteMap, std::string siteName);
   /** has load() finished (with or without an outline – without regions there is nothing to show)? */
   bool ready() const { return ready_; }
+  /** finished when the layer is ready (the big map waits for it and draws itself again) */
+  Task<void> whenReady() const { return readied_.task(); }
   bool hasRegions() const { return !regions_.empty(); }
   /** every region, the site's own map first */
   const std::vector<Region>& regions() const { return regions_; }
   const Region* byId(const std::string& id) const;
   /** the country a region lies in, in the language given ("de": German, else English; "": unknown) */
   std::string countryOf(const Region& r, const std::string& lang) const;
+  /**
+   * How much there is to download for a region, in bytes – where that is known: the
+   * index (world/regions.h) does not say yet, so whoever knows tells the layer.
+   */
+  void setDownloadBytes(const std::string& id, double bytes);
+  std::optional<double> downloadBytes(const Region& r) const;
 
   /**
    * Draw the layer: sea, land, lakes, borders and coasts, the countries' names
@@ -77,7 +93,10 @@ class WorldLayer {
 
  private:
   bool ready_ = false;
+  Resolver<void> readied_;
   WorldOutline outline_;
+  /** what there is to download for a region (by its id), where known */
+  std::vector<std::pair<std::string, double>> bytes_;
   std::vector<Region> regions_;
   /** the country of each region (index into outline_.countries, -1: none) */
   std::vector<int> country_;
