@@ -1,0 +1,8 @@
+{
+  "worldAll": "Tüm bölgeler",
+  "worldOpen": "Bu haritayı aç",
+  "worldBack": "Geri dön: {name}",
+  "worldHint": "Seçmek için bir bölgeye dokunun",
+  "worldSize": "İndirme: {mb} MB",
+  "worldRegion": "Bölge"
+}

@@ -1,0 +1,8 @@
+{
+  "worldAll": "Všechny regiony",
+  "worldOpen": "Otevřít tuto mapu",
+  "worldBack": "Zpět: {name}",
+  "worldHint": "Klepnutím vyberte region",
+  "worldSize": "Stahování: {mb} MB",
+  "worldRegion": "Region"
+}

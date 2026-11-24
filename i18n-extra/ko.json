@@ -1,0 +1,8 @@
+{
+  "worldAll": "모든 지역",
+  "worldOpen": "이 지도 열기",
+  "worldBack": "{name}(으)로 돌아가기",
+  "worldHint": "지역을 눌러 선택하세요",
+  "worldSize": "다운로드: {mb}MB",
+  "worldRegion": "지역"
+}

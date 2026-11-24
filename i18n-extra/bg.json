@@ -1,0 +1,8 @@
+{
+  "worldAll": "Всички региони",
+  "worldOpen": "Отвори тази карта",
+  "worldBack": "Назад към {name}",
+  "worldHint": "Докоснете регион, за да го изберете",
+  "worldSize": "Изтегляне: {mb} MB",
+  "worldRegion": "Регион"
+}

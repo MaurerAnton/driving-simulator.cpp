@@ -1,0 +1,8 @@
+{
+  "worldAll": "Wszystkie regiony",
+  "worldOpen": "Otwórz tę mapę",
+  "worldBack": "Wróć: {name}",
+  "worldHint": "Dotknij regionu, aby go wybrać",
+  "worldSize": "Pobieranie: {mb} MB",
+  "worldRegion": "Region"
+}

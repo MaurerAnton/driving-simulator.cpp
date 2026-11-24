@@ -1,0 +1,8 @@
+{
+  "worldAll": "Toutes les régions",
+  "worldOpen": "Ouvrir cette carte",
+  "worldBack": "Retour à {name}",
+  "worldHint": "Touchez une région pour la choisir",
+  "worldSize": "Téléchargement : {mb} Mo",
+  "worldRegion": "Région"
+}
