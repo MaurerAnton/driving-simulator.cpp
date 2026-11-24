@@ -18,6 +18,7 @@
 
 #include "engine/engine.h"
 #include "render/car.h"
+#include "render/fleet.h"
 #include "sim/hooks.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
@@ -27,9 +28,8 @@ namespace fs {
 
 // ------------------------------------------------------------------ hooks ----
 //
-// The people on foot (render/people.ts), the cyclists (render/cyclist.ts), the city bus
-// (render/fleet.ts PlayerBus) and the emergency vehicles (render/emergency.ts) are not
-// translated yet.  Each stands here as a class of the original's name with just the members
+// The people on foot (render/people.ts), the cyclists (render/cyclist.ts) and the emergency
+// vehicles (render/emergency.ts) are not translated yet.  (The city bus is render/fleet.h's PlayerBus.)  Each stands here as a class of the original's name with just the members
 // the traffic's drawing calls, for the missing part to fill in; `create` is its constructor
 // (`new PeopleRenderer(capacity)` …) and null until then – what it would draw is left out
 // meanwhile.  When a part is translated its declaration here goes and the real class takes its
@@ -80,18 +80,6 @@ class CyclistModel {
   const std::shared_ptr<Group> group = make<Group>();
   virtual void setColour(int colour) = 0;
   virtual void pose(double phase, double roll, bool down) = 0;
-};
-
-/** render/fleet.ts: the bus one learns with, seen from outside */
-class PlayerBus {
- public:
-  static inline std::function<std::unique_ptr<PlayerBus>()> create = nullptr;
-
-  virtual ~PlayerBus() = default;
-  const std::shared_ptr<Group> root = make<Group>();
-  /** its line and where it goes, on the displays */
-  virtual void setLine(const std::string& ref, const std::string& to) = 0;
-  virtual void update(const CarVisualState& s, double dt, double now) = 0;
 };
 
 /** render/emergency.ts */

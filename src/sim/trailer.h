@@ -147,10 +147,10 @@ class Trailer {
   static void truckHitch(const Vehicle& truck, double* out);
 
   /** Stand the trailer somewhere by itself: axle group at (x, z), facing `yaw`. */
-  void place(double x, double z, double yaw);
+  virtual void place(double x, double z, double yaw);
 
   /** Hang it on the truck, in line behind it. */
-  void coupleBehind(const Vehicle& truck);
+  virtual void coupleBehind(const Vehicle& truck);
 
   /** Couple where it stands (the truck has backed up to it). */
   void couple();
@@ -173,7 +173,7 @@ class Trailer {
    * with the truck: the trailer brakes with the truck's brake pedal and
    * parking brake.
    */
-  void step(double dt, Vehicle& truck, const DriverInput& input);
+  virtual void step(double dt, Vehicle& truck, const DriverInput& input);
 
  protected:
   std::array<double, 3> hit{0, 0, 0};

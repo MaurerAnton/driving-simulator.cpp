@@ -10,7 +10,9 @@
 #include "core/js.h"
 #include "game/address.h"
 #include "game/arcadedrive.h"
+#include "game/ce.h"
 #include "game/clock.h"
+#include "game/craneplay.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/nav.h"
@@ -25,6 +27,7 @@
 #include "platform/frame.h"
 #include "platform/plat.h"
 #include "render/actors.h"
+#include "render/crane.h"
 #include "render/far.h"
 #include "render/pedlights.h"
 #include "render/props.h"
@@ -295,7 +298,9 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
   app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group);
-  // (later: railActors, passengerView, transit, airfieldView, yardScene, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl; yardFrame – game.ts:671)
+  // (later: railActors, passengerView, transit, airfieldView, yardScene, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
+  if (world.json.yard) yardFrame.emplace(*world.json.yard);
+  else yardFrame.reset();
   // (later: rail = new RailTraffic(world.json.rails) – game.ts:676)
   // The road network may come in pieces around the car: lanes, traffic and signals follow it.
   followers = std::make_unique<MapFollowers>();
@@ -375,7 +380,7 @@ Task<void> Game::boot(URLSearchParams q) {
       return roadSpot(x, z, "", 160);
     };
     // (later: loadedArea, canSpawnCar, spawnCar – game/spawncar.ts, game.ts:910)
-    host.canTeleport = [this] { return mapFrom != "menu" && !lesson; };
+    host.canTeleport = [this] { return mapFrom != "menu" && !lesson && !crane; };
     host.teleport = [this](const SpawnJson& spot) {
       if (mapFrom != "menu") return teleportSpot(spot);
       hud->menuStartAt(spot);
@@ -747,7 +752,10 @@ void Game::toMenu() {
   if (demo && demo->tour) endDemo("ended");
   state = "menu";
   demo = nullptr;
-  // (later: endTasks, services.end, crane, endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1464)
+  // (later: endTasks, services.end – game.ts:1464)
+  if (crane) crane->dispose();
+  crane = nullptr;
+  // (later: endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1468)
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
   // (later: carTrailer, truck.trailer – game.ts:1477)
@@ -819,7 +827,11 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
   const ModelKind& mk = def.model;
   if (mk == "car") return &car;
   // (later: the other vehicles' models: truck, truckLight, truckHeavy, semi, bus, minibus, tractor, tram, walker, plane,
-  //  motorcycle, the cranes, forklift – render/fleet.ts …, game.ts:1894)
+  //  motorcycle, forklift – render/fleet.ts …, game.ts:1894)
+  if (mk == "towerCrane" || mk == "mobileCrane" || mk == "loaderCrane") {
+    craneModels.push_back(makeCraneModel(def.crane.value_or("tower"), settings.quality == "low" ? "low" : "full"));
+    return craneModels.back().get();
+  }
   throw std::runtime_error("no model for the vehicle " + def.kind + " (" + mk + ") in this build");
 }
 
