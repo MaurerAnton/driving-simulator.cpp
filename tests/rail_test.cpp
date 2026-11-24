@@ -35,7 +35,6 @@ RailJson piece(double x0, double z0, double x1, double z1,
   r.a = a;
   r.b = b;
   if (stops) {
-    r.hasSt = true;
     r.st = *stops;
   }
   return r;

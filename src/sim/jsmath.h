@@ -18,6 +18,9 @@
  */
 #pragma once
 
+// (Math.hypot of two numbers is core's: core/geom.h)
+#include "core/geom.h"
+
 #if defined(__clang__)
 #pragma STDC FP_CONTRACT OFF
 #elif defined(__GNUC__)
@@ -39,8 +42,7 @@ double jsAcos(double x);
 /** Math.exp, Math.tanh */
 double jsExp(double x);
 double jsTanh(double x);
-/** Math.hypot (the largest taken out, the squares summed with a correction, the root times the largest) */
-double jsHypot(double a, double b);
+/** Math.hypot of three and four numbers (the largest taken out, the squares summed with a correction, the root times the largest); of two: core/geom.h */
 double jsHypot(double a, double b, double c);
 double jsHypot(double a, double b, double c, double d);
 

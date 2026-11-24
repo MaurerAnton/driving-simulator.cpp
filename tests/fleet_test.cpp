@@ -20,8 +20,8 @@
 #include <string>
 #include <vector>
 
-#include "src/sim/vehicle/fleet.h"
-#include "src/sim/vehicle/index.h"
+#include "sim/vehicle/fleet.h"
+#include "sim/vehicle/index.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;

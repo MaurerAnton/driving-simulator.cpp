@@ -43,6 +43,7 @@
 #include <vector>
 
 #include "sim/insertion_map.h"
+#include "world/sparse.h"
 #include "world/types.h"
 #include "world/world.h"
 
@@ -100,18 +101,13 @@ struct SignalSnapshot {
 
 class SignalSystem {
  public:
-  /** by their number in the map – with gaps where the map is not loaded */
-  const std::vector<SignalControllerJson>& controllers;
+  /** by their number in the map – with gaps where the map is not loaded (World::signals) */
+  const Sparse<SignalControllerJson>& controllers;
   /** the green arrows, by the approach they belong to */
   InsertionMap<const Arm*, Arrow> arrows;
   double time = 0;
 
-  /**
-   * `present` says which numbers of the list really are there (World::signalsPresent – the
-   * original's list simply has gaps); without it every one is.
-   */
-  explicit SignalSystem(const std::vector<SignalControllerJson>& controllers, std::function<bool(int controller)> lightsOut = nullptr,
-                        const std::vector<char>* present = nullptr);
+  explicit SignalSystem(const Sparse<SignalControllerJson>& controllers, std::function<bool(int controller)> lightsOut = nullptr);
 
   /**
    * Take up the controllers that were added to the list since (the road
@@ -221,7 +217,6 @@ class SignalSystem {
     double left = 0;
   };
 
-  const std::vector<char>* present;
   /** the numbers of the controllers that are running */
   std::vector<int> ids;
   std::vector<double> cycle;

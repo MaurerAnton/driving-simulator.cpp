@@ -6,12 +6,6 @@
  * appear on, the signal controllers and the green arrows beside their
  * lights.  The same for the game and for the tests that drive on the real
  * map.
- *
- * (The map layer this was translated against has neither the loader nor a lane graph that
- * follows a map in pieces – sim/world_needs.h, HAS_LANES_IN_PIECES.  So this is written as
- * the original is, for a loader `map` with `listen({added, removed})` and `world`, and a lane
- * graph with addEdge, completeNode, removeNode and removeEdge: it compiles where it is used
- * with those.)
  */
 #pragma once
 
@@ -21,6 +15,7 @@
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "world/lanes.h"
+#include "world/loader.h"
 #include "world/world.h"
 
 namespace fs {
@@ -34,25 +29,26 @@ struct MapFollowers {
 };
 
 /** `who` may be swapped for another set later (its fields are read at each change). */
-template <typename MapLoaderT, typename Who = MapFollowers>
-void followMap(MapLoaderT& map, Who& who) {
+inline void followMap(MapLoader& map, MapFollowers& who) {
+  MapLoader* loader = &map;
+  MapFollowers* w = &who;
   map.listen({
       .added =
-          [&map, &who](const WorldChange& c) {
-            for (Edge* e : c.edges) who.lanes->addEdge(*e);
-            for (Node* n : c.nodes) who.lanes->completeNode(*n);
-            if (who.traffic) who.traffic->addRoads(c.edges);
-            if (who.signals) who.signals->sync();
-            if (who.signals) markArrows(map.world, *who.lanes, *who.signals, c.nodes);
-            if (who.changed) who.changed();
+          [loader, w](const WorldChange& c) {
+            for (Edge* e : c.edges) w->lanes->addEdge(*e);
+            for (Node* n : c.nodes) w->lanes->completeNode(*n);
+            if (w->traffic) w->traffic->addRoads(c.edges);
+            if (w->signals) w->signals->sync();
+            if (w->signals) markArrows(loader->world, *w->lanes, *w->signals, c.nodes);
+            if (w->changed) w->changed();
           },
       .removed =
-          [&who](const WorldChange& c) {
-            if (who.traffic) who.traffic->removeRoads(c.edges);
-            if (who.signals) dropArrows(*who.signals, c.nodes);
-            for (Node* n : c.nodes) who.lanes->removeNode(*n);
-            for (Edge* e : c.edges) who.lanes->removeEdge(*e);
-            if (who.changed) who.changed();
+          [w](const WorldChange& c) {
+            if (w->traffic) w->traffic->removeRoads(c.edges);
+            if (w->signals) dropArrows(*w->signals, c.nodes);
+            for (Node* n : c.nodes) w->lanes->removeNode(*n);
+            for (Edge* e : c.edges) w->lanes->removeEdge(*e);
+            if (w->changed) w->changed();
           },
   });
 }

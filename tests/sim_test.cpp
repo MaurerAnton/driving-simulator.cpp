@@ -16,8 +16,9 @@
 #include <utility>
 #include <vector>
 
-#include "src/sim/collision.h"
-#include "src/sim/signals.h"
+#include "sim/collision.h"
+#include "sim/signals.h"
+#include "tests/sim_roads.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;
@@ -53,7 +54,7 @@ bool near(double a, double b, double eps = 0.06) { return std::abs(a - b) <= eps
 
 void timeLeft() {
   test("the time a group still shows its light, and what comes next");
-  const std::vector<SignalControllerJson> list = {junction()};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction()});
   SignalSystem s(list);
   ok(s.get(0, 0) == SIG_GREEN, "green at first");
   SignalChange c = *s.change(0, 0);
@@ -79,7 +80,7 @@ void timeLeft() {
 
 void tapEndsGreen() {
   test("a tap ends the green at once – then amber, red for all, red-amber, green for the others, as programmed");
-  const std::vector<SignalControllerJson> list = {junction()};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction()});
   SignalSystem s(list);
   for (double t = 0; t < 10; t += SDT) s.update(SDT);
   ok(s.skip(0) == true, "the tap goes through");
@@ -105,7 +106,7 @@ void tapEndsGreen() {
 
 void leastGreen() {
   test("a green that has only just begun runs its least time first; amber and clearance are never cut");
-  const std::vector<SignalControllerJson> list = {junction()};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction()});
   SignalSystem s(list);
   for (double t = 0; t < 2; t += SDT) s.update(SDT);
   ok(s.skip(0) == true, "the tap goes through");
@@ -123,7 +124,7 @@ void leastGreen() {
 
 void tappedAtRandom() {
   test("tapped at random for ten minutes: never two streams moving at once, every change in the German order");
-  const std::vector<SignalControllerJson> list = {junction(17)};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction(17)});
   SignalSystem s(list);
   const std::map<int, int> order = {{SIG_GREEN, SIG_AMBER}, {SIG_AMBER, SIG_RED}, {SIG_RED, SIG_RED_AMBER}, {SIG_RED_AMBER, SIG_GREEN}};
   int prev[2] = {s.get(0, 0), s.get(0, 1)};
@@ -157,7 +158,7 @@ void tappedAtRandom() {
 
 void timeAgrees() {
   test("the time left agrees with what the lights then do");
-  const std::vector<SignalControllerJson> list = {junction(5)};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction(5)});
   SignalSystem s(list);
   for (int k = 0; k < 12; k++) {
     const SignalChange c = *s.change(0, 1);
@@ -175,7 +176,7 @@ void timeAgrees() {
 
 void crossingAtRest() {
   test("a pedestrian crossing at rest has no time; a tap asks for the pedestrians as the button does");
-  const std::vector<SignalControllerJson> list = {crossing()};
+  const Sparse<SignalControllerJson> list = roads::controllers({crossing()});
   SignalSystem s(list);
   for (double t = 0; t < 20; t += SDT) s.update(SDT);
   ok(s.get(0, 0) == SIG_GREEN, "green for the vehicles");
@@ -202,7 +203,7 @@ void crossingAtRest() {
 
 void crossingLeastGreen() {
   test("a tap on a crossing that has just turned green for the vehicles waits for their least green");
-  const std::vector<SignalControllerJson> list = {crossing()};
+  const Sparse<SignalControllerJson> list = roads::controllers({crossing()});
   SignalSystem s(list);
   s.update(SDT);
   s.request(0);
@@ -222,7 +223,7 @@ void crossingLeastGreen() {
 
 void greenArrow() {
   test("the green arrow: when it comes on and goes out, also after a tap");
-  const std::vector<SignalControllerJson> list = {junction()};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction()});
   SignalSystem s(list);
   // an arrow beside the light of the main stream: lit while the main stream has red and the cross stream green
   Arm arm;
@@ -265,7 +266,7 @@ void greenArrow() {
 
 void replay() {
   test("a replay puts a tapped programme back as it was");
-  const std::vector<SignalControllerJson> list = {junction()};
+  const Sparse<SignalControllerJson> list = roads::controllers({junction()});
   SignalSystem s(list);
   for (double t = 0; t < 10; t += SDT) s.update(SDT);
   const SignalSnapshot before = s.snapshot(0, 0, 100);

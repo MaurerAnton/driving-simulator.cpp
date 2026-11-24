@@ -10,9 +10,9 @@
 #include <cmath>
 #include <functional>
 
-#include "src/sim/ground.h"
-#include "src/sim/jsmath.h"
-#include "src/world/cover.h"
+#include "sim/ground.h"
+#include "sim/jsmath.h"
+#include "world/cover.h"
 #include "tests/town.h"
 #include "tests/vehicle_harness.h"
 
@@ -33,12 +33,12 @@ class FakeTerrain : public TerrainSource {
   int cover;
 };
 
-town::Town theTown() {
-  town::TownOptions o;
+Town theTown() {
+  TownOptions o;
   o.cols = 3;
   o.rows = 3;
   o.block = 90;
-  return town::makeTown(o);
+  return makeTown(o);
 }
 
 }  // namespace
@@ -47,7 +47,7 @@ int main() {
   std::printf("groundgrip_test (tests/sim/groundgrip.test.ts)\n");
   {
     test("with even on: asphalt and grass give the same grip and rolling");
-    town::Town town = theTown();
+    Town town = theTown();
     FakeTerrain onAsphalt(COVER_ASPHALT);
     FakeTerrain onGrass(COVER_GRASS);
     WorldGround asphalt(*town.world, onAsphalt);
@@ -66,7 +66,7 @@ int main() {
   }
   {
     test("with even off: asphalt and grass differ (the option is doing something)");
-    town::Town town = theTown();
+    Town town = theTown();
     FakeTerrain onAsphalt(COVER_ASPHALT);
     FakeTerrain onGrass(COVER_GRASS);
     WorldGround asphalt(*town.world, onAsphalt);
@@ -80,7 +80,7 @@ int main() {
   }
   {
     test("evenTerrain: grass lies flat as a road (no bumps, no camber)");
-    town::Town town = theTown();
+    Town town = theTown();
     FakeTerrain onGrass(COVER_GRASS);
     WorldGround g(*town.world, onGrass);
     g.evenTerrain = true;

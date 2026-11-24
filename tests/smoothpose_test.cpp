@@ -11,11 +11,11 @@
 #include <cmath>
 #include <vector>
 
-#include "src/core/geom.h"
-#include "src/sim/signals.h"
-#include "src/sim/smoothpose.h"
-#include "src/sim/traffic.h"
-#include "tests/town.h"
+#include "core/geom.h"
+#include "sim/signals.h"
+#include "sim/smoothpose.h"
+#include "sim/traffic.h"
+#include "tests/sim_roads.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;
@@ -50,7 +50,8 @@ void coarseCorner() {
   const Polyline3 pl = coarseArc(8, 5);
   const double dt = 1.0 / 60;
   const double v = 8;
-  PolySample s0 = samplePolyline(pl, 0, newPolySample());
+  PolySample s0 = newPolySample();
+  samplePolyline(pl, 0, s0);
   EasedPose p{.x = s0.x, .z = s0.z, .yaw = jsAtan2(-s0.tx, -s0.tz)};
   double rawMax = 0;
   double maxStep = 0;
@@ -110,13 +111,13 @@ void standingStill() {
 void roundTheSquare() {
   test("a car of the traffic drives round the corners of a square smoothly, in its lane");
   // (straight roads between points – as tests/sim/queues.test.ts makes them, here in town and without a rule at the junctions)
-  town::Net net = town::makeNet({{0, 0}, {300, 0}, {300, 200}, {0, 200}}, {town::Road{.a = 0, .b = 1, .urban = true}, town::Road{.a = 1, .b = 2, .urban = true}, town::Road{.a = 2, .b = 3, .urban = true}, town::Road{.a = 3, .b = 0, .urban = true}},
+  roads::Net net = roads::makeNet({{0, 0}, {300, 0}, {300, 200}, {0, 200}}, {roads::Road{.a = 0, .b = 1, .urban = true}, roads::Road{.a = 1, .b = 2, .urban = true}, roads::Road{.a = 2, .b = 3, .urban = true}, roads::Road{.a = 3, .b = 0, .urban = true}},
                                 false);
-  const std::vector<SignalControllerJson> none;
+  const Sparse<SignalControllerJson> none;
   SignalSystem signals(none);
   Traffic traffic(*net.world, *net.lanes, signals);
   traffic.targetCount = 0;
-  Lane* lane = net.lanes->edgeLanes[0].fwd[0];
+  Lane* lane = net.lanes->edgeLanes[0]->fwd[0];
   TrafficCar* car = traffic.addCar(*lane, 200);
   const PlayerState away{.x = 150, .y = 160, .z = 100, .yaw = 0, .speed = 0, .length = 4.3, .width = 1.8};
   const double dt = 1.0 / 60;

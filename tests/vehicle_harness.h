@@ -9,10 +9,10 @@
 #include <string>
 #include <type_traits>
 
-#include "src/core/geom.h"
-#include "src/core/js.h"
-#include "src/sim/jsmath.h"
-#include "src/sim/vehicle/index.h"
+#include "core/geom.h"
+#include "core/js.h"
+#include "sim/jsmath.h"
+#include "sim/vehicle/index.h"
 
 namespace fs::harness {
 

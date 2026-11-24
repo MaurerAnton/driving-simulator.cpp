@@ -15,17 +15,17 @@
 #include <string>
 #include <vector>
 
-#include "src/sim/rules.h"
-#include "src/sim/signals.h"
-#include "src/sim/traffic.h"
-#include "tests/town.h"
+#include "sim/rules.h"
+#include "sim/signals.h"
+#include "sim/traffic.h"
+#include "tests/sim_roads.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;
 using fs::harness::ok;
 using fs::harness::test;
-using fs::town::Net;
-using fs::town::Road3;
+using fs::roads::Net;
+using fs::roads::Road3;
 
 namespace {
 
@@ -45,7 +45,7 @@ const double NORTH = PI;             // travel +z
  *             |  town road, y 103.5 (50 km/h)
  */
 Net setUp() {
-  return town::makeNet3({{0, 100, 0}, {100, 100, 0}, {400, 100, 0}, {160, 100, -70}, {250, 103.5, -60}, {250, 103.5, 60}},
+  return roads::makeNet3({{0, 100, 0}, {100, 100, 0}, {400, 100, 0}, {160, 100, -70}, {250, 103.5, -60}, {250, 103.5, 60}},
                         {
                             Road3{.a = 0, .b = 1, .cls = MOTORWAY, .lf = 2, .lb = 2, .lw = 3.75, .max = 0, .name = "A 99"},
                             Road3{.a = 1, .b = 2, .cls = MOTORWAY, .lf = 2, .lb = 2, .lw = 3.75, .max = 0, .name = "A 99"},
@@ -79,7 +79,7 @@ struct Monitor {
   SignalSystem signals;
   Traffic traffic;
   RuleMonitor rules;
-  Monitor() : net(setUp()), signals(net.world->signals(), nullptr, &net.world->signalsPresent()), traffic(*net.world, *net.lanes, signals), rules(*net.world, *net.lanes, signals, traffic) { traffic.targetCount = 0; }
+  Monitor() : net(setUp()), signals(net.world->signals), traffic(*net.world, *net.lanes, signals), rules(*net.world, *net.lanes, signals, traffic) { traffic.targetCount = 0; }
 };
 
 SurfaceHit hit = newSurfaceHit();
@@ -131,8 +131,8 @@ int main() {
     ok(m.rules.context.limit == 0, "on the motorway: no limit");
     // on the town road of the bridge: its 50 counts from the first step on it
     const Edge* townRoad = nullptr;
-    for (const Edge& e : m.net.world->edges())
-      if (e.name == "Brückenstraße") townRoad = &e;
+    for (const Edge* e : m.net.world->allEdges)
+      if (e->name == "Brückenstraße") townRoad = e;
     ok(townRoad != nullptr, "the town road is there");
     ok(m.net.world->surfaceAt(250, 0, 104.1, hit) && hit.edge == townRoad, "on the bridge: the town road's surface");
     stand(m.rules, 250, 103.5, 0, NORTH);

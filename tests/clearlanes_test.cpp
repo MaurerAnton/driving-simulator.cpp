@@ -4,15 +4,13 @@
 /**
  * Nothing of the scenery may stand in a lane (src/sim/clearlanes) – and a place is known to
  * be taken when the vehicle would touch something there (src/sim/collision).
- * (The lane graph's nearestPath, wallInLane and besideLanes are asked through sim/world_needs.h.)
  */
 #include <cmath>
 #include <string>
 #include <vector>
 
-#include "src/sim/clearlanes.h"
-#include "src/sim/collision.h"
-#include "src/sim/world_needs.h"
+#include "sim/clearlanes.h"
+#include "sim/collision.h"
 #include "tests/town.h"
 #include "tests/vehicle_harness.h"
 
@@ -22,22 +20,23 @@ using fs::harness::test;
 
 int main() {
   std::printf("clearlanes_test (tests/game/clearlanes.test.ts)\n");
-  town::Town town = town::makeTown();
+  Town town = makeTown();
   LaneGraph& lanes = *town.lanes;
   /** a point in the middle of a lane of the street between two junctions, halfway along */
-  const Lane* lane = lanes.edgeLanes[static_cast<size_t>(town.street(1, 1, 2, 1))].fwd[0];
-  const PolySample mid = lanePoint(*lane, lane->len / 2, newPolySample());
-  needs::PathFoot foot;
+  const Lane* lane = lanes.edgeLanes[town.street(1, 1, 2, 1)]->fwd[0];
+  PolySample mid = newPolySample();
+  lanePoint(*lane, lane->len / 2, mid);
+  PathFoot foot;
   {
     test("the middle of the nearest lane is found, on the level asked for");
-    ok(needs::nearestPath(lanes, mid.x, mid.z, mid.y, 2, foot) < 0.01, "in the middle of the lane");
-    ok(std::abs(needs::nearestPath(lanes, mid.x, mid.z + 1, mid.y, 2, foot) - 1) < 0.02, "a metre beside it");
+    ok(lanes.nearestPath(mid.x, mid.z, mid.y, 2, foot) < 0.01, "in the middle of the lane");
+    ok(std::abs(lanes.nearestPath(mid.x, mid.z + 1, mid.y, 2, foot) - 1) < 0.02, "a metre beside it");
     ok(jsHypot(foot.x - mid.x, foot.z - mid.z) < 0.02, "the foot point lies on the lane");
-    ok(needs::nearestPath(lanes, mid.x, mid.z + 8, mid.y, 2, foot) == JS_INF, "nothing within reach beside the road");
-    ok(needs::nearestPath(lanes, mid.x, mid.z, mid.y + 6, 2, foot) == JS_INF, "a road on another level does not count");
+    ok(lanes.nearestPath(mid.x, mid.z + 8, mid.y, 2, foot) == JS_INF, "nothing within reach beside the road");
+    ok(lanes.nearestPath(mid.x, mid.z, mid.y + 6, 2, foot) == JS_INF, "a road on another level does not count");
     // in the middle of a junction: the paths through it
-    const Node& node = town.world->nodes()[static_cast<size_t>(town.node(1, 1))];
-    ok(needs::nearestPath(lanes, node.x, node.z, node.y, 3, foot) < 3, "in the middle of a junction: the paths through it");
+    const Node& node = *town.world->nodes[town.node(1, 1)];
+    ok(lanes.nearestPath(node.x, node.z, node.y, 3, foot) < 3, "in the middle of a junction: the paths through it");
   }
   {
     test("a sign post in a lane is moved beside the lanes, one beside the road stays");
@@ -55,7 +54,7 @@ int main() {
     const std::pair<int, int> r = clearSigns(lanes, signs);
     ok(r.first == 1 && r.second == 0, "one moved, none dropped");
     ok(signs.size() == 2, "both still there");
-    ok(needs::nearestPath(lanes, signs[0].x, signs[0].z, signs[0].y, POST_CLEAR, foot) >= POST_CLEAR, "clear of every lane now");
+    ok(lanes.nearestPath(signs[0].x, signs[0].z, signs[0].y, POST_CLEAR, foot) >= POST_CLEAR, "clear of every lane now");
     ok(jsHypot(signs[0].x - mid.x, signs[0].z - mid.z) < 5, "and not far from where it stood");
     ok(signs[1].x == mid.x + 10 && signs[1].z == mid.z + 6, "the one beside the road stays");
     ok(postInLane(lanes, mid.x, mid.y, mid.z) == true, "a post in the lane");
@@ -82,10 +81,10 @@ int main() {
   {
     test("walls lose the pieces that reach into a lane – and only those");
     // across the road, along it at the kerb, along it well beside it, and across it on a bridge high above
-    ok(needs::wallInLane(lanes, mid.x, mid.z - 6, mid.x, mid.z + 6, mid.y, WALL_CLEAR) == true, "across the road");
-    ok(needs::wallInLane(lanes, mid.x - 10, mid.z + 0.9, mid.x + 10, mid.z + 0.9, mid.y, WALL_CLEAR) == true, "along it at the kerb");
-    ok(needs::wallInLane(lanes, mid.x - 10, mid.z + 5, mid.x + 10, mid.z + 5, mid.y, WALL_CLEAR) == false, "along it well beside it");
-    ok(needs::wallInLane(lanes, mid.x, mid.z - 6, mid.x, mid.z + 6, mid.y + 7, WALL_CLEAR) == false, "across it on a bridge high above");
+    ok(lanes.wallInLane(mid.x, mid.z - 6, mid.x, mid.z + 6, mid.y, WALL_CLEAR) == true, "across the road");
+    ok(lanes.wallInLane(mid.x - 10, mid.z + 0.9, mid.x + 10, mid.z + 0.9, mid.y, WALL_CLEAR) == true, "along it at the kerb");
+    ok(lanes.wallInLane(mid.x - 10, mid.z + 5, mid.x + 10, mid.z + 5, mid.y, WALL_CLEAR) == false, "along it well beside it");
+    ok(lanes.wallInLane(mid.x, mid.z - 6, mid.x, mid.z + 6, mid.y + 7, WALL_CLEAR) == false, "across it on a bridge high above");
     // a house whose corner stands in the lane: the two walls of that corner go, the others stay
     const auto f = [](double x) { return static_cast<float>(x); };
     const std::vector<float> ring = {f(mid.x - 4), f(mid.z + 0.5), f(mid.x + 4), f(mid.z + 0.5), f(mid.x + 4), f(mid.z + 9), f(mid.x - 4), f(mid.z + 9)};
@@ -93,7 +92,7 @@ int main() {
     const std::vector<float> segments = {f(mid.x - 3), f(mid.z - 9), f(mid.x + 3), f(mid.z - 9), f(mid.y)};
     const std::vector<float> walls = clearWalls(lanes, &ring, &counts, &segments);
     ok(walls.size() / 5 == 2, "the far wall of the house and the free-standing wall beside the road (" + std::to_string(walls.size() / 5) + ")");
-    for (size_t i = 0; i < walls.size(); i += 5) ok(needs::wallInLane(lanes, walls[i], walls[i + 1], walls[i + 2], walls[i + 3], walls[i + 4], WALL_CLEAR) == false, "what is left reaches into no lane");
+    for (size_t i = 0; i < walls.size(); i += 5) ok(lanes.wallInLane(walls[i], walls[i + 1], walls[i + 2], walls[i + 3], walls[i + 4], WALL_CLEAR) == false, "what is left reaches into no lane");
     const std::optional<std::vector<uint8_t>> bits = ringSidesInLanes(lanes, ring, counts);
     ok(bits.has_value() && bits->size() == 1 && (*bits)[0] == 0b1011, "the sides of the footprint that stand in a lane: all but the far one");
   }

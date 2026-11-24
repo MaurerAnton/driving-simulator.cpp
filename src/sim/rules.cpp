@@ -8,7 +8,6 @@
 #include "core/geom.h"
 #include "core/js.h"
 #include "sim/jsmath.h"
-#include "sim/world_needs.h"
 
 namespace fs {
 
@@ -106,7 +105,7 @@ void RuleMonitor::report(const std::string& id, Severity severity, const PlayerS
 }
 
 Lane* RuleMonitor::laneFor(const Edge& edge, double s, double off, int dir) const {
-  const LaneGraph::EdgeLanes* el = needs::edgeLanes(graph, edge.id);
+  const LaneGraph::EdgeLanes* el = graph.edgeLanes[edge.id];
   if (!el) return nullptr;
   const std::vector<Lane*>& list = dir > 0 ? el->fwd : el->back;
   if (list.empty()) return nullptr;
@@ -163,7 +162,7 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
   // track of the road we are on: fall back to the nearest carriageway.
   bool near = false;
   if (!onSurface || (hit.zone != 0 && !hit.edge)) {
-    if (needs::locate(world, p.x, p.z, p.y, FALLBACK_MAX_DIST, frontHit, FALLBACK_MAX_DY) && frontHit.edge) {
+    if (world.locate(p.x, p.z, p.y, FALLBACK_MAX_DIST, frontHit, FALLBACK_MAX_DY) && frontHit.edge) {
       near = true;
       edge = frontHit.edge;
       hit.edge = edge;
@@ -246,7 +245,7 @@ void RuleMonitor::update(double dt, const PlayerSnapshot& p, const std::vector<T
     if (laneHere && !oneWayAgainst && !inJunctionZone && std::abs(headingCos) > 0.8 && edge->lanesF > 0 && edge->lanesB > 0 && edge->laneW >= 2.5 && moving && p.speed > 3 &&
         !(works && works->passing(*edge, hit.s, dir)) && !(traffic.narrowings && traffic.narrowings->passing(*edge, hit.s, dir))) {
       const double myOff = hit.off * dir;  // + = left of our direction
-      const double centre = (dir > 0 ? -edge->width / 2 + needs::marginR(*edge) + edge->lanesF * edge->laneW : edge->width / 2 - needs::marginL(*edge) - edge->lanesB * edge->laneW) * dir;
+      const double centre = (dir > 0 ? -edge->width / 2 + edge->marginR + edge->lanesF * edge->laneW : edge->width / 2 - edge->marginL - edge->lanesB * edge->laneW) * dir;
       // car centre beyond the middle of the road
       if (myOff > centre + 0.45) {
         wrongSide += dt;
@@ -450,7 +449,7 @@ void RuleMonitor::trackLane(Lane& lane_, double s, double dt, const PlayerSnapsh
     j.ctrl = node.ctrl;
     j.signal = arm.sg >= 0 && node.sc >= 0 ? signals.get(node.sc, arm.sg) : -1;
     j.arrow = signals.arrows.has(&arm) ? signals.arrow(&arm) : -2;
-    j.dark = needs::dark(node);
+    j.dark = node.dark;
     ctx.junction = j;
   } else {
     ctx.junction = std::nullopt;
@@ -542,9 +541,9 @@ void RuleMonitor::judgeTurn(Edge& exitEdge, const PlayerSnapshot& p) {
   Entry& e = *entry;
   Node& node = *e.node;
   const Arm* exitArm = nullptr;
-  for (const Arm& a : node.arms) {
-    if (a.edge == &exitEdge) {
-      exitArm = &a;
+  for (const Arm* a : node.arms) {
+    if (a->edge == &exitEdge) {
+      exitArm = a;
       break;
     }
   }
@@ -599,7 +598,7 @@ void RuleMonitor::judgeTurn(Edge& exitEdge, const PlayerSnapshot& p) {
     report("wrongIndicator", "hint", p, {{"dir", std::string("none")}}, 10);
   }
   // entering forbidden directions
-  if (needs::isBanned(world, *e.arm->edge, node, exitEdge)) report("turnBan", "major", p, {}, 6);
+  if (world.isBanned(*e.arm->edge, node, exitEdge)) report("turnBan", "major", p, {}, 6);
 }
 
 void RuleMonitor::judgePriority(const TrafficCar& car, const PlayerSnapshot& p, bool cutIn) {
@@ -658,10 +657,10 @@ void RuleMonitor::checkCrossings(const Edge& edge, double s, int dir, const Play
     const double prev = known ? was->second : 0;
     crossingState[&c] = d;
     if (!known) continue;
-    if (c.k == XING_SIGNAL && c.sc >= 0) {
+    if (c.k == XING_SIGNAL && c.sc) {
       // the crossing is the protected area; the bumper a hand's breadth into it is not yet "over"
       if (!(prev > -0.3 && d <= -0.3)) continue;
-      const int st = signals.get(c.sc, c.g >= 0 ? c.g : 0);
+      const int st = signals.get(*c.sc, c.g.value_or(0));
       if (st == SIG_RED || st == SIG_RED_AMBER) report("redLight", "fail", p, {}, 8);
     } else if (c.k == XING_ZEBRA) {
       if (!(prev > 0 && d <= 0)) continue;

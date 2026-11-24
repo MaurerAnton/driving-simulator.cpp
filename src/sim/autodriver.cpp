@@ -7,7 +7,6 @@
 #include <functional>
 
 #include "sim/jsmath.h"
-#include "sim/world_needs.h"
 #include "world/types.h"
 
 namespace fs {
@@ -288,8 +287,8 @@ AutoCommand& AutoDriver::step(double dt, const Vehicle& v, const double* mpos, c
       const double d = offset + pos - c.w / 2;
       if (d < -0.5 || d > 70) continue;
       bool stop = false;
-      if (c.sc >= 0) {
-        const int st = signals.get(c.sc, c.g >= 0 ? c.g : 0);
+      if (c.sc) {
+        const int st = signals.get(*c.sc, c.g.value_or(0));
         stop = st == SIG_RED || st == SIG_RED_AMBER || (st == SIG_AMBER && (speed * speed) / (2 * jsMax(d, 0.5)) < 3);
         if (stop) remark = "red";
       }
@@ -464,7 +463,7 @@ AutoCommand& AutoDriver::step(double dt, const Vehicle& v, const double* mpos, c
         remark = "rbl";
       }
       // the lights are out of order: the signs decide (said here; "stop" and "give way" follow where they apply)
-      if (needs::dark(node) && distToLine < 50) remark = "lightsOut";
+      if (node.dark && distToLine < 50) remark = "lightsOut";
       if (obey && arm.sg >= 0 && node.sc >= 0) {
         const int st = signals.get(node.sc, arm.sg);
         // the green arrow beside the light: turning right is allowed while it is lit, whatever the main light shows
@@ -514,7 +513,7 @@ AutoCommand& AutoDriver::step(double dt, const Vehicle& v, const double* mpos, c
     }
     // --- the others at the junction: give way, and never drive into a car that is crossing ---
     bool yielding = false;
-    if (traffic && obey && next && !mustStop && (node.arms.size() > 2 || needs::conflicts(traffic->graph, *next).size() > 0) && distToLine > -1.5 && distToLine < 28) {
+    if (traffic && obey && next && !mustStop && (node.arms.size() > 2 || next->conflicts.size() > 0) && distToLine > -1.5 && distToLine < 28) {
       bool ok = traffic->mayPass(me, *next, jsMax(distToLine, 0));
       // everybody waits for somebody: after a while, with the junction empty, take a tighter gap
       if (!ok && yieldWait > 12 && traffic->clearOf(*next) && traffic->mayPass(me, *next, jsMax(distToLine, 0), true)) ok = true;

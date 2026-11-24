@@ -7,7 +7,6 @@
 
 #include "sim/jsmath.h"
 #include "sim/traffic.h"
-#include "sim/world_needs.h"
 #include "world/types.h"
 
 namespace fs {
@@ -287,7 +286,7 @@ std::optional<PastPlan> PastBlocks::plan(TrafficCar& car, const PlayerState* pla
   }
   // 2) a lane beside going the same way
   static const std::vector<Lane*> none;
-  const LaneGraph::EdgeLanes* el = needs::edgeLanes(road.graph, e.id);
+  const LaneGraph::EdgeLanes* el = road.graph.edgeLanes[e.id];
   const std::vector<Lane*>& mine = el ? (lane->dir > 0 ? el->fwd : el->back) : none;
   for (const int k : {lane->idx + 1, lane->idx - 1}) {
     Lane* other = k >= 0 && static_cast<size_t>(k) < mine.size() ? mine[static_cast<size_t>(k)] : nullptr;

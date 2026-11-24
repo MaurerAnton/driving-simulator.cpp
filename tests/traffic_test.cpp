@@ -6,10 +6,6 @@
  * (flashing amber – the signs count) and the green arrow for turning right –
  * what the traffic and the rule monitor make of them.
  *
- * Of the original's cases, the three about a junction whose lights are out are not here: which
- * lights are out is the map layer's to know (World.lightsOut, Node.dark), and the map layer of
- * this worktree does not know it yet (sim/world_needs.h).  Which controllers are out
- * (lightsOutBy) and everything about the green arrow is.
  */
 #include <cmath>
 #include <functional>
@@ -18,19 +14,19 @@
 #include <variant>
 #include <vector>
 
-#include "src/core/geom.h"
-#include "src/sim/arrows.h"
-#include "src/sim/rules.h"
-#include "src/sim/signals.h"
-#include "src/sim/traffic.h"
-#include "src/world/lanes.h"
+#include "core/geom.h"
+#include "sim/arrows.h"
+#include "sim/rules.h"
+#include "sim/signals.h"
+#include "sim/traffic.h"
+#include "world/lanes.h"
+#include "tests/sim_roads.h"
 #include "tests/town.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;
 using fs::harness::ok;
 using fs::harness::test;
-using fs::town::Town;
 
 namespace {
 
@@ -39,8 +35,8 @@ const double BLOCK = 160;
 
 /** The lane of a street that arrives at the junction (i, j), coming from (i0, j0). */
 Lane* laneTo(Town& town, int i0, int j0, int i, int j) {
-  const LaneGraph::EdgeLanes& el = town.lanes->edgeLanes[static_cast<size_t>(town.street(i0, j0, i, j))];
-  const Node* node = &town.world->nodes()[static_cast<size_t>(town.node(i, j))];
+  const LaneGraph::EdgeLanes& el = *town.lanes->edgeLanes[town.street(i0, j0, i, j)];
+  const Node* node = town.world->nodes[town.node(i, j)];
   for (Lane* l : el.fwd)
     if (l->to == node) return l;
   for (Lane* l : el.back)
@@ -56,23 +52,25 @@ Lane* laneTo(Town& town, int i0, int j0, int i, int j) {
 struct LitTown {
   Town town;
   SignalSystem signals;
-  explicit LitTown(bool tee = false) : town(make(tee)), signals(town.world->signals(), nullptr, &town.world->signalsPresent()) {}
-  static Town make(bool tee) {
-    town::TownOptions o;
+  explicit LitTown(bool tee = false, bool out = false, bool noSigns = false) : town(make(tee, out, noSigns)), signals(town.world->signals, town.world->lightsOut) {}
+  static Town make(bool tee, bool out, bool noSigns) {
+    TownOptions o;
     o.cols = 3;
     o.rows = 3;
     o.block = BLOCK;
     o.pavement = 2;
     o.lights = {{1, 1}};
     if (tee) o.missing = {{1, 0, 1, 1}};
-    return town::makeTown(o);
+    if (out) o.lightsOut = [](int) { return true; };
+    o.lightsUnsigned = noSigns;
+    return makeTown(o);
   }
   std::vector<Node*> allNodes() {
     std::vector<Node*> out;
-    for (Node& n : town.world->nodes()) out.push_back(&n);
+    for (Node* n : town.world->allNodes) out.push_back(n);
     return out;
   }
-  Node& node(int i, int j) { return town.world->nodes()[static_cast<size_t>(town.node(i, j))]; }
+  Node& node(int i, int j) { return *town.world->nodes[town.node(i, j)]; }
 };
 
 Connector* outOf(Lane* lane, int turn) {
@@ -107,6 +105,94 @@ void whichLightsAreOut() {
   }
   ok(out0 == 0, "a share of nothing: none");
   ok(out1 == 500, "a share of all: every one");
+}
+
+/** whether `from` gives way to `to` where their paths meet (−1: they do not meet) */
+int yieldsTo(const Connector* from, const Connector* to) {
+  for (const Conflict& k : from->conflicts)
+    if (k.other == to) return k.yield ? 1 : 0;
+  return -1;
+}
+
+void lightsOutSigns() {
+  test("a junction whose lights are out is ruled by its signs: the heads stand and flash, the side road gives way");
+  LitTown t(false, true);
+  Node& node = t.node(1, 1);
+  ok(node.dark == true, "its lights are out");
+  ok(node.ctrl == CTRL_SIGNS, "ruled by its signs");
+  for (const Arm* arm : node.arms) {
+    ok(arm->sg == -1, "no light rules the approach");
+    ok(arm->lamp >= 0, "but its head still stands there");
+  }
+  ok(t.signals.isDark(node.sc) == true, "the controller is dark");
+  for (double time = 0; time < 70; time += 0.5) {
+    t.signals.update(0.5);
+    ok(t.signals.get(node.sc, 0) == SIG_FLASH, "the main road's light flashes");
+    ok(t.signals.get(node.sc, 1) == SIG_FLASH, "the side road's light flashes");
+  }
+  // who gives way to whom, as at any junction with signs
+  t.town.lanes->resolveNode(node.id);
+  const Connector* side = outOf(laneTo(t.town, 1, 0, 1, 1), TURN_STRAIGHT);
+  const Connector* main = outOf(laneTo(t.town, 0, 1, 1, 1), TURN_STRAIGHT);
+  ok(yieldsTo(side, main) == 1, "from the side road: wait");
+  ok(yieldsTo(main, side) == 0, "on the main road: go");
+
+  // the same junction with its lights working: the lights keep the two apart, nobody gives way
+  LitTown fine;
+  Node& n2 = fine.node(1, 1);
+  ok(n2.dark == false, "its lights work");
+  ok(n2.ctrl == CTRL_SIGNALS, "ruled by its lights");
+  fine.town.lanes->resolveNode(n2.id);
+  const Connector* side2 = outOf(laneTo(fine.town, 1, 0, 1, 1), TURN_STRAIGHT);
+  const Connector* main2 = outOf(laneTo(fine.town, 0, 1, 1, 1), TURN_STRAIGHT);
+  ok(yieldsTo(side2, main2) == 0, "nobody gives way");
+  for (const Arm* a : n2.arms) ok(a->sg == a->lamp && a->sg >= 0, "each approach has its light, and it rules");
+}
+
+void lightsOutNoSigns() {
+  test("lights out and no signs under them: right before left");
+  LitTown t(false, true, true);
+  Node& node = t.node(1, 1);
+  ok(node.ctrl == CTRL_RBL, "right before left");
+  for (const Arm* a : node.arms) ok(a->role == ROLE_RBL, "on every approach");
+}
+
+void trafficWithLightsOut() {
+  test("the traffic gets through a junction whose lights are out – the side road waits, nobody collides");
+  LitTown t(false, true);
+  Traffic traffic(*t.town.world, *t.town.lanes, t.signals);
+  traffic.targetCount = 16;
+  const Node& node = t.node(1, 1);
+  const PlayerState player{.x = node.x, .y = node.y + 40, .z = node.z, .yaw = 0, .speed = 0, .length = 4.3, .width = 1.8};
+  int main = 0;
+  int side = 0;
+  std::unordered_set<int64_t> inside;
+  int overlaps = 0;
+  for (int step = 0; step < 30 * 360; step++) {
+    t.signals.update(TDT);
+    traffic.update(TDT, player);
+    for (const TrafficCar* car : traffic.cars) {
+      if (car->conn && car->conn->node == &node && !inside.count(car->id)) {
+        inside.insert(car->id);
+        if (car->conn->from->armTo->role == ROLE_PRIORITY) main++;
+        else side++;
+      } else if (!car->conn) {
+        inside.erase(car->id);
+      }
+    }
+    if (step % 5 != 0) continue;
+    const std::vector<TrafficCar*>& cars = traffic.cars;
+    for (size_t i = 0; i < cars.size(); i++) {
+      for (size_t k = i + 1; k < cars.size(); k++) {
+        const TrafficCar& a = *cars[i];
+        const TrafficCar& b = *cars[k];
+        if (std::abs(a.x - b.x) > 6 || std::abs(a.z - b.z) > 6) continue;
+        if (boxesOverlap(a.x, a.z, a.yaw, a.length / 2 - 0.3, a.width / 2 - 0.25, b.x, b.z, b.yaw, b.length / 2 - 0.3, b.width / 2 - 0.25)) overlaps++;
+      }
+    }
+  }
+  ok(main >= 5 && side >= 3, "both streets get through (" + std::to_string(main) + " from the main road, " + std::to_string(side) + " from the side road)");
+  ok(overlaps == 0, "no car in another");
 }
 
 void whereAnArrowHangs() {
@@ -322,8 +408,8 @@ void trafficOnTheArrow() {
 void carsAppear() {
   test("(kept from this file's first draft) on two roads from a junction cars appear, drive along their lanes within the limit, and keep apart");
   // two roads of 400 m from a junction at the origin, east and south – as the draft's test had them
-  town::Net net = town::makeNet({{0, 0}, {400, 0}, {0, 400}}, {town::Road{.a = 0, .b = 1, .cls = RESIDENTIAL}, town::Road{.a = 0, .b = 2, .cls = RESIDENTIAL}});
-  const std::vector<SignalControllerJson> none;
+  roads::Net net = roads::makeNet({{0, 0}, {400, 0}, {0, 400}}, {roads::Road{.a = 0, .b = 1, .cls = RESIDENTIAL}, roads::Road{.a = 0, .b = 2, .cls = RESIDENTIAL}});
+  const Sparse<SignalControllerJson> none;
   SignalSystem signals(none);
   Traffic traffic(*net.world, *net.lanes, signals);
   const PlayerState player{.x = 0, .y = 100, .z = 0, .yaw = 0, .speed = 0, .length = 4.3, .width = 1.8};
@@ -348,12 +434,15 @@ void carsAppear() {
 int main() {
   std::printf("traffic_test (tests/game/signals.test.ts)\n");
   whichLightsAreOut();
+  lightsOutSigns();
+  lightsOutNoSigns();
+  trafficWithLightsOut();
   whereAnArrowHangs();
   whenTheArrowIsLit();
   amberFirst();
   overTheLineOnTheArrow();
   trafficOnTheArrow();
   carsAppear();
-  std::printf("traffic_test: all 7 cases passed\n");
+  std::printf("traffic_test: all 10 cases passed\n");
   return 0;
 }

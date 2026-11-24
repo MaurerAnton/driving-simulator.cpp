@@ -11,8 +11,8 @@
 #include <memory>
 #include <vector>
 
-#include "src/sim/trailer.h"
-#include "src/sim/vehicle/index.h"
+#include "sim/trailer.h"
+#include "sim/vehicle/index.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;

@@ -7,7 +7,6 @@
 
 #include "core/geom.h"
 #include "core/js.h"
-#include "sim/world_needs.h"
 #include "world/types.h"
 
 namespace fs {
@@ -24,7 +23,8 @@ const double PART = 70;
 /** The junctions of the same controller a few metres along the roads from `node` (through mere joints). */
 std::vector<Node*> partners(Node& node) {
   std::vector<Node*> out;
-  for (Arm& arm : node.arms) {
+  for (Arm* armAt : node.arms) {
+    Arm& arm = *armAt;
     Edge* edge = arm.edge;
     Node* at = &node;
     double dist = 0;
@@ -39,9 +39,9 @@ std::vector<Node*> partners(Node& node) {
       }
       if (far->stub || far->arms.size() != 2) break;
       Arm* on = nullptr;
-      for (Arm& a : far->arms) {
-        if (a.edge != edge) {
-          on = &a;
+      for (Arm* a : far->arms) {
+        if (a->edge != edge) {
+          on = a;
           break;
         }
       }
@@ -56,7 +56,7 @@ std::vector<Node*> partners(Node& node) {
 /** The lanes that arrive at a junction on an approach. */
 std::vector<Lane*> lanesOn(LaneGraph& graph, const Arm& arm) {
   std::vector<Lane*> out;
-  const LaneGraph::EdgeLanes* el = needs::edgeLanes(graph, arm.edge->id);
+  const LaneGraph::EdgeLanes* el = graph.edgeLanes[arm.edge->id];
   if (!el) return out;
   for (Lane* l : el->fwd)
     if (l->armTo == &arm) out.push_back(l);
@@ -75,9 +75,9 @@ struct Near {
 std::vector<Near> crossingsNear(const Arm& arm) {
   std::vector<Near> out;
   for (const CrossingJson& x : arm.edge->xings) {
-    if (x.k != XING_SIGNAL || x.sc < 0) continue;
+    if (x.k != XING_SIGNAL || !x.sc) continue;
     const double dist = arm.out ? x.s : arm.edge->len - x.s;
-    if (dist < NEAR_) out.push_back(Near{dist, x.sc, x.g >= 0 ? x.g : 0});
+    if (dist < NEAR_) out.push_back(Near{dist, *x.sc, x.g.value_or(0)});
   }
   return out;
 }
@@ -85,13 +85,9 @@ std::vector<Near> crossingsNear(const Arm& arm) {
 }  // namespace
 
 std::optional<Arrow> findArrow(World& world, LaneGraph& graph, SignalSystem& signals, Node& node, Arm& arm) {
-  if (node.stub || needs::dark(node) || node.ctrl != CTRL_SIGNALS || node.sc < 0 || arm.sg < 0 || !arm.isApproach) return std::nullopt;
-  const std::vector<SignalControllerJson>& list_ = world.signals();
-  const std::vector<char>& present = world.signalsPresent();
-  const size_t sc = static_cast<size_t>(node.sc);
-  if (sc >= list_.size() || (sc < present.size() && !present[sc])) return std::nullopt;
-  const SignalControllerJson& controller = list_[sc];
-  if (controller.ped || controller.groups < 2) return std::nullopt;
+  if (node.stub || node.dark || node.ctrl != CTRL_SIGNALS || node.sc < 0 || arm.sg < 0 || !arm.isApproach) return std::nullopt;
+  const SignalControllerJson* controller = world.signals[node.sc];
+  if (!controller || controller->ped || controller->groups < 2) return std::nullopt;
   // the turns to the right, from the lane at the kerb
   Lane* lane = nullptr;
   for (Lane* l : lanesOn(graph, arm)) {
@@ -111,7 +107,7 @@ std::optional<Arrow> findArrow(World& world, LaneGraph& graph, SignalSystem& sig
   std::set<int> foes;
   std::set<int> friends;
   for (Connector* c : turns) {
-    for (const Conflict& k : needs::conflicts(graph, *c)) {
+    for (const Conflict& k : c->conflicts) {
       const Arm* from = k.other->from->armTo;
       if (from == &arm) continue;
       if (from->sg < 0) {
@@ -123,9 +119,9 @@ std::optional<Arrow> findArrow(World& world, LaneGraph& graph, SignalSystem& sig
     }
     // the people crossing the road the turn leads into
     const Arm* exit = nullptr;
-    for (const Arm& a : node.arms) {
-      if (a.edge == c->to->edge && &a != &arm) {
-        exit = &a;
+    for (const Arm* a : node.arms) {
+      if (a->edge == c->to->edge && a != &arm) {
+        exit = a;
         break;
       }
     }
@@ -157,10 +153,11 @@ int markArrowsAt(World& world, LaneGraph& graph, SignalSystem& signals, Node& no
   if (node.ctrl != CTRL_SIGNALS || node.sc < 0) return n;
   // (a part of a bigger junction has come: what was taken for a junction of its own is none)
   for (Node* p : partners(node))
-    for (Arm& arm : p->arms) signals.arrows.erase(&arm);
-  for (Arm& arm : node.arms) {
+    for (Arm* arm : p->arms) signals.arrows.erase(arm);
+  for (Arm* armAt : node.arms) {
+    Arm& arm = *armAt;
     if (signals.arrows.has(&arm)) continue;
-    if (hash01(jsInt32(node.id * 31.0 + arm.edge->id * 17.0 + 5)) >= share) continue;
+    if (hash01(node.id * 31.0 + arm.edge->id * 17.0 + 5) >= share) continue;
     std::optional<Arrow> a = findArrow(world, graph, signals, node, arm);
     if (!a) continue;
     signals.arrows.set(&arm, std::move(*a));

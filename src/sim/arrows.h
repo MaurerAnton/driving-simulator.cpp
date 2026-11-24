@@ -63,7 +63,7 @@ int markArrows(World& world, LaneGraph& graph, SignalSystem& signals, const Node
 template <typename Nodes>
 void dropArrows(SignalSystem& signals, const Nodes& nodes) {
   for (Node* node : nodes)
-    for (Arm& arm : node->arms) signals.arrows.erase(&arm);
+    for (Arm* arm : node->arms) signals.arrows.erase(arm);
 }
 
 }  // namespace fs

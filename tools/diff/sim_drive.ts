@@ -134,7 +134,7 @@ for (let i = 0; i < steps; i++) {
   const j = rules.context.junction;
   const s = driver.seen;
   out.push(
-    `${i + 1} ${mpos[0]} ${mpos[1]} ${mpos[2]} ${v.yaw} ${v.speed} ${v.rpm} ${v.gear} ${cmd.steer} ${cmd.throttle} ${cmd.brake} ${cmd.indicator} ${cmd.look} ${cmd.remark || '-'} ${cmd.waiting ? 1 : 0} ${cmd.arrived ? 1 : 0} ` +
+    `step ${i + 1} ${mpos[0]} ${mpos[1]} ${mpos[2]} ${v.yaw} ${v.speed} ${v.rpm} ${v.gear} ${cmd.steer} ${cmd.throttle} ${cmd.brake} ${cmd.indicator} ${cmd.look} ${cmd.remark || '-'} ${cmd.waiting ? 1 : 0} ${cmd.arrived ? 1 : 0} ` +
       `${rules.context.limit} ${j ? j.dist : -1} ${j ? j.signal : -9} ${j ? j.role : -9} ${rules.context.onRoad ? 1 : 0} ${rules.laneNow ? rules.laneNow.id : -1} ${rules.laneFront} ` +
       `${s.limit} ${s.distToLine} ${s.gap} ${s.mustStop ? 1 : 0} ${s.crossStop ? 1 : 0} ${s.turn} ${traffic.cars.length} ${rules.log.length} ${crashes} ${turned}`,
   );

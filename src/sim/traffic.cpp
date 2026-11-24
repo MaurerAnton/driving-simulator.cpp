@@ -7,7 +7,6 @@
 #include <unordered_set>
 
 #include "sim/jsmath.h"
-#include "sim/world_needs.h"
 #include "world/routegraph.h"
 
 namespace fs {
@@ -52,7 +51,7 @@ Traffic::Traffic(World& world_, LaneGraph& graph_, SignalSystem& signals_) : wor
   probe.temper = 1;
   box.length = 4.3;
   box.width = 1.8;
-  addRoads(needs::allEdges(world));
+  addRoads(world.allEdges);
 }
 
 Traffic::~Traffic() {
@@ -65,7 +64,7 @@ const std::vector<Pedestrian*>& Traffic::peds() const {
 }
 
 void Traffic::addRoad(Edge& e) {
-  const LaneGraph::EdgeLanes* el = needs::edgeLanes(graph, e.id);
+  const LaneGraph::EdgeLanes* el = graph.edgeLanes[e.id];
   if (!el) return;
   for (const std::vector<Lane*>* side : {&el->fwd, &el->back}) {
     for (Lane* lane : *side) {
@@ -92,7 +91,7 @@ void Traffic::removeRoadSet(const InsertionSet<Edge*>& away) {
   }
   if (crowd) crowd->removeRoads(away);
   for (Edge* e : away) {
-    const LaneGraph::EdgeLanes* el = needs::edgeLanes(graph, e->id);
+    const LaneGraph::EdgeLanes* el = graph.edgeLanes[e->id];
     if (!el) continue;
     for (const std::vector<Lane*>* side : {&el->fwd, &el->back}) {
       for (Lane* lane : *side) {
@@ -195,7 +194,7 @@ void Traffic::spawn(const PlayerState& player) {
     const std::vector<TrafficCar*>* others = listOf(onLane, lane->id);
     if (someNear(others, s, 14)) continue;
     // now and then a city bus – on a street through the town, where stops are, or on the way of a line
-    const bool lineHere = lines != nullptr && lines->has(needs::wayOf(*lane));
+    const bool lineHere = lines != nullptr && lines->has(wayOf(*lane));
     bool bus = (busStops != nullptr || lineHere) && rand() < busShare && (lineHere || (lane->edge->cls >= PRIMARY && lane->edge->cls <= RESIDENTIAL)) && lane->len > 30;
     if (bus) {
       for (const TrafficCar* o : cars) {
@@ -297,7 +296,7 @@ std::optional<BusOnLine> Traffic::pickLine(const Lane& lane, const std::string& 
   // (not on the way round from the end of a route to the line back: there it shows where it came from)
   // (nor on a line of the timetables: its buses come by them – busSchedule)
   std::vector<BusLines::At> here;
-  for (const BusLines::At& h : lines->at(needs::wayOf(lane)))
+  for (const BusLines::At& h : lines->at(wayOf(lane)))
     if (h.k < h.line->end && !(busSchedule && busSchedule->timed(h.line->index))) here.push_back(h);
   if (here.empty()) return std::nullopt;
   const BusLines::At* pick = nullptr;
@@ -338,12 +337,12 @@ const std::vector<int>& Traffic::ahead(const BusOnLine& on, int n) {
 bool Traffic::reaches(const Lane& lane, const std::vector<int>& ws, size_t i, int depth) const {
   if (depth == 0 || i >= ws.size() || lane.out.empty()) return true;
   for (const Connector* c : lane.out)
-    if (needs::wayOf(*c->to) == ws[i] && reaches(*c->to, ws, i + 1, depth - 1)) return true;
+    if (wayOf(*c->to) == ws[i] && reaches(*c->to, ws, i + 1, depth - 1)) return true;
   return false;
 }
 
 Lane* Traffic::laneFor(Lane& lane, const BusOnLine& on) {
-  const LaneGraph::EdgeLanes* el = needs::edgeLanes(graph, lane.edge->id);
+  const LaneGraph::EdgeLanes* el = graph.edgeLanes[lane.edge->id];
   const std::vector<Lane*>& list = lane.dir > 0 ? el->fwd : el->back;
   if (list.size() < 2) return &lane;
   const std::vector<int> ahead_ = ahead(on, 4);
@@ -370,7 +369,7 @@ Connector* Traffic::nextFor(BusOnLine* on, Lane& lane, TrafficCar* car) {
     Connector* best = nullptr;
     double bestScore = -JS_INF;
     for (Connector* c : lane.out) {
-      if (needs::wayOf(*c->to) != ahead_[0]) continue;
+      if (wayOf(*c->to) != ahead_[0]) continue;
       const double score = (reaches(*c->to, ahead_, 1, 3) ? 100 : 0) - c->to->idx;
       if (score > bestScore) {
         bestScore = score;
@@ -409,29 +408,29 @@ std::optional<std::vector<Connector*>> Traffic::wayBack(Lane& lane, const BusOnL
   for (int j = on.k + 1; j < std::min(nWays, on.k + 13); j++) goal.insert(line->ways[static_cast<size_t>(j)]);
   if (line->back && on.k >= nWays - 3)
     for (int j = 0; j < std::min(static_cast<int>(line->back->ways.size()), 6); j++) goal.insert(line->back->ways[static_cast<size_t>(j)]);
-  goal.erase(needs::wayOf(lane));
+  goal.erase(wayOf(lane));
   if (goal.empty()) return std::nullopt;
   std::unordered_map<int, double> dist{{lane.id, 0.0}};
   std::unordered_map<int, Connector*> prev;
-  MinHeap heap;
+  MinHeap heap(64);
   heap.push(lane.id, 0);
   Lane* found = nullptr;
   const auto distOf = [&](int id) {
     auto it = dist.find(id);
     return it == dist.end() ? JS_INF : it->second;
   };
-  for (int pops = 0; heap.size() > 0 && pops < 6000; pops++) {
+  for (int pops = 0; heap.size > 0 && pops < 6000; pops++) {
     const double d = heap.topKey();
-    Lane* l = needs::laneAt(graph, heap.pop());
+    Lane* l = graph.lanes[heap.pop()];
     if (!l || d > distOf(l->id)) continue;
-    if (l != &lane && goal.count(needs::wayOf(*l))) {
+    if (l != &lane && goal.count(wayOf(*l))) {
       found = l;
       break;
     }
     for (Connector* c : l->out) {
       Lane* t = c->to;
       // (not through private roads – unless they are its line's own, a turning loop for buses)
-      if (!LaneGraph::drivable(*t->edge, false) && !goal.count(needs::wayOf(*t))) continue;
+      if (!LaneGraph::drivable(*t->edge, false) && !goal.count(wayOf(*t))) continue;
       const double nd = d + c->len + t->len + (c->turn == TURN_UTURN ? 80 : 0);
       if (nd > 2500 || nd >= distOf(t->id)) continue;
       dist[t->id] = nd;
@@ -451,7 +450,7 @@ std::optional<std::vector<Connector*>> Traffic::wayBack(Lane& lane, const BusOnL
 }
 
 Lane* Traffic::laneTowards(Lane& lane, const std::vector<int>& ahead_) {
-  const LaneGraph::EdgeLanes* el = needs::edgeLanes(graph, lane.edge->id);
+  const LaneGraph::EdgeLanes* el = graph.edgeLanes[lane.edge->id];
   const std::vector<Lane*>& list = lane.dir > 0 ? el->fwd : el->back;
   Lane* best = nullptr;
   double bestScore = -JS_INF;
@@ -459,7 +458,7 @@ Lane* Traffic::laneTowards(Lane& lane, const std::vector<int>& ahead_) {
     if (l == &lane) continue;
     bool leads = false;
     for (const Connector* c : l->out) {
-      if (!ahead_.empty() && needs::wayOf(*c->to) == ahead_[0]) {
+      if (!ahead_.empty() && wayOf(*c->to) == ahead_[0]) {
         leads = true;
         break;
       }
@@ -501,7 +500,7 @@ void Traffic::moveOver(TrafficCar* car, bool listed) {
 void Traffic::busOnLane(TrafficCar* car, Lane& lane) {
   if (!car->bus || !lines) return;
   TrafficCar::Bus& bus = *car->bus;
-  const int w = needs::wayOf(lane);
+  const int w = wayOf(lane);
   if (!bus.line) {
     bus.free = bus.free + 1;
     if (bus.free > 2 && !bus.retired) {
@@ -883,7 +882,7 @@ Traffic::Leader Traffic::leader(TrafficCar& car, double horizon) {
   Connector* next = car.next;
   // cars that left our lane on another connector still share the first metres with us
   const auto siblings = [&](Connector& c, double off, double behindS) {
-    for (const Sibling& sib : needs::siblings(graph, c)) {
+    for (const Sibling& sib : c.siblings) {
       const std::vector<TrafficCar*>* l2 = listOf(onConn, sib.other->id);
       if (l2)
         for (const TrafficCar* o : *l2)
@@ -895,12 +894,12 @@ Traffic::Leader Traffic::leader(TrafficCar& car, double horizon) {
   // way (or, failing that, the higher id) drops back.
   // `off` = distance from our car to the start of connector c (negative once we are on it)
   const auto merging = [&](Connector& c, double off) {
-    for (const Conflict& k : needs::conflicts(graph, c)) {
+    for (const Conflict& k : c.conflicts) {
       if (!k.merge) continue;
       Connector* other = k.other;
       const auto tie = [&](const TrafficCar* o) {
         bool backYield = false;
-        for (const Conflict& q : needs::conflicts(graph, *other)) {
+        for (const Conflict& q : other->conflicts) {
           if (q.other == &c) {
             backYield = q.yield;
             break;
@@ -1046,7 +1045,7 @@ bool Traffic::mayEnter(TrafficCar& car, Connector& c, double distToLine, const P
     for (const TrafficCar* o : *exit)
       if (o->s < car.length + 3 && o->v < 1.5) return false;
   const double tEnter = car.v > 1 ? distToLine / car.v : std::sqrt((2 * jsMax(distToLine, 0.5)) / 1.5);
-  for (const Conflict& k : needs::conflicts(graph, c)) {
+  for (const Conflict& k : c.conflicts) {
     // vehicles already inside the junction on a crossing path: never drive into them
     const std::vector<TrafficCar*>* inside = listOf(onConn, k.other->id);
     if (inside) {
@@ -1336,7 +1335,7 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
     }
 
     bool yieldingNow = false;
-    if (next && (node.arms.size() > 2 || needs::conflicts(graph, *next).size() > 0) && distToLine < 70) {
+    if (next && (node.arms.size() > 2 || next->conflicts.size() > 0) && distToLine < 70) {
       bool mustStop = false;
       if (arm.sg >= 0 && node.sc >= 0) {
         const int st = signals.get(node.sc, arm.sg);
@@ -1356,7 +1355,7 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
         const int role = arm.role;
         const bool needsStopSign = role == ROLE_STOP && !car.stoppedAtLine;
         bool anyYield = false;
-        for (const Conflict& k : needs::conflicts(graph, *next)) {
+        for (const Conflict& k : next->conflicts) {
           if (k.yield) {
             anyYield = true;
             break;
@@ -1404,8 +1403,8 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
       const double d = pos - x.w / 2 - 1.2 - car.s - car.length / 2;
       if (d < -2 || d > 60) continue;
       bool stop = false;
-      if (x.k == XING_SIGNAL && x.sc >= 0) {
-        const int st = signals.get(x.sc, x.g >= 0 ? x.g : 0);
+      if (x.k == XING_SIGNAL && x.sc) {
+        const int st = signals.get(*x.sc, x.g.value_or(0));
         stop = st == SIG_RED || st == SIG_RED_AMBER || (st == SIG_AMBER && (car.v * car.v) / (2 * jsMax(d, 0.5)) < 3.2 && d > 0);
       } else if (x.k == XING_ZEBRA) {
         for (const Pedestrian* p : peds())
@@ -1421,7 +1420,7 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
   if (conn) {
     // turning: wait in the junction while somebody crosses the road it turns into
     if ((conn->turn == TURN_RIGHT || conn->turn == TURN_LEFT) && peopleCrossing(*conn->to, player)) stopDist = jsMin(stopDist, jsMax(0, conn->len - car.s - car.length / 2 - 1.8));
-    for (const Conflict& k : needs::conflicts(graph, *conn)) {
+    for (const Conflict& k : conn->conflicts) {
       const double dSelf = k.sSelf - car.s - car.length / 2;
       if (dSelf < -1) continue;  // already past the conflict point
       const std::vector<TrafficCar*>* inside = listOf(onConn, k.other->id);
@@ -1434,7 +1433,7 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
           wait = true;
         } else {
           const Conflict* back = nullptr;
-          for (const Conflict& q : needs::conflicts(graph, *k.other)) {
+          for (const Conflict& q : k.other->conflicts) {
             if (q.other == conn) {
               back = &q;
               break;
@@ -1612,7 +1611,7 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
     }
   }
   // past a kerb build-out: over in its gap, turned a little while it moves across (src/sim/narrowings)
-  if (pl && narrowings && needs::narrow(*pl->edge)) {
+  if (pl && narrowings && pl->edge->narrow) {
     Narrowings* nw = narrowings;
     const double hw = car.width / 2;
     const double hl = car.length / 2;
@@ -1701,7 +1700,7 @@ double Traffic::wayYaw(TrafficCar& car, double h) {
 }
 
 bool Traffic::boxBlocked(Connector& c) {
-  for (const Conflict& k : needs::conflicts(graph, c)) {
+  for (const Conflict& k : c.conflicts) {
     const std::vector<TrafficCar*>* inside = listOf(onConn, k.other->id);
     if (!inside) continue;
     for (const TrafficCar* o : *inside)
@@ -1711,7 +1710,7 @@ bool Traffic::boxBlocked(Connector& c) {
 }
 
 bool Traffic::junctionEmpty(Connector& c) {
-  for (const Conflict& k : needs::conflicts(graph, c)) {
+  for (const Conflict& k : c.conflicts) {
     const std::vector<TrafficCar*>* list = listOf(onConn, k.other->id);
     if (list && !list->empty()) return false;
   }
@@ -1733,7 +1732,7 @@ bool Traffic::peopleCrossing(Lane& lane, const PlayerState& player) {
 }
 
 bool Traffic::onCrossing(const CrossingJson& c, const PlayerState& player) {
-  const Edge* e = needs::edgeAt(world, c.e);
+  const Edge* e = world.edges[c.e];
   if (!e) return false;
   tmp2 = samplePolyline(e->pl, c.s, tmp2);
   const double dx = player.x - tmp2.x;
@@ -1742,7 +1741,7 @@ bool Traffic::onCrossing(const CrossingJson& c, const PlayerState& player) {
 }
 
 bool Traffic::atZebra(const CrossingJson& c, const PlayerState& player) {
-  const Edge* e = needs::edgeAt(world, c.e);
+  const Edge* e = world.edges[c.e];
   if (!e) return false;
   tmp2 = samplePolyline(e->pl, c.s, tmp2);
   const double dx = player.x - tmp2.x;

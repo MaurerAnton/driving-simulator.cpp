@@ -17,13 +17,14 @@
 #include <variant>
 #include <vector>
 
-#include "src/core/js.h"
-#include "src/sim/jsmath.h"
-#include "src/sim/rules.h"
-#include "src/sim/signals.h"
-#include "src/sim/traffic.h"
-#include "src/world/lanes.h"
-#include "src/world/world.h"
+#include "core/js.h"
+#include "sim/jsmath.h"
+#include "sim/rules.h"
+#include "sim/signals.h"
+#include "sim/traffic.h"
+#include "world/lanes.h"
+#include "world/world.h"
+#include "world/worldjson.h"
 #include "tools/dev/sim_towns.h"
 
 using namespace fs;
@@ -45,10 +46,12 @@ const Plan PLAN[] = {
 int main(int argc, char** argv) {
   const std::string file = argc > 1 ? argv[1] : "--make";
   const std::string which = argc > 2 ? argv[2] : "lights";
-  const town::TownOptions opt = simdiff::townOptions(which);
-  town::Town town = town::makeTown(opt);
-  WorldJson json = town.json;
-  if (file != "--make") {
+  const TownOptions opt = simdiff::townOptions(which);
+  Town town = makeTown(opt);
+  WorldJson json;
+  if (file == "--make") {
+    json = town.json;
+  } else {
     std::ifstream in(file);
     std::stringstream text;
     text << in.rdbuf();
@@ -59,14 +62,14 @@ int main(int argc, char** argv) {
   }
   World world(json);
   LaneGraph lanes(world);
-  SignalSystem signals(world.signals(), nullptr, &world.signalsPresent());
+  SignalSystem signals(world.signals);
   Traffic traffic(world, lanes, signals);
   traffic.targetCount = 0;
   RuleMonitor rules(world, lanes, signals, traffic);
   PolySample smp = newPolySample();
 
   // the way: turns in a fixed order, no lane twice (as tools/dev/sim_drive.cpp)
-  Lane* start = lanes.edgeLanes[static_cast<size_t>(town.street(0, 1, 1, 1))].fwd[0];
+  Lane* start = lanes.edgeLanes[town.street(0, 1, 1, 1)]->fwd[0];
   const int PATTERN[] = {TURN_STRAIGHT, TURN_RIGHT, TURN_LEFT, TURN_STRAIGHT, TURN_LEFT, TURN_RIGHT, TURN_STRAIGHT, TURN_STRAIGHT, TURN_LEFT, TURN_RIGHT};
   std::vector<Connector*> route;
   std::unordered_set<const Lane*> taken{start};
@@ -118,6 +121,7 @@ int main(int argc, char** argv) {
     if (step % 10 != 0) return;
     const RuleContext& c = rules.context;
     const std::optional<RuleContext::Junction>& j = c.junction;
+    out += "step ";
     for (const double v : {static_cast<double>(step), x, z, speed, c.limit, static_cast<double>(c.zone), c.urban ? 1.0 : 0.0, c.onRoad ? 1.0 : 0.0, c.wrongWay ? 1.0 : 0.0, j ? j->dist : -1.0,
                            static_cast<double>(j ? j->role : -9), static_cast<double>(j ? j->ctrl : -9), static_cast<double>(j ? j->signal : -9), static_cast<double>(j ? j->arrow : -9), j && j->dark ? 1.0 : 0.0,
                            static_cast<double>(rules.laneNow() ? rules.laneNow()->id : -1), rules.laneFront(), static_cast<double>(rules.log.size()), static_cast<double>(rules.points())})

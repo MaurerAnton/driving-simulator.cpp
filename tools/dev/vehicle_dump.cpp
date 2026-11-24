@@ -17,10 +17,10 @@
 #include <string>
 #include <vector>
 
-#include "src/core/js.h"
-#include "src/sim/jsmath.h"
-#include "src/sim/vehicle/fleet.h"
-#include "src/sim/vehicle/index.h"
+#include "core/js.h"
+#include "sim/jsmath.h"
+#include "sim/vehicle/fleet.h"
+#include "sim/vehicle/index.h"
 
 using namespace fs;
 

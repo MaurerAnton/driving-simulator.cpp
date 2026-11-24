@@ -19,16 +19,17 @@
 #include <unordered_set>
 #include <vector>
 
-#include "src/core/js.h"
-#include "src/sim/autodriver.h"
-#include "src/sim/ground.h"
-#include "src/sim/jsmath.h"
-#include "src/sim/rules.h"
-#include "src/sim/signals.h"
-#include "src/sim/traffic.h"
-#include "src/sim/vehicle/index.h"
-#include "src/world/lanes.h"
-#include "src/world/world.h"
+#include "core/js.h"
+#include "sim/autodriver.h"
+#include "sim/ground.h"
+#include "sim/jsmath.h"
+#include "sim/rules.h"
+#include "sim/signals.h"
+#include "sim/traffic.h"
+#include "sim/vehicle/index.h"
+#include "world/lanes.h"
+#include "world/world.h"
+#include "world/worldjson.h"
 #include "tools/dev/sim_towns.h"
 
 using namespace fs;
@@ -55,10 +56,12 @@ int main(int argc, char** argv) {
   const double LENGTH = SPEC.length.value_or(4.28);
   const double WIDTH = SPEC.width.value_or(1.79);
   // (the town as tests/town.h makes it – for the numbers of its streets – and its roads as given)
-  const town::TownOptions opt = simdiff::townOptions(which);
-  town::Town town = town::makeTown(opt);
-  WorldJson json = town.json;
-  if (file != "--make") {
+  const TownOptions opt = simdiff::townOptions(which);
+  Town town = makeTown(opt);
+  WorldJson json;
+  if (file == "--make") {
+    json = town.json;
+  } else {
     std::ifstream in(file);
     std::stringstream text;
     text << in.rdbuf();
@@ -69,7 +72,7 @@ int main(int argc, char** argv) {
   }
   World world(json);
   LaneGraph lanes(world);
-  SignalSystem signals(world.signals(), nullptr, &world.signalsPresent());
+  SignalSystem signals(world.signals);
   Traffic traffic(world, lanes, signals);
   traffic.targetCount = CARS;
   RuleMonitor rules(world, lanes, signals, traffic);
@@ -82,7 +85,7 @@ int main(int argc, char** argv) {
   SurfaceHit hit = newSurfaceHit();
 
   // from the street between the junctions (0, 1) and (1, 1), eastwards – or (deadend) northwards up the last column, towards the cul-de-sac
-  const std::vector<Lane*>& first = VARIANT == "deadend" ? lanes.edgeLanes[static_cast<size_t>(town.street(opt.cols - 1, 0, opt.cols - 1, 1))].back : lanes.edgeLanes[static_cast<size_t>(town.street(0, 1, 1, 1))].fwd;
+  const std::vector<Lane*>& first = VARIANT == "deadend" ? lanes.edgeLanes[town.street(opt.cols - 1, 0, opt.cols - 1, 1)]->back : lanes.edgeLanes[town.street(0, 1, 1, 1)]->fwd;
   Lane* start = first[0];
   // (leftlane: the car stands in the lane beside the one its way begins on, where there is one – it has to get in lane)
   smp = lanePoint(VARIANT == "leftlane" && first.size() > 1 ? *first[1] : *start, 15, smp);
@@ -205,6 +208,7 @@ int main(int argc, char** argv) {
     const std::optional<RuleContext::Junction>& j = rules.context.junction;
     const AutoDriver::Seen& s = driver.seen;
     const auto num = [&](double x) { out += jsStr(x) + ' '; };
+    out += "step ";
     for (const double x : {static_cast<double>(i + 1), mpos[0], mpos[1], mpos[2], v.yaw, v.speed, v.rpm, static_cast<double>(v.gear), cmd.steer, cmd.throttle, cmd.brake, static_cast<double>(cmd.indicator), cmd.look}) num(x);
     out += (cmd.remark.empty() ? std::string("-") : cmd.remark) + ' ';
     for (const double x : {cmd.waiting ? 1.0 : 0.0, cmd.arrived ? 1.0 : 0.0, rules.context.limit, j ? j->dist : -1.0, static_cast<double>(j ? j->signal : -9), static_cast<double>(j ? j->role : -9),

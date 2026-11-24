@@ -16,24 +16,24 @@
 #include <string>
 #include <vector>
 
-#include "src/core/geom.h"
-#include "src/sim/autodriver.h"
-#include "src/sim/ground.h"
-#include "src/sim/queues.h"
-#include "src/sim/rules.h"
-#include "src/sim/signals.h"
-#include "src/sim/traffic.h"
-#include "src/sim/vehicle/index.h"
-#include "src/world/lanes.h"
-#include "tests/town.h"
+#include "core/geom.h"
+#include "sim/autodriver.h"
+#include "sim/ground.h"
+#include "sim/queues.h"
+#include "sim/rules.h"
+#include "sim/signals.h"
+#include "sim/traffic.h"
+#include "sim/vehicle/index.h"
+#include "world/lanes.h"
+#include "tests/sim_roads.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;
 using fs::harness::ok;
 using fs::harness::test;
-using fs::town::Net;
-using fs::town::Road;
-using fs::town::straight;
+using fs::roads::Net;
+using fs::roads::Road;
+using fs::roads::straight;
 
 namespace {
 
@@ -42,7 +42,7 @@ const double QDT = 1.0 / 20;
 /** the player out of the way: high above the road, so that nobody brakes for it (but the cars stay around it) */
 const PlayerState AWAY{.x = 350, .y = 160, .z = 200, .yaw = 0, .speed = 0, .length = 4.3, .width = 1.8};
 
-const std::vector<SignalControllerJson> NO_LIGHTS;
+const Sparse<SignalControllerJson> NO_LIGHTS;
 
 struct Set {
   Net net;
@@ -52,7 +52,7 @@ struct Set {
   Lane* west;
   explicit Set(Net net_) : net(std::move(net_)), signals(NO_LIGHTS), traffic(*net.world, *net.lanes, signals) {
     traffic.targetCount = 0;
-    const LaneGraph::EdgeLanes& el = net.lanes->edgeLanes[0];
+    const LaneGraph::EdgeLanes& el = *net.lanes->edgeLanes[0];
     east = el.fwd[0];
     west = el.back[0];
   }
@@ -114,8 +114,8 @@ void overTheJunction() {
   test("a queue reaches back over the junction behind it");
   Set s(straight());
   // the road north from (700, 0) to (700, 400) is road 1 – its lane towards the south ends at (700, 0); the queue begins at the start of road 0's lane west?
-  Lane* into = s.net.lanes->edgeLanes[1].back[0];  // from (700, 400) to (700, 0)
-  Lane* out = s.net.lanes->edgeLanes[0].back[0];   // from (700, 0) west
+  Lane* into = s.net.lanes->edgeLanes[1]->back[0];  // from (700, 400) to (700, 0)
+  Lane* out = s.net.lanes->edgeLanes[0]->back[0];   // from (700, 0) west
   Connector* c = nullptr;
   for (Connector* k : into->out)
     if (k->to == out) c = k;
@@ -140,13 +140,21 @@ void waitAtRed() {
   SignalControllerJson red;
   red.groups = 1;
   red.phases = {{20, "R"}, {1, "Y"}, {30, "G"}, {3, "A"}};
-  const std::vector<SignalControllerJson> list = {red};
+  const Sparse<SignalControllerJson> list = roads::controllers({red});
   SignalSystem lights(list);
   ok(lights.get(0, 0) == SIG_RED && lights.change(0, 0)->left == 20 && lights.change(0, 0)->next == SIG_RED_AMBER, "red, 20 s left, red-amber next");
   // (a lane that ends at a light)
   Arm arm = *s.east->armTo;
   arm.sg = 0;
-  Node node = *s.east->to;
+  // (a junction is not copied – it owns its area: one like the lane's, with a controller)
+  const Node& end = *s.east->to;
+  Node node;
+  node.id = end.id;
+  node.x = end.x;
+  node.y = end.y;
+  node.z = end.z;
+  node.ctrl = end.ctrl;
+  node.arms = end.arms;
   node.sc = 0;
   Lane lane = *s.east;
   lane.armTo = &arm;
@@ -218,7 +226,8 @@ void solidLine() {
   test("a solid centre line: not over it for the player standing – onto the verge outside town instead");
   for (const bool urban : {false, true}) {
     Set s(straight(Road{.urban = urban, .flags = EF_SOLID_CENTER}));
-    const PolySample p = lanePoint(*s.east, 300, newPolySample());
+    PolySample p = newPolySample();
+    lanePoint(*s.east, 300, p);
     // the player's car standing in the lane, facing east
     const PlayerState player{.x = p.x, .y = 100, .z = p.z, .yaw = jsAtan2(-p.tx, -p.tz), .speed = 0, .length = 4.3, .width = 1.8};
     TrafficCar* car = s.traffic.addCar(*s.east, 250);
@@ -246,7 +255,8 @@ void solidLine() {
 void parkedForGood() {
   test("a solid centre line, but a parked vehicle stands there for good: over it");
   Set s(straight(Road{.urban = true, .flags = EF_SOLID_CENTER}));
-  const PolySample p = lanePoint(*s.east, 300, newPolySample());
+  PolySample p = newPolySample();
+  lanePoint(*s.east, 300, p);
   PlayerState parked{.x = p.x, .y = 100, .z = p.z, .yaw = jsAtan2(-p.tx, -p.tz), .speed = 0, .length = 4.4, .width = 1.8};
   parked.parked = true;
   s.traffic.obstacles = {&parked};
@@ -262,7 +272,7 @@ void parkedForGood() {
 void laneBeside() {
   test("two lanes each way: into the lane beside");
   Set s(straight(Road{.lf = 2, .lb = 2}));
-  const LaneGraph::EdgeLanes& el = s.traffic.graph.edgeLanes[0];
+  const LaneGraph::EdgeLanes& el = *s.traffic.graph.edgeLanes[0];
   Lane* right = el.fwd[0];
   brokenDown(s.traffic, *right, 300);
   TrafficCar* car = s.traffic.addCar(*right, 250);
@@ -298,7 +308,8 @@ void neverThroughPeople() {
   brokenDown(s.traffic, *s.east, 300);
   TrafficCar* car = s.traffic.addCar(*s.east, 291);
   car->v = 0;
-  const PolySample p = lanePoint(*s.east, 300, newPolySample());
+  PolySample p = newPolySample();
+  lanePoint(*s.east, 300, p);
   // somebody on foot on the oncoming lane beside the broken-down car (an obstacle that is no vehicle)
   PlayerState person{.x = p.x + p.tz * 3.2, .y = 100, .z = p.z - p.tx * 3.2, .yaw = 0, .speed = 0, .length = 0.6, .width = 0.6};
   s.traffic.obstacles = {&person};

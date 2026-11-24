@@ -19,12 +19,13 @@
 #include <string>
 #include <utility>
 
-#include "src/core/js.h"
-#include "src/sim/jsmath.h"
-#include "src/sim/signals.h"
-#include "src/sim/traffic.h"
-#include "src/world/lanes.h"
-#include "src/world/world.h"
+#include "core/js.h"
+#include "sim/jsmath.h"
+#include "sim/signals.h"
+#include "sim/traffic.h"
+#include "world/lanes.h"
+#include "world/world.h"
+#include "world/worldjson.h"
 #include "tools/dev/sim_towns.h"
 
 using namespace fs;
@@ -34,10 +35,10 @@ int main(int argc, char** argv) {
   const std::string which = argc > 2 ? argv[2] : "lights";
   const double SECONDS = argc > 3 ? jsNumber(argv[3]) : 300;
   const std::string PLAYER = argc > 4 ? argv[4] : "anchor";
-  const town::TownOptions opt = simdiff::townOptions(which);
+  const TownOptions opt = simdiff::townOptions(which);
   WorldJson json;
   if (file == "--make") {
-    json = town::makeTown(opt).json;
+    json = makeTown(opt).json;
   } else {
     std::ifstream in(file);
     std::stringstream text;
@@ -49,7 +50,7 @@ int main(int argc, char** argv) {
   }
   World world(json);
   LaneGraph graph(world);
-  SignalSystem signals(world.signals(), nullptr, &world.signalsPresent());
+  SignalSystem signals(world.signals);
   Traffic traffic(world, graph, signals);
   traffic.targetCount = 20;
 

@@ -86,7 +86,7 @@ const see = (x: number, y: number, z: number, yaw: number, speed: number, indica
   const c = rules.context;
   const j = c.junction;
   out.push(
-    `${step} ${x} ${z} ${speed} ${c.limit} ${c.zone} ${c.urban ? 1 : 0} ${c.onRoad ? 1 : 0} ${c.wrongWay ? 1 : 0} ${j ? j.dist : -1} ${j ? j.role : -9} ${j ? j.ctrl : -9} ${j ? j.signal : -9} ${j ? j.arrow : -9} ${j && j.dark ? 1 : 0} ` +
+    `step ${step} ${x} ${z} ${speed} ${c.limit} ${c.zone} ${c.urban ? 1 : 0} ${c.onRoad ? 1 : 0} ${c.wrongWay ? 1 : 0} ${j ? j.dist : -1} ${j ? j.role : -9} ${j ? j.ctrl : -9} ${j ? j.signal : -9} ${j ? j.arrow : -9} ${j && j.dark ? 1 : 0} ` +
       `${rules.laneNow ? rules.laneNow.id : -1} ${rules.laneFront} ${rules.log.length} ${rules.points} ${(c.roadName || '-').replace('Street ', 'Street_')}`,
   );
 };

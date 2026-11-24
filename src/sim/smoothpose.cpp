@@ -40,8 +40,10 @@ double chordYaw(double ax, double az, double bx, double bz) {
 }
 
 double chordYawOn(const Polyline3& pl, double s, double h) {
-  const PolySample sa = samplePolyline(pl, s - h, newPolySample());
-  const PolySample sb = samplePolyline(pl, s + h, newPolySample());
+  PolySample sa = newPolySample();
+  PolySample sb = newPolySample();
+  samplePolyline(pl, s - h, sa);
+  samplePolyline(pl, s + h, sb);
   return chordYaw(sa.x, sa.z, sb.x, sb.z);
 }
 

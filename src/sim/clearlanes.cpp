@@ -7,12 +7,12 @@
 namespace fs {
 
 std::pair<int, int> clearSigns(LaneGraph& lanes, std::vector<SignPost>& signs) {
-  needs::PathFoot foot;
+  PathFoot foot;
   int moved = 0;
   int dropped = 0;
   for (int i = static_cast<int>(signs.size()) - 1; i >= 0; i--) {
     SignPost& s = signs[static_cast<size_t>(i)];
-    const needs::PathFoot* at = needs::besideLanes(lanes, s.x, s.z, s.y, POST_CLEAR, foot);
+    const PathFoot* at = lanes.besideLanes(s.x, s.z, s.y, POST_CLEAR, foot);
     if (!at) {
       signs.erase(signs.begin() + i);
       dropped++;
@@ -26,12 +26,12 @@ std::pair<int, int> clearSigns(LaneGraph& lanes, std::vector<SignPost>& signs) {
 }
 
 int clearObjects(LaneGraph& lanes, std::vector<TileObject>& objects) {
-  needs::PathFoot foot;
+  PathFoot foot;
   int dropped = 0;
   for (int i = static_cast<int>(objects.size()) - 1; i >= 0; i--) {
     const TileObject& o = objects[static_cast<size_t>(i)];
     if (o.k != "lamp") continue;
-    if (needs::nearestPath(lanes, o.x, o.z, o.y, POST_CLEAR, foot) < POST_CLEAR) {
+    if (lanes.nearestPath(o.x, o.z, o.y, POST_CLEAR, foot) < POST_CLEAR) {
       objects.erase(objects.begin() + i);
       dropped++;
     }
@@ -40,8 +40,8 @@ int clearObjects(LaneGraph& lanes, std::vector<TileObject>& objects) {
 }
 
 bool postInLane(LaneGraph& lanes, double x, double y, double z) {
-  needs::PathFoot foot;
-  return needs::nearestPath(lanes, x, z, y, POST_CLEAR, foot) < POST_CLEAR;
+  PathFoot foot;
+  return lanes.nearestPath(x, z, y, POST_CLEAR, foot) < POST_CLEAR;
 }
 
 std::vector<float> clearWalls(LaneGraph& lanes, const std::vector<float>* rings_, const std::vector<uint16_t>* ringCounts, const std::vector<float>* segments_) {
@@ -56,7 +56,7 @@ std::vector<float> clearWalls(LaneGraph& lanes, const std::vector<float>* rings_
         const double z1 = rings[o + i * 2 + 1];
         const double x2 = rings[o + j * 2];
         const double z2 = rings[o + j * 2 + 1];
-        if (!needs::wallInLane(lanes, x1, z1, x2, z2, JS_NAN, WALL_CLEAR)) {
+        if (!lanes.wallInLane(x1, z1, x2, z2, JS_NAN, WALL_CLEAR)) {
           out.push_back(static_cast<float>(x1));
           out.push_back(static_cast<float>(z1));
           out.push_back(static_cast<float>(x2));
@@ -70,7 +70,7 @@ std::vector<float> clearWalls(LaneGraph& lanes, const std::vector<float>* rings_
   if (segments_) {
     const std::vector<float>& segments = *segments_;
     for (size_t i = 0; i + 4 < segments.size(); i += 5) {
-      if (!needs::wallInLane(lanes, segments[i], segments[i + 1], segments[i + 2], segments[i + 3], segments[i + 4], WALL_CLEAR)) {
+      if (!lanes.wallInLane(segments[i], segments[i + 1], segments[i + 2], segments[i + 3], segments[i + 4], WALL_CLEAR)) {
         out.push_back(segments[i]);
         out.push_back(segments[i + 1]);
         out.push_back(segments[i + 2]);

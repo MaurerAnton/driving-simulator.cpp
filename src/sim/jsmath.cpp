@@ -967,10 +967,6 @@ inline double hypotOf(const double* v, int n) {
 }
 }  // namespace
 
-double jsHypot(double a, double b) {
-  double v[2] = {a, b};
-  return hypotOf(v, 2);
-}
 double jsHypot(double a, double b, double c) {
   double v[3] = {a, b, c};
   return hypotOf(v, 3);

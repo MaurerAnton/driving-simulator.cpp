@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * The towns the comparison tools drive in – the same as `townOptions` of tools/diff/sim_town.ts
+ * The towns the comparison tools drive in – the same as `townOptions` of tools/diff/sim_towns.ts
  * (keep the two alike): plain (4 × 4 streets), lights (two junctions with lights, a zebra and a
  * pedestrian light), wide (two lanes each way on the middle row, one-way streets, a cul-de-sac).
  */
@@ -12,8 +12,8 @@
 
 namespace fs::simdiff {
 
-inline town::TownOptions townOptions(const std::string& which) {
-  town::TownOptions o;
+inline TownOptions townOptions(const std::string& which) {
+  TownOptions o;
   if (which == "lights") {
     o.cols = 4;
     o.rows = 4;

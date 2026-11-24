@@ -3,7 +3,7 @@
 // Origin: tests/sim/boxpush.test.ts @ v1.7.7
 #include <cmath>
 
-#include "src/sim/traffic.h"
+#include "sim/traffic.h"
 #include "tests/vehicle_harness.h"
 
 using namespace fs;

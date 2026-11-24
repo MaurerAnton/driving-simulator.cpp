@@ -56,19 +56,15 @@ inline double sinceAt(const std::vector<float>& since, int g) {
 }  // namespace
 
 std::function<bool(int controller)> lightsOutBy(double seed, double share) {
-  return [seed, share](int i) { return share > 0 && hash01(jsInt32(i * 7919.0 + seed * 104729 + 17)) < share; };
+  return [seed, share](int i) { return share > 0 && hash01(i * 7919.0 + seed * 104729 + 17) < share; };
 }
 
-SignalSystem::SignalSystem(const std::vector<SignalControllerJson>& controllers_, std::function<bool(int controller)> lightsOut_,
-                           const std::vector<char>* present_)
-    : controllers(controllers_), present(present_), lightsOut(std::move(lightsOut_)) {
+SignalSystem::SignalSystem(const Sparse<SignalControllerJson>& controllers_, std::function<bool(int controller)> lightsOut_)
+    : controllers(controllers_), lightsOut(std::move(lightsOut_)) {
   sync();
 }
 
-bool SignalSystem::listed(int i) const {
-  if (i < 0 || static_cast<size_t>(i) >= controllers.size()) return false;
-  return !present || (static_cast<size_t>(i) < present->size() && (*present)[static_cast<size_t>(i)] != 0);
-}
+bool SignalSystem::listed(int i) const { return controllers[i] != nullptr; }
 
 bool SignalSystem::runs(int i) const { return i >= 0 && static_cast<size_t>(i) < running.size() && running[static_cast<size_t>(i)] != 0; }
 
@@ -87,7 +83,7 @@ void SignalSystem::sync() {
   for (size_t i = 0; i < n; i++) {
     if (!listed(static_cast<int>(i))) continue;
     if (running[i]) continue;
-    const SignalControllerJson& c = controllers[i];
+    const SignalControllerJson& c = *controllers[static_cast<int64_t>(i)];
     ids.push_back(static_cast<int>(i));
     double sum = 0;
     for (const SignalPhaseJson& p : c.phases) sum = sum + p.d;
@@ -106,7 +102,7 @@ void SignalSystem::sync() {
 }
 
 int SignalSystem::programmed(int i, int g, double ahead) const {
-  const SignalControllerJson& c = controllers[static_cast<size_t>(i)];
+  const SignalControllerJson& c = *controllers[static_cast<int64_t>(i)];
   const double cyc = cycle[static_cast<size_t>(i)];
   const double loc = local[static_cast<size_t>(i)];
   double t = std::fmod((c.ped ? loc : time + c.off + loc) + ahead, cyc);
@@ -128,7 +124,7 @@ void SignalSystem::update(double dt) {
   time += dt;
   for (const int id : ids) {
     const size_t i = static_cast<size_t>(id);
-    const SignalControllerJson& c = controllers[i];
+    const SignalControllerJson& c = *controllers[static_cast<int64_t>(i)];
     if (c.ped) {
       // at rest on the vehicles' green until the button is pressed; then once round
       const double green = c.phases.empty() ? 0 : c.phases[0].d;
@@ -220,7 +216,7 @@ SignalSnapshot SignalSystem::snapshot(double x, double z, double radius) const {
   std::unordered_set<int> near;
   for (const int id : ids) {
     const size_t i = static_cast<size_t>(id);
-    const SignalControllerJson& c = controllers[i];
+    const SignalControllerJson& c = *controllers[static_cast<int64_t>(i)];
     const std::vector<uint8_t>& st = state[i];
     if (std::abs(c.x - x) > radius || std::abs(c.z - z) > radius) continue;
     near.insert(id);
@@ -305,7 +301,7 @@ double SignalSystem::arrowTime(int controller, int own, const std::vector<int>& 
 }
 
 SignalSystem::PhaseAt SignalSystem::phaseAt(int i) const {
-  const SignalControllerJson& c = controllers[static_cast<size_t>(i)];
+  const SignalControllerJson& c = *controllers[static_cast<int64_t>(i)];
   const double cyc = cycle[static_cast<size_t>(i)];
   const double loc = local[static_cast<size_t>(i)];
   double t = std::fmod(std::fmod(c.ped ? loc : time + c.off + loc, cyc) + cyc, cyc);
@@ -318,11 +314,11 @@ SignalSystem::PhaseAt SignalSystem::phaseAt(int i) const {
   return {k, c.phases[static_cast<size_t>(k)].d, 0};
 }
 
-int SignalSystem::codeOf(int i, int k, int g) const { return code(controllers[static_cast<size_t>(i)].phases[static_cast<size_t>(k)].s, g); }
+int SignalSystem::codeOf(int i, int k, int g) const { return code(controllers[i]->phases[static_cast<size_t>(k)].s, g); }
 
 std::optional<SignalChange> SignalSystem::change(int controller, int group) const {
   if (!listed(controller) || !runs(controller) || dark[static_cast<size_t>(controller)]) return std::nullopt;
-  const SignalControllerJson& c = controllers[static_cast<size_t>(controller)];
+  const SignalControllerJson& c = *controllers[static_cast<int64_t>(controller)];
   if (c.phases.empty()) return std::nullopt;
   const int n = static_cast<int>(c.phases.size());
   const PhaseAt at = phaseAt(controller);
@@ -346,7 +342,7 @@ std::optional<SignalChange> SignalSystem::change(int controller, int group) cons
 }
 
 double SignalSystem::until(int i, int group, int want) const {
-  const SignalControllerJson& c = controllers[static_cast<size_t>(i)];
+  const SignalControllerJson& c = *controllers[static_cast<int64_t>(i)];
   const int n = static_cast<int>(c.phases.size());
   const PhaseAt at = phaseAt(i);
   const int k = at.k;
@@ -421,7 +417,7 @@ std::optional<SignalChange> SignalSystem::arrowChange(const Arm* arm) {
 
 bool SignalSystem::skip(int controller) {
   if (!listed(controller) || !runs(controller) || dark[static_cast<size_t>(controller)]) return false;
-  const SignalControllerJson& c = controllers[static_cast<size_t>(controller)];
+  const SignalControllerJson& c = *controllers[static_cast<int64_t>(controller)];
   if (c.phases.size() < 2) return false;
   const PhaseAt at = phaseAt(controller);
   const SignalPhaseJson& p = c.phases[static_cast<size_t>(at.k)];

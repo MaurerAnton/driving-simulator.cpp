@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "core/js.h"
-#include "sim/world_needs.h"
 #include "world/lanes.h"
 #include "world/tilefmt.h"
 
@@ -65,7 +64,7 @@ std::optional<std::vector<uint8_t>> ringSidesInLanes(LaneGraph& lanes, const Rin
     const size_t n = static_cast<size_t>(ringCounts[r]);
     for (size_t i = 0; i < n; i++) {
       const size_t j = (i + 1) % n;
-      if (needs::wallInLane(lanes, rings[o + i * 2], rings[o + i * 2 + 1], rings[o + j * 2], rings[o + j * 2 + 1], JS_NAN, WALL_CLEAR)) {
+      if (lanes.wallInLane(rings[o + i * 2], rings[o + i * 2 + 1], rings[o + j * 2], rings[o + j * 2 + 1], JS_NAN, WALL_CLEAR)) {
         const size_t side = o / 2 + i;
         bits[side >> 3] |= static_cast<uint8_t>(1 << (side & 7));
         any = true;

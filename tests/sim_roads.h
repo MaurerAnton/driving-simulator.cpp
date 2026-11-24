@@ -19,12 +19,20 @@
 
 #include "core/geom.h"
 #include "core/js.h"
+#include "sim/jsmath.h"
 #include "world/lanes.h"
+#include "world/sparse.h"
 #include "world/types.h"
 #include "world/world.h"
 
 namespace fs::roads {
 
+/** signal controllers as the map hands them on – a list by their number (`new SignalSystem([a, b])` of the original's tests) */
+inline Sparse<SignalControllerJson> controllers(std::vector<SignalControllerJson> list = {}) {
+  Sparse<SignalControllerJson> out;
+  for (size_t i = 0; i < list.size(); i++) out.set(static_cast<int64_t>(i), std::make_unique<SignalControllerJson>(std::move(list[i])));
+  return out;
+}
 
 /** the points of a straight road from A to B, one about every 20 m (y = 100) */
 inline std::vector<double> straightPoints(const NodeJson& A, const NodeJson& B) {
@@ -113,7 +121,7 @@ inline Net makeNet(const std::vector<std::pair<double, double>>& points, const s
     e.w = (r.lf + r.lb) * 3.2;
     e.mf = 50;
     e.mb = 50;
-    e.f = (r.urban ? EF_URBAN : 0) | r.flags;
+    e.f = (r.urban ? static_cast<int>(EF_URBAN) : 0) | r.flags;
     e.ca = 0;
     e.cb = 0;
     edges.push_back(e);
@@ -153,7 +161,7 @@ struct Road3 {
   int lb = 1;
   double lw = 3;
   double max = 50;
-  std::string name;
+  std::string name = "";
   int flags = 0;
 };
 
