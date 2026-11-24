@@ -7,6 +7,7 @@
  *   node tools/i18n-export.mjs --check [original]    write nothing: say what would change (exit 1 if anything would)
  *   node tools/i18n-export.mjs --unicode             src/i18n/unicode.inc from this node's Unicode data
  *   node tools/i18n-export.mjs --intl                the CLDR table in src/platform/native/intl_native.cpp from this node's ICU
+ *   node tools/i18n-export.mjs --answers dir [original]   what the original's src/i18n answers, for the port to be compared with
  *
  * `original` is the path of the driving-simulator repository (default /home/user/driving-simulator).
  * Its dictionaries are read by importing them (node runs the .ts files as they are), so what is
@@ -34,6 +35,18 @@
  * of speechtext.ts and keys.ts ask for (\p{L}, \p{Script=Latin}, toUpperCase …), and the separators,
  * units and list words of the game's languages for the native host's Intl.  They are needed again
  * only when the original asks for another class, unit or language.
+ *
+ * --answers is the comparison with the original (docs/PORT.md: the strongest check there is).  It
+ * runs the original's own code – tr() over every text of every language with keys and with touch
+ * buttons, speakable() and splitForSpeech() over them and over texts made to be hard, the rules,
+ * citations, key names, quantities, the words of the learning modes, and its checker over real
+ * and spoilt translations – and writes the answers to dir/original (and what it asked to dir/in).
+ * The port writes its own to dir/port, and the two must not differ:
+ *
+ *   node tools/i18n-export.mjs --answers /tmp/i18n && tools/t.sh i18n_test --answers /tmp/i18n && diff -r /tmp/i18n/original /tmp/i18n/port
+ *
+ * (The quantities in words come from this node's CLDR on the one side and from the native host's
+ * table on the other: after a change of node, --intl first.)
  */
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -48,7 +61,7 @@ const flags = new Set(args.filter((a) => a.startsWith('--')));
 const paths = args.filter((a) => !a.startsWith('--'));
 const CHECK = flags.has('--check');
 for (const f of flags) {
-  if (!['--check', '--unicode', '--intl'].includes(f)) {
+  if (!['--check', '--unicode', '--intl', '--answers'].includes(f)) {
     console.error(`unknown option ${f}`);
     process.exit(2);
   }
@@ -474,6 +487,174 @@ function exportIntl() {
   out.set(path, `${source.slice(0, begin)}${table}\n${source.slice(end)}`);
 }
 
+// ------------------------------------------------------------------ the original's answers
+
+/**
+ * What the original answers (see the head of this file), as lines of text: dir/original/*.txt.
+ * What the port cannot know by itself – the texts made to be hard, the spoilt translation, the
+ * texts with a citation – goes to dir/in, where tests/i18n_test.cpp reads it.
+ */
+async function exportAnswers(dir, original) {
+  const load = async (file) => import(pathToFileURL(join(original, file)).href);
+  const { LANGS, loadLang, tr, setKeyStyle, keyName, violationRef, violationTitle, violationWhy, formatUnit, formatMonth, pickLang, dictOf, lessonTitle, lessonIntro, isRtl, localeOf, langInfo } = await load('src/i18n/index.ts');
+  const { speakable, splitForSpeech } = await load('src/i18n/speechtext.ts');
+  const { VIOLATION_REFS, citationParts } = await load('src/i18n/violations.ts');
+  const { loadExamTexts, EXAM_LANGS } = await load('src/i18n/exam/index.ts');
+  const { checkDict } = await load('tools/i18n-check.ts');
+  const { touchLabel } = await load('src/i18n/keys.ts');
+
+  const esc = (s) => String(s).replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+  const US = String.fromCharCode(0x1f);
+  const cp = (...points) => String.fromCodePoint(...points);
+  const files = new Map();
+  for (const l of LANGS) if (!(await loadLang(l.code))) fail(`${l.code} cannot be loaded`);
+  const codes = LANGS.map((l) => l.code);
+  const en = dictOf('en');
+  const keys = Object.keys(en);
+
+  /** the values a text is filled with: a number, a word, a text with signs in it – by the place of each placeholder in the English text */
+  const paramsOf = (key) => {
+    const p = {};
+    let i = 0;
+    for (const m of (en[key] ?? '').matchAll(/\{(\w+)\}/g)) {
+      if (m[1] in p) continue;
+      p[m[1]] = i % 3 === 0 ? 12.5 : i % 3 === 1 ? `<${m[1]}>` : 'a $& b {d} c';
+      i++;
+    }
+    return p;
+  };
+
+  // every text of every language (and of one that is not there), with keys and with the buttons of a touch screen
+  {
+    const out = [];
+    for (const l of [...codes, 'xx']) {
+      for (const k of [...keys, 'no.such.key']) {
+        const p = paramsOf(k);
+        setKeyStyle('keys');
+        const a = tr(k, l, p);
+        setKeyStyle('touch');
+        const b = tr(k, l, p);
+        out.push(`${l}\t${k}\t${esc(a)}\t${a === b ? '=' : esc(b)}`);
+      }
+    }
+    setKeyStyle('keys');
+    files.set('original/tr.txt', out);
+  }
+
+  // the same texts ready to be read out and cut into pieces – and texts made to be hard
+  const hard = [
+    'In 200 m turn right', '12,345 m ahead', '1.5km/h and 3 m.', '5 mm, 7 m2, 10 m. 9 m/s', '200m', '200 m先', '3 км/год, 4 км/ч, 5 км, 6 м', '7 م و 8 كم و 9 كم/س', '1,25 km; 1,256 km; 0.5 m', '30 km/h.', '120km/hx', '5 m5', '5 mé', '1 000 m', '2 m²', '99 m!',
+    'die 1. Ausfahrt, die 2.  Ausfahrt, die 10. Ausfahrt, die 11. Ausfahrt, die 0. Ausfahrt, die 123. Ausfahrt, 3.Ausfahrt', 'la 3.ª salida, la 3ª salida, la 13.ª salida, 2.ª saída', 'de 2e afslag, 12e afslag', '1. výjezdem 2. zjazdem 3. izlazu 4. çıkış 5. kijárat',
+    "2η έξοδο, 3-й съезд, 4-й з'їзд, 5-й з’їзд", 'jalan keluar ke-2, ke-10, ke-11, ke-123, make-1, ke-0',
+    'z. B. hier, z.B. dort, bzw. so, ggf. anders, xbzw. nicht, StVO, StVOx, § 5 StVO, e.g. this, i.e. that, nr. 5, nr.6, nr. x', 'Trả lời 3/5, 10 / 20, 1/2/3, a/b',
+    'Press [[KeyG]] ★★☆ · then ↑', '[[KeyB]] [[Space]] [[Enter]] [[Escape]] [[ShiftLeft]] [[ArrowUp]] [[Digit3]] [[F5]] [[Period]] [[KeyZ]] [[KeyQ]] [[KeyW]] [[KeyM]] [[KeyY]]', '[[', '[[Key G]]', '[[[KeyB]]]', '[[]]',
+    'a | b · c|d', 'a – b — c–d - e', '„x“ "y" «z» ‹w›', '(a) ( b ) c(d)e', 'a ,, b , , c ,. d , ! e', ' , lead and trail , ', 'x  \t y\n z', `${cp(0x1f697)} car ✓ ok ✗ no • dot ▲▼◀▶ ⋯`, 'a (b), c', 'end (x).', ',,,', '', '   ',
+    `${cp(0x2066)}§ 37 StVO${cp(0x2069)}`, `soft${cp(0xad)}hyphen zero${cp(0x200b)}width ${cp(0x200e)}ltr${cp(0x200f)}`, `می${cp(0x200c)}رسند`,
+    'Eins zwei drei. '.repeat(30), Array.from({ length: 20 }, (_, i) => `part ${i}`).join(', '), 'word '.repeat(60), '城区内至少1.5米。城区外至少2米。'.repeat(10), 'At least 1.5 metres. Go.', 'One! Two? Three… Four.Five. Six', 'क्या यह ठीक है। हाँ! नहीं?', 'هل هذا صحيح؟ نعم. لا۔ ربما', 'A, b; c: d، e、f，g；h：i',
+    'x'.repeat(400), 'ab cd '.repeat(80), 'a。b。。c。', 'First sentence is here.   Second one follows!Third?   ', 'no stop at all but, commas, here, and, there, everywhere, in, this, long, long, long, line, of, text, that, goes, on',
+  ];
+  files.set('in/hard.txt', hard.map(esc));
+  {
+    const out = [];
+    const sizes = [180, 60, 25, 7, 1];
+    // (a character beyond U+FFFF is cut in two by the original where the port keeps it whole: such a text is not cut here)
+    const beyond = /[\u{10000}-\u{10ffff}]/u;
+    const row = (l, k, text) => out.push(`${l}\t${k}\t${esc(speakable(text, l))}\t${beyond.test(text) ? '-' : sizes.map((m) => esc(splitForSpeech(text, m).join(US))).join('\t')}`);
+    for (const l of codes) {
+      for (const k of keys) row(l, k, tr(k, l, paramsOf(k)));
+      hard.forEach((text, i) => row(l, `hard${i}`, text));
+    }
+    files.set('original/speak.txt', out);
+  }
+
+  // rules, lessons, quantities, citations, the choice of a language, the names of the keys
+  {
+    const out = [];
+    for (const l of [...codes, 'xx']) {
+      for (const id of [...Object.keys(VIOLATION_REFS), 'nothing']) out.push(`ref\t${l}\t${id}\t${esc(violationRef(id, l))}\t${esc(violationTitle(id, l, { speed: 62, limit: 50, n: 3 }))}\t${esc(violationWhy(id, l))}`);
+      for (const id of ['basics', 'rbl', 'motorway', 'ceExam', 'nope']) out.push(`lesson\t${l}\t${id}\t${esc(lessonTitle(id, l))}\t${esc(lessonIntro(id, l))}`);
+      out.push(`lang\t${l}\t${isRtl(l)}\t${localeOf(l)}\t${langInfo(l).name}`);
+      for (const [v, d] of [[5.12, 1], [1234.5, 1], [7, 0], [35, 0], [0.4, 0], [1, 0], [2, 2], [21, 0], [1e6, 0], [-3.5, 1]]) for (const u of ['kilometer', 'meter', 'minute']) out.push(`unit\t${l}\t${v}\t${d}\t${u}\t${esc(formatUnit(v, u, l, d))}`);
+      // (the native host has the dates of German and English)
+      if (l === 'de' || l === 'en' || l === 'xx') for (const t of [Date.UTC(2023, 4, 17), 0, Date.UTC(2026, 11, 31, 23, 59), Date.UTC(2024, 1, 29)]) out.push(`month\t${l}\t${t}\t${esc(formatMonth(t, l))}`);
+    }
+    const cited = new Set(Object.values(VIOLATION_REFS));
+    for (const l of ['de', 'en', 'ar']) for (const v of Object.values(dictOf(l))) if (v.includes('§') || v.includes('Anlage')) cited.add(v);
+    for (const t of ['', 'x', '§ 1', '§ 1 Abs. 2', '§ 34 Abs. 1 StVO, § 323c StGB', '§ 54 Abs. 2 BOStrab', 'Anlage 7 FeV, Nr. 2.1.4.5', 'Anlage 2', 'Anlage 2 StVOx', '§ 9 Abs. 1, Abs. 3, Abs. 5 StVO', '§ 9 Abs. , Abs. 3', '§ 3a Abs. 2b, Abs. x', '§§ 1, 2 StVO', '§ 12StVO', 'xStVO § 3 FeV', '§ 5 (1) UrhG']) cited.add(t);
+    files.set('in/cited.txt', [...cited].map(esc));
+    for (const t of cited) out.push(`cite\t${esc(t)}\t${citationParts(t).map((p) => `[${esc(p.text)}|${p.url ?? '-'}]`).join('')}`);
+    const preferred = [['de-AT', 'en'], ['en-US'], ['xx', 'yy'], ['sr-RS', 'en'], ['gsw-CH'], [], ['PT-br'], ['zh-Hans-CN', 'en'], ['nds'], ['sk', 'cs'], ['ms-MY'], ['', 'fr'], ['-de'], ['be-BY'], ['EN'], ['lb-LU', 'fr-LU'], ['mo'], ['ca-ES', 'es'], ['ja-JP-u-ca-japanese']];
+    files.set('in/preferred.txt', preferred.map((p) => p.join(',')));
+    for (const p of preferred) out.push(`pick\t${p.join(',')}\t${pickLang(p)}`);
+    const keyCodes = ['Space', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Digit0', 'Digit1', 'Digit9', 'Period', 'F1', 'F12', 'Tab', 'Comma', 'Key', 'Digit', '', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => `Key${c}`)];
+    for (const l of [...codes, 'xx']) out.push(`keys\t${l}\t${keyCodes.map((c) => esc(keyName(c, l))).join(' ')}\t${keyCodes.map((c) => esc(touchLabel(c, l, (k) => tr(k, l)))).join(US)}`);
+    files.set('original/misc.txt', out);
+  }
+
+  // the words of the learning modes, in every language that has them and in one that has not
+  {
+    const out = [];
+    for (const l of [...Object.keys(EXAM_LANGS), 'xx']) {
+      const t = await loadExamTexts(l);
+      for (const part of ['questions', 'danger']) for (const [id, w] of Object.entries(t[part])) out.push(`${l}\t${part}\t${id}\t${esc(w.q)}\t${w.a.map(esc).join(US)}\t${esc(w.why)}`);
+      for (const [id, w] of Object.entries(t.signs)) out.push(`${l}\tsigns\t${id}\t${esc(w)}`);
+    }
+    files.set('original/exam.txt', out);
+  }
+
+  // the checker: every language, languages taken for one another, and a translation spoilt in many ways
+  {
+    const out = [];
+    const say = (name, r) => {
+      out.push(`# ${name}: ${r.errors.length} errors, ${r.warnings.length} warnings`);
+      for (const e of r.errors) out.push(`E ${esc(e)}`);
+      for (const w of r.warnings) out.push(`W ${esc(w)}`);
+    };
+    for (const l of codes) say(l, checkDict(l, dictOf(l)));
+    for (const [code, other] of [['ru', 'en'], ['de', 'fr'], ['zh', 'ja'], ['ja', 'de'], ['xx', 'de'], ['en', 'de'], ['el', 'ru'], ['ar', 'fa'], ['ko', 'zh'], ['hi', 'bn'], ['fr', 'en'], ['uk', 'ru'], ['bn', 'hi'], ['fa', 'ur'], ['tr', 'vi'], ['bg', 'el']]) say(`${code} with the texts of ${other}`, checkDict(code, dictOf(other)));
+    say('fr against de', checkDict('fr', dictOf('fr'), dictOf('de')));
+    const spoilt = { ...en };
+    keys.forEach((k, i) => {
+      const v = en[k];
+      const how = i % 23;
+      if (how === 0) delete spoilt[k];
+      else if (how === 1) spoilt[k] = ` ${v}`;
+      else if (how === 2) spoilt[k] = v.replace(/\{(\w+)\}/, '{x$1}');
+      else if (how === 3) spoilt[k] = v.replace(/\[\[(\w+)\]\]/, '$1');
+      else if (how === 4) spoilt[k] = v.replace(/\d/g, (d) => String.fromCharCode(0x660 + Number(d)));
+      else if (how === 5) spoilt[k] = `${v} <b>`;
+      else if (how === 6) spoilt[k] = `${v}\nline`;
+      else if (how === 7) spoilt[k] = v.replace(/[A-Z]{2,}/, 'xx');
+      else if (how === 8) spoilt[k] = `${v}${v}${v}`;
+      else if (how === 9) spoilt[k] = `${v}  x`;
+      else if (how === 10) spoilt[k] = `${v}{`;
+      else if (how === 11) spoilt[k] = v.replace(/\d+/, '');
+      else if (how === 12) spoilt[k] = '';
+      else if (how === 13) spoilt[k] = `${v}.`;
+      else if (how === 14) spoilt[k] = v.replace(/[.!?…]$/, '');
+      else if (how === 15) spoilt[k] = v.charAt(0).toUpperCase() + v.slice(1);
+      else if (how === 16) spoilt[k] = `${v}${String.fromCharCode(0x200f)}`;
+      else if (how === 17) spoilt[k] = v.replace(/\./g, ',');
+      else if (how === 18) spoilt[k] = `[[${v}]]`;
+      else if (how === 19) spoilt[k] = v.replace(/§/g, 'Par.');
+    });
+    spoilt.extra1 = 'x';
+    spoilt['extra.2'] = 'y';
+    files.set('in/spoilt.json', [JSON.stringify(spoilt)]);
+    for (const code of ['xx', 'de', 'zh', 'ru', 'en']) say(`${code} with spoilt texts`, checkDict(code, spoilt));
+    files.set('original/check.txt', out);
+  }
+
+  let lines = 0;
+  for (const [name, list] of files) {
+    const path = join(dir, name);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${list.join('\n')}\n`);
+    if (name.startsWith('original/')) lines += list.length;
+  }
+  console.log(`${lines} answers of the original in ${join(dir, 'original')}; now: tools/t.sh i18n_test --answers ${dir} && diff -r ${join(dir, 'original')} ${join(dir, 'port')}`);
+}
+
 // ------------------------------------------------------------------ writing
 
 function finish(stale, summary) {
@@ -498,7 +679,10 @@ function finish(stale, summary) {
   process.exit(CHECK && changed > 0 ? 1 : 0);
 }
 
-if (flags.has('--unicode') || flags.has('--intl')) {
+if (flags.has('--answers')) {
+  if (paths.length < 1) fail('--answers: the folder to write to is missing');
+  await exportAnswers(resolve(paths[0]), resolve(paths[1] ?? '/home/user/driving-simulator'));
+} else if (flags.has('--unicode') || flags.has('--intl')) {
   if (flags.has('--unicode')) exportUnicode();
   if (flags.has('--intl')) exportIntl();
   finish([], []);
