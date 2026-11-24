@@ -98,8 +98,9 @@ long paramCalls(const AudioContext& ctx);
 int waves(const AudioContext& ctx);
 int buffers(const AudioContext& ctx);
 /**
- * The nodes of a context in the order they were made – also those nothing names any more
- * (the last twenty thousand of them are kept).  The pointers hold until the next node is let go.
+ * The nodes of a context in the order they were made (its loudspeakers first) – also those
+ * nothing names any more: the last twenty thousand of them are kept, and a pointer holds for as
+ * long as its node is.
  */
 std::vector<const NodeInfo*> nodes(const AudioContext& ctx);
 const NodeInfo* info(const AudioNode& node);

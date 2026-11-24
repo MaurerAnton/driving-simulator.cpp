@@ -257,9 +257,8 @@ int createContext() {
   c->since = plat::nowMs();
   h.contexts++;
   int ctx = put(std::move(c));
+  // (its loudspeakers stay with it, whether a value names them or not: see release())
   int dest = makeNode(ctx, "destination");
-  // (the context holds its loudspeakers)
-  host().slots[static_cast<size_t>(dest)].refs = 1;
   ctxOf(ctx)->destination = dest;
   return ctx;
 }
