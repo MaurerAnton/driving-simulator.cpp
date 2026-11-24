@@ -49,7 +49,8 @@ namespace fs {
 
 // ---- the layers below, by the original's names (each .cpp includes what it uses) ----
 class AddressIndex;
-struct AddressHit;
+/** (game/address.h) */
+using AddressHit = StartAddress;
 class ArcadeDrive;
 class AutoDriver;
 class DrivenPath;
@@ -58,12 +59,12 @@ class FaultLog;
 class FlyCam;
 class GameAudio;
 struct LessonDef;
+struct MapFollowers;
 class Navigator;
 class NetIndex;
 class ParkedCarRenderer;
 class PedLightRenderer;
 struct PedPole;
-class PlayerLights;
 class PropRenderer;
 class RailTraffic;
 struct RailObstacle;
@@ -74,7 +75,7 @@ class SignalRenderer;
 class SignalSystem;
 class SignRenderer;
 class Traffic;
-class TrafficGlow;
+class TerrainSource;
 class TrafficRenderer;
 class Trailer;
 class Vehicle;
@@ -88,6 +89,7 @@ class TiltSteer;
 class TouchStick;
 class WorldTap;
 struct ResultSummary;
+struct RoadSource;
 struct TourPreview;
 
 /** 'loading' | 'menu' | 'intro' | 'placing' | 'drive' | 'pause' | 'reality' | 'map' | 'result' | 'replay' | 'theory' */
@@ -146,7 +148,11 @@ class Game {
   std::unique_ptr<Hud> hud;
   std::unique_ptr<Input> input;
   std::unique_ptr<Vehicle> vehicle;
+  /** the tiles as the ground sees them (sim/ground.h: TerrainSource) */
+  std::unique_ptr<TerrainSource> terrain;
   std::unique_ptr<WorldGround> ground;
+  /** who follows the road network as it comes in pieces (sim/follow.h) */
+  std::unique_ptr<MapFollowers> followers;
   const std::unique_ptr<PropRenderer> props;
   // (later: grass – game.ts:290)
   std::unique_ptr<SignRenderer> signs;
@@ -302,7 +308,7 @@ class Game {
   double rolledT = 0;
   SurfaceHit hit = newSurfaceHit();
   std::array<double, 3> mpos{0, 0, 0};
-  std::vector<double> wheelY{0.316, 0.316, 0.316, 0.316};
+  std::array<double, 4> wheelY{0.316, 0.316, 0.316, 0.316};
   struct Free {
     Vector3 pos = Vector3(0, 3, 8);
     double yaw = 0;
@@ -327,12 +333,7 @@ class Game {
   const std::unique_ptr<ArcadeDrive> arcadeDrive;
   double autoDrive = 0;
   std::string tipText;
-  /**
-   * the headlights: their light, the traffic's lamps and main beam (render/headlights.ts)
-   * (later: beams, the rules of § 17 StVO – game/beamplay.ts, game.ts:514)
-   */
-  std::unique_ptr<PlayerLights> playerLights;
-  std::unique_ptr<TrafficGlow> trafficGlow;
+  // (later: beams, the headlights – game/beamplay.ts with sim/beams.ts, game.ts:514)
   // (later: wildView – game.ts:516)
   /** every fault of this and of earlier sessions */
   const std::unique_ptr<FaultLog> faultLog;
@@ -340,6 +341,8 @@ class Game {
   /** where the car has been, for the map */
   const std::unique_ptr<DrivenPath> path;
   std::unique_ptr<BigMap> bigMap;
+  /** the roads the big map draws ways on (ui/pathdraw.h roadSource: made anew each time it asks) */
+  std::unique_ptr<RoadSource> mapRoads;
   // (later: transitSrc, watcher, tramLineRef – game.ts:531)
   /** what is to be done once the vehicle is placed */
   std::function<void()> afterPlace;
@@ -370,6 +373,14 @@ class Game {
   Game& operator=(const Game&) = delete;
 
   Task<void> boot(URLSearchParams q);
+  /**
+   * the loop runs: `frame` asks for the next picture by itself (plat::requestAnimationFrame) –
+   * a test clears it and calls `frame(now)` as it likes
+   */
+  bool looping = false;
+
+  /** ?look=yaw,pitch: where the driver looks, for pictures */
+  std::optional<std::array<double, 2>> debugLook;
 
   double devFov = 60;
   /**
@@ -382,7 +393,9 @@ class Game {
   /** 'touch' | 'keys' */
   std::string inputMode = "keys";
   /** (not valid(): not asked for yet) */
-  Task<std::shared_ptr<AddressIndex>> addressIndex;
+  Task<AddressIndex*> addressIndex;
+  /** (the index itself, kept for as long as the game runs) */
+  std::unique_ptr<AddressIndex> addresses;
   std::optional<std::unordered_set<int>> mainSet;
   bool netAsked = false;
 
@@ -394,7 +407,8 @@ class Game {
   RouteGraph* routeGraphNow();
   std::optional<SpawnJson> roadSpot(double x, double z, const std::string& street, double maxDist);
   int edgeNear(double x, double z);
-  Task<std::shared_ptr<AddressIndex>> loadAddresses();
+  /** null: the map has no addresses (ui/hud.h and ui/bigmap.h ask for it as this) */
+  Task<AddressIndex*> loadAddresses();
   std::optional<SpawnJson> spawnAt(const AddressHit& hit);
   void teleportTo(const AddressHit& hit);
   void teleportSpot(const SpawnJson& spot);
@@ -443,7 +457,7 @@ class Game {
   // (later: menuPreview … previewPos, setMenuPreview, menuPreviewKey, clearPreview, placePreview, nameSign, levelTrailer, standModel – game.ts:1528)
   // (later: showGroup … showSpots, buildShowroom – game.ts:1644)
   void parkedVisual(Vehicle& v);
-  bool menuShow();
+  // (later: menuShow, the vehicle chosen behind the menu of rows – game.ts:1852)
   VehicleModel* makeModel(const VehicleDef& def);
   /** the model of the vehicle driven now (the original's getter `model`) */
   VehicleModel& model();
@@ -470,8 +484,7 @@ class Game {
   /** the last moment the sun was placed for (-1: to be placed, -2: the game's fixed afternoon) */
   double sunPlacedAt = -1;
   void updateSun();
-  /** `model`: null – no vehicle is shown */
-  void headlights(double dt, VehicleModel* model);
+  // (later: headlights – game/beamplay.ts, game.ts:3538)
   void finish();
   /** (input/input.ts: Action) */
   void onAction(const std::string& a);
