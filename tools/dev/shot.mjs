@@ -3,7 +3,8 @@
 //   node tools/dev/shot.mjs "<query string>" out.png [width] [height] [extra wait ms]
 // Needs tools/dev/serve.mjs running (FS_URL, default http://127.0.0.1:5180/) and Playwright's Chromium
 // (taken from the original repository's node_modules: FS_ORIGINAL, default /home/user/driving-simulator).
-// FS_MOBILE=1: a phone (touch, no mouse).  FS_STEPS: "key:KeyW:800,click:.btn,wait:500,eval:<js>" done in turn after the game is ready.
+// FS_MOBILE=1: a phone (touch, no mouse).  FS_STEPS: "key:KeyW:800,click:.btn,at:640:360,wait:500,eval:<js>" done in turn after the game is ready
+// (steps are split at commas: an eval with a comma in it is cut).
 // FS_GPU=1 draws with the machine's graphics chip (when the browser can reach it without a window).
 // Prints what the page wrote to the console, and window.__fs.info() at the end.
 import { existsSync, readdirSync } from 'node:fs';
@@ -66,6 +67,7 @@ for (const step of (process.env.FS_STEPS ?? '').split(',').filter(Boolean)) {
       await page.keyboard.up(a);
     } else if (kind === 'click') await page.click(a, { timeout: 5000 });
     else if (kind === 'tap') await page.tap(a, { timeout: 5000 });
+    else if (kind === 'at') await page.mouse.click(Number(a), Number(b));   // at:x:y – a click at that point of the page
     else if (kind === 'wait') await page.waitForTimeout(Number(a));
     else if (kind === 'eval') logs.push(`[eval] ${JSON.stringify(await page.evaluate(step.slice(5)))}`);
   } catch (e) {
