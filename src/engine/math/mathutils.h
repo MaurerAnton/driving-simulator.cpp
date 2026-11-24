@@ -7,6 +7,16 @@
  */
 #pragma once
 
+// JavaScript never joins a * b + c into one rounded operation; a C++ compiler may (GCC does on AArch64)
+// unless it is told not to.  A file that includes the maths is compiled without it from here on, so
+// that the numbers come out as in the original (sim/jsmath.h says the same; `-ffp-contract=off` for
+// the whole build would say it once).
+#if defined(__clang__)
+#pragma STDC FP_CONTRACT OFF
+#elif defined(__GNUC__)
+#pragma GCC optimize("fp-contract=off")
+#endif
+
 #include <algorithm>
 #include <array>
 #include <cmath>

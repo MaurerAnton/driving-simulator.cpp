@@ -16,6 +16,7 @@ console.warn = () => {};
 console.error = () => {};
 const THREE = await import(THREE_DIR + '/build/three.module.js');
 const { mergeGeometries, mergeVertices } = await import(THREE_DIR + '/examples/jsm/utils/BufferGeometryUtils.js');
+const { Earcut } = await import(THREE_DIR + '/src/extras/Earcut.js');
 
 // ---------------------------------------------------------------------------
 // printing
@@ -857,6 +858,23 @@ function sceneSection() {
     const spot = new THREE.SpotLight(0xfff0c8, 40, 60, 0.5, 0.3, 1.2), spot2 = new THREE.SpotLight(0xffffff);
     P('light.spot', spot.color, spot.intensity, spot.distance, spot.angle, spot.penumbra, spot.decay, spot.position, spot.matrix, spot.target.position, spot.shadow.camera.projectionMatrix,
       spot2.intensity, spot2.distance, spot2.angle, spot2.penumbra, spot2.decay);
+    // before a shadow map is drawn: the shadow camera at the light, looking at its target, and the matrix into the map
+    dir.position.copy(V3());
+    dir.target.position.copy(V3());
+    dir.updateMatrixWorld();
+    dir.target.updateMatrixWorld();
+    dir.shadow.updateMatrices(dir);
+    P('light.shadow.directional', dir.shadow.camera.position, dir.shadow.camera.quaternion, dir.shadow.camera.matrixWorldInverse, dir.shadow.matrix, dir.shadow.getFrustum().planes[0], dir.shadow.getFrustum().planes[5]);
+    spot.position.copy(V3());
+    spot.target.position.copy(V3());
+    spot.shadow.mapSize.set(1024, 512);
+    spot.updateMatrixWorld();
+    spot.target.updateMatrixWorld();
+    spot.shadow.updateMatrices(spot);
+    P('light.shadow.spot', spot.shadow.camera.fov, spot.shadow.camera.aspect, spot.shadow.camera.far, spot.shadow.camera.projectionMatrix, spot.shadow.matrix);
+    spot2.updateMatrixWorld();
+    spot2.shadow.updateMatrices(spot2);
+    P('light.shadow.spot.endless', spot2.shadow.camera.fov, spot2.shadow.camera.aspect, spot2.shadow.camera.far, spot2.shadow.matrix);
   }
 
   // --- levels of detail
@@ -1248,8 +1266,300 @@ function sceneSection() {
 }
 
 // ---------------------------------------------------------------------------
+// geometries, curves, shapes
+// ---------------------------------------------------------------------------
 
-const sections = { math: mathSection, scene: sceneSection };
+function geomSection() {
+  seed(424242);
+  /** a geometry with its bounding sphere */
+  const GS = (label, g) => {
+    g.computeBoundingSphere();
+    G(label, g);
+  };
+  /** numbers in a row: how many, their sum, the sum of each times its place, and the first of them */
+  const row = (label, a, first = 24) => {
+    let s = 0, w = 0;
+    for (let i = 0; i < a.length; i++) {
+      s += a[i];
+      w += a[i] * (i + 1);
+    }
+    P(label, a.length, s, w, a.slice(0, first));
+  };
+  const flat2 = (pts) => pts.flatMap((p) => [p.x, p.y]);
+  const flat3 = (pts) => pts.flatMap((p) => [p.x, p.y, p.z]);
+  const PI = Math.PI;
+
+  // --- the solids
+  GS('box', new THREE.BoxGeometry());
+  GS('box.2', new THREE.BoxGeometry(2, 3, 4));
+  GS('box.3', new THREE.BoxGeometry(1.5, 0.25, 3, 2, 3, 4));
+  GS('box.4', new THREE.BoxGeometry(0.13, 0.26, 0.1));
+  GS('plane', new THREE.PlaneGeometry());
+  GS('plane.2', new THREE.PlaneGeometry(4, 3));
+  GS('plane.3', new THREE.PlaneGeometry(10, 5, 4, 3));
+  GS('cylinder', new THREE.CylinderGeometry());
+  GS('cylinder.2', new THREE.CylinderGeometry(0.5, 0.5, 2, 8));
+  GS('cylinder.3', new THREE.CylinderGeometry(0.3, 0.6, 1.5, 12, 3, true));
+  GS('cylinder.4', new THREE.CylinderGeometry(0, 1, 2, 6, 2));
+  GS('cylinder.5', new THREE.CylinderGeometry(1, 0, 2, 6, 2));
+  GS('cylinder.6', new THREE.CylinderGeometry(0.5, 0.5, 1, 8, 1, false, 0.3, 2.2));
+  GS('cylinder.7', new THREE.CylinderGeometry(0.045, 0.05, 2.75, 8, 1, true));
+  GS('cone', new THREE.ConeGeometry());
+  GS('cone.2', new THREE.ConeGeometry(0.5, 1.2, 10));
+  GS('cone.3', new THREE.ConeGeometry(1, 2, 8, 3, true, 0.5, 4));
+  GS('sphere', new THREE.SphereGeometry());
+  GS('sphere.2', new THREE.SphereGeometry(0.5, 8, 6));
+  GS('sphere.3', new THREE.SphereGeometry(1, 20, 8, PI * 1.5 - 1.1, 2.2, 1.12, 0.62));
+  GS('sphere.4', new THREE.SphereGeometry(1, 12, 6, 0, PI * 2, 0, PI / 2));
+  GS('sphere.5', new THREE.SphereGeometry(2, 5, 4, 1, 3, 0.5, 2));
+  GS('sphere.6', new THREE.SphereGeometry(1, 6, 10, 0.3, 1, 0.02, 1.75));
+  GS('sphere.7', new THREE.SphereGeometry(1, 2, 1));
+  GS('torus', new THREE.TorusGeometry());
+  GS('torus.2', new THREE.TorusGeometry(0.3, 0.02, 6, 24));
+  GS('torus.3', new THREE.TorusGeometry(1, 0.4, 8, 16, PI));
+  GS('torus.4', new THREE.TorusGeometry(1, 0.3, 6, 12, PI * 2, 0.5, 2));
+  GS('circle', new THREE.CircleGeometry());
+  GS('circle.2', new THREE.CircleGeometry(0.5, 12));
+  GS('circle.3', new THREE.CircleGeometry(1, 16, 0.3, 2.5));
+  GS('circle.4', new THREE.CircleGeometry(1, 2));
+  GS('ring', new THREE.RingGeometry());
+  GS('ring.2', new THREE.RingGeometry(0.2, 0.5, 12, 2));
+  GS('ring.3', new THREE.RingGeometry(1, 2, 8, 3, 0.4, 3));
+  GS('ring.4', new THREE.RingGeometry(1, 2, 2, 0));
+  const profile = [new THREE.Vector2(0.2, -0.11), new THREE.Vector2(0.27, -0.12), new THREE.Vector2(0.32, -0.09), new THREE.Vector2(0.34, 0), new THREE.Vector2(0.32, 0.09),
+    new THREE.Vector2(0.27, 0.12), new THREE.Vector2(0.2, 0.11)];
+  GS('lathe', new THREE.LatheGeometry([new THREE.Vector2(0, -0.5), new THREE.Vector2(0.5, 0), new THREE.Vector2(0, 0.5)]));
+  GS('lathe.2', new THREE.LatheGeometry(profile, 22));
+  GS('lathe.3', new THREE.LatheGeometry(profile, 10, 0.5, 4));
+  GS('lathe.4', new THREE.LatheGeometry([new THREE.Vector2(0.5, 0), new THREE.Vector2(0.25, 1)], 5, 0, 9));
+  GS('icosahedron', new THREE.IcosahedronGeometry());
+  GS('icosahedron.2', new THREE.IcosahedronGeometry(0.5, 1));
+  GS('icosahedron.3', new THREE.IcosahedronGeometry(1, 2));
+  GS('icosahedron.4', new THREE.IcosahedronGeometry(2, 3));
+  const tetra = [1, 1, 1, -1, -1, 1, -1, 1, -1, 1, -1, -1], tetraFaces = [2, 1, 0, 0, 3, 2, 1, 3, 0, 2, 3, 1];
+  GS('polyhedron', new THREE.PolyhedronGeometry(tetra, tetraFaces));
+  GS('polyhedron.2', new THREE.PolyhedronGeometry(tetra, tetraFaces, 1.5, 2));
+  // … as the game makes them: turned, moved, merged, without an index, with normals of their own
+  GS('game.cylinder', new THREE.CylinderGeometry(0.03, 0.03, 0.02, 12).rotateX(PI / 2).translate(0, 1.2, -0.09));
+  GS('game.sphere', new THREE.SphereGeometry(0.235, 16, 4, 0, PI * 2, 0, PI / 2).scale(1, 0.32, 1).translate(0, 0.87, 0));
+  GS('game.lathe', new THREE.LatheGeometry(profile, 22).rotateZ(-PI / 2));
+  GS('game.box', new THREE.BoxGeometry(0.13, 0.26, 0.1).translate(0, 1.4, -0.09).toNonIndexed());
+  {
+    const g = new THREE.BoxGeometry(1, 2, 3, 2, 1, 1).toNonIndexed();
+    g.deleteAttribute('normal');
+    g.computeVertexNormals();
+    GS('box.flat', g);
+    const smooth = new THREE.SphereGeometry(1, 8, 6);
+    smooth.deleteAttribute('normal');
+    smooth.computeVertexNormals();
+    GS('sphere.computeVertexNormals', smooth);
+  }
+
+  // --- curves
+  const pts3 = [];
+  for (let i = 0; i < 6; i++) pts3.push(V3(-3, 3));
+  const curves3 = [
+    ['line3', new THREE.LineCurve3(pts3[0], pts3[1])],
+    ['quadratic3', new THREE.QuadraticBezierCurve3(pts3[0], pts3[1], pts3[2])],
+    ['cubic3', new THREE.CubicBezierCurve3(pts3[0], pts3[1], pts3[2], pts3[3])],
+    ['catmull', new THREE.CatmullRomCurve3(pts3)],
+    ['catmull.closed', new THREE.CatmullRomCurve3(pts3, true)],
+    ['catmull.chordal', new THREE.CatmullRomCurve3(pts3, false, 'chordal')],
+    ['catmull.uniform', new THREE.CatmullRomCurve3(pts3, true, 'catmullrom', 0.7)],
+    ['catmull.two', new THREE.CatmullRomCurve3([pts3[4], pts3[5]], false, 'centripetal')],
+  ];
+  for (const [name, c] of curves3) {
+    P('curve.' + name, c.getPoint(0), c.getPoint(0.37), c.getPoint(1), c.getPointAt(0.37), c.getTangent(0.37), c.getTangentAt(0.37), c.getTangent(0), c.getTangentAt(1), c.getLength());
+    row('curve.' + name + '.points', flat3(c.getPoints(7)));
+    row('curve.' + name + '.spaced', flat3(c.getSpacedPoints(7)));
+    row('curve.' + name + '.lengths', c.getLengths(10), 11);
+    P('curve.' + name + '.mapping', c.getUtoTmapping(0.25), c.getUtoTmapping(0, c.getLength() * 0.6), c.getUtoTmapping(0), c.getUtoTmapping(1));
+    for (const closed of [false, true]) {
+      const f = c.computeFrenetFrames(9, closed);
+      row('curve.' + name + '.frenet', flat3(f.tangents).concat(flat3(f.normals), flat3(f.binormals)), 9);
+    }
+  }
+  row('curve.default', flat3(new THREE.CatmullRomCurve3(pts3).getPoints()).concat(flat3(new THREE.CatmullRomCurve3(pts3).getSpacedPoints())), 6);
+  const pts2 = [];
+  for (let i = 0; i < 5; i++) pts2.push(V2(-3, 3));
+  const curves2 = [
+    ['line', new THREE.LineCurve(pts2[0], pts2[1])],
+    ['quadratic', new THREE.QuadraticBezierCurve(pts2[0], pts2[1], pts2[2])],
+    ['cubic', new THREE.CubicBezierCurve(pts2[0], pts2[1], pts2[2], pts2[3])],
+    ['spline', new THREE.SplineCurve(pts2)],
+    ['ellipse', new THREE.EllipseCurve()],
+    ['ellipse.arc', new THREE.EllipseCurve(1, 2, 3, 1.5, 0.4, 2.9, false, 0.6)],
+    ['ellipse.clockwise', new THREE.EllipseCurve(1, 2, 3, 1.5, 0.4, 2.9, true)],
+    ['ellipse.back', new THREE.EllipseCurve(0, 0, 2, 2, 3, 1, false)],
+    ['ellipse.full', new THREE.EllipseCurve(0, 0, 2, 2, 1, 1 + PI * 2, true)],
+    ['ellipse.none', new THREE.EllipseCurve(0, 0, 2, 2, 1, 1, false)],
+  ];
+  for (const [name, c] of curves2) {
+    P('curve.' + name, c.getPoint(0), c.getPoint(0.37), c.getPoint(1), c.getPointAt(0.37), c.getTangent(0.37), c.getTangentAt(0.37), c.getLength());
+    row('curve.' + name + '.points', flat2(c.getPoints(7)));
+    row('curve.' + name + '.spaced', flat2(c.getSpacedPoints(7)));
+  }
+
+  // --- paths and shapes
+  const outline = (s) => {
+    const e = s.extractPoints(6);
+    row('shape.points', flat2(e.shape), 16);
+    for (const h of e.holes) row('shape.hole', flat2(h), 16);
+  };
+  const path = new THREE.Path();
+  path.moveTo(0, 0).lineTo(4, 0).quadraticCurveTo(5, 0, 5, 1).lineTo(5, 3).bezierCurveTo(5, 4, 4, 5, 3, 4.5).absarc(2, 4, 1, 0.4, 2.6, false).lineTo(0, 3).absellipse(0, 2, 0.5, 1, PI / 2, -PI / 2, true, 0.2);
+  P('path', path.curves.length, path.currentPoint, path.getLength(), path.getCurveLengths(), path.getPoint(0), path.getPoint(0.5), path.getPoint(1), path.getPointAt(0.3), path.getTangent(0.3));
+  row('path.points', flat2(path.getPoints()), 16);
+  row('path.points.4', flat2(path.getPoints(4)), 16);
+  row('path.spaced', flat2(path.getSpacedPoints()), 16);
+  row('path.spaced.9', flat2(path.getSpacedPoints(9)), 16);
+  path.autoClose = true;
+  row('path.autoClose', flat2(path.getPoints(3)).concat(flat2(path.getSpacedPoints(5))), 8);
+  path.autoClose = false;
+  path.closePath();
+  P('path.closePath', path.curves.length, path.getLength(), path.currentPoint);
+  path.closePath();
+  P('path.closePath.again', path.curves.length);
+  const rel = new THREE.Path().moveTo(1, 1).arc(1, 0, 1, PI, 0, true).ellipse(1, 0, 1, 0.5, PI, 0, false, 0).splineThru([new THREE.Vector2(5, 2), new THREE.Vector2(6, 0), new THREE.Vector2(7, 1)]);
+  P('path.arc', rel.curves.length, rel.currentPoint, rel.getLength());
+  row('path.arc.points', flat2(rel.getPoints(5)), 16);
+  const fromPoints = new THREE.Path(pts2);
+  P('path.fromPoints', fromPoints.curves.length, fromPoints.currentPoint, fromPoints.getLength());
+  const copy = fromPoints.clone();
+  copy.lineTo(9, 9);
+  P('path.clone', copy.curves.length, fromPoints.curves.length, copy.curves[0] !== fromPoints.curves[0], copy.getLength());
+
+  const triangle = new THREE.Shape([new THREE.Vector2(-0.3, 0), new THREE.Vector2(0, 0.52), new THREE.Vector2(0.3, 0)]);
+  triangle.holes.push(new THREE.Path([new THREE.Vector2(-0.15, 0.05), new THREE.Vector2(0, 0.31), new THREE.Vector2(0.15, 0.05)]));
+  const rect = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(2, 0), new THREE.Vector2(2, 1), new THREE.Vector2(0, 1)]);
+  const rectCw = new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0, 1), new THREE.Vector2(2, 1), new THREE.Vector2(2, 0), new THREE.Vector2(0, 0)]);
+  const rounded = new THREE.Shape();
+  rounded.moveTo(0.2, 0).lineTo(1.8, 0).quadraticCurveTo(2, 0, 2, 0.2).lineTo(2, 0.8).quadraticCurveTo(2, 1, 1.8, 1).lineTo(0.2, 1).quadraticCurveTo(0, 1, 0, 0.8).lineTo(0, 0.2).quadraticCurveTo(0, 0, 0.2, 0);
+  const disc = new THREE.Shape();
+  disc.absarc(0, 0, 1, 0, PI * 2, false);
+  const hole1 = new THREE.Path();
+  hole1.absarc(0.3, 0.2, 0.25, 0, PI * 2, true);
+  const hole2 = new THREE.Path();
+  hole2.moveTo(-0.6, -0.2).lineTo(-0.2, -0.2).lineTo(-0.2, 0.2).lineTo(-0.6, 0.2).closePath();
+  disc.holes.push(hole1, hole2);
+  const blob = new THREE.Shape();
+  blob.moveTo(0, 0).bezierCurveTo(1, -1, 3, -1, 4, 0).bezierCurveTo(5, 1, 5, 3, 4, 4).lineTo(2, 3).lineTo(0, 4).bezierCurveTo(-1, 3, -1, 1, 0, 0);
+  // a long profile: so many points that the triangulation sorts them along a curve
+  const long = new THREE.Shape();
+  long.moveTo(0, 0);
+  for (let i = 1; i <= 60; i++) long.lineTo(i * 0.5, Math.sin(i * 0.7) * 0.4 + (i % 2) * 0.3);
+  long.lineTo(30, 3);
+  for (let i = 60; i >= 0; i--) long.lineTo(i * 0.5, 3 + Math.cos(i * 0.4) * 0.5 + (i % 3) * 0.2);
+  const longHole = new THREE.Path();
+  longHole.absellipse(15, 1.6, 6, 0.3, 0, PI * 2, true, 0);
+  long.holes.push(longHole);
+  const shapes = [['triangle', triangle], ['rect', rect], ['rectCw', rectCw], ['rounded', rounded], ['disc', disc], ['blob', blob], ['long', long]];
+  for (const [name, s] of shapes) {
+    P('shape.' + name, s.curves.length, s.holes.length, s.getLength(), THREE.ShapeUtils.area(s.getPoints()), THREE.ShapeUtils.isClockWise(s.getPoints()));
+    outline(s);
+    GS('shape.' + name + '.geometry', new THREE.ShapeGeometry(s));
+    GS('shape.' + name + '.geometry.4', new THREE.ShapeGeometry(s, 4));
+    GS('shape.' + name + '.extrude', new THREE.ExtrudeGeometry(s, { depth: 0.6, bevelEnabled: false }));
+    GS('shape.' + name + '.extrude.bevel', new THREE.ExtrudeGeometry(s));
+  }
+  GS('shape.several', new THREE.ShapeGeometry([triangle, rect, disc], 5));
+  GS('shape.rotated', new THREE.ShapeGeometry(rounded).rotateX(PI / 2));
+  GS('extrude.several', new THREE.ExtrudeGeometry([triangle, rect], { depth: 2, bevelEnabled: false, steps: 3, curveSegments: 3 }));
+  GS('extrude.steps', new THREE.ExtrudeGeometry(rounded, { depth: 1.5, steps: 4, bevelEnabled: false, curveSegments: 5 }));
+  GS('extrude.bevel', new THREE.ExtrudeGeometry(disc, { depth: 0.4, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.04, bevelOffset: -0.01, bevelSegments: 2, curveSegments: 8 }));
+  GS('extrude.bevel.default', new THREE.ExtrudeGeometry(rect, { bevelThickness: 0.3 }));
+  GS('extrude.path', new THREE.ExtrudeGeometry(rect, { steps: 12, extrudePath: new THREE.CatmullRomCurve3(pts3) }));
+  GS('extrude.path.closed', new THREE.ExtrudeGeometry(triangle, { steps: 16, extrudePath: new THREE.CatmullRomCurve3(pts3, true), curveSegments: 4 }));
+  GS('extrude.path.line', new THREE.ExtrudeGeometry(disc, { steps: 2, extrudePath: new THREE.LineCurve3(pts3[0], pts3[1]), curveSegments: 6 }));
+  const copyShape = disc.clone();
+  copyShape.holes.pop();
+  P('shape.clone', copyShape.holes.length, disc.holes.length, copyShape.holes[0] !== disc.holes[0], copyShape.curves.length);
+
+  // --- tubes
+  GS('tube', new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts3), 16, 0.017, 5, false));
+  GS('tube.closed', new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts3, true), 20, 0.2, 6, true));
+  GS('tube.line', new THREE.TubeGeometry(new THREE.LineCurve3(pts3[2], pts3[3]), 3, 0.5, 4));
+  GS('tube.default', new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(new THREE.Vector3(-1, -1, 0), new THREE.Vector3(-1, 1, 0), new THREE.Vector3(1, 1, 0))));
+
+  // --- triangulation
+  const faces = (label, f) => row(label, f.flat(), 60);
+  {
+    const square = [new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(1, 1), new THREE.Vector2(0, 1)];
+    faces('tri.square', THREE.ShapeUtils.triangulateShape(square, []));
+    // the end like the beginning: taken off; points in a line; a point twice
+    const closed = [new THREE.Vector2(0, 0), new THREE.Vector2(1, 0), new THREE.Vector2(2, 0), new THREE.Vector2(2, 1), new THREE.Vector2(2, 2), new THREE.Vector2(1, 2), new THREE.Vector2(1, 2),
+      new THREE.Vector2(0, 2), new THREE.Vector2(0, 1), new THREE.Vector2(0, 0)];
+    faces('tri.closed', THREE.ShapeUtils.triangulateShape(closed, []));
+    P('tri.closed.length', closed.length);
+    const lShape = [new THREE.Vector2(0, 0), new THREE.Vector2(3, 0), new THREE.Vector2(3, 1), new THREE.Vector2(1, 1), new THREE.Vector2(1, 3), new THREE.Vector2(0, 3)];
+    faces('tri.L', THREE.ShapeUtils.triangulateShape(lShape, []));
+    faces('tri.L.reversed', THREE.ShapeUtils.triangulateShape(lShape.slice().reverse(), []));
+    const frame = [new THREE.Vector2(0, 0), new THREE.Vector2(4, 0), new THREE.Vector2(4, 4), new THREE.Vector2(0, 4)];
+    const frameHoles = [[new THREE.Vector2(1, 1), new THREE.Vector2(1, 2), new THREE.Vector2(2, 2), new THREE.Vector2(2, 1)],
+      [new THREE.Vector2(2.5, 2.5), new THREE.Vector2(2.5, 3.5), new THREE.Vector2(3.5, 3.5), new THREE.Vector2(3.5, 2.5), new THREE.Vector2(2.5, 2.5)],
+      [new THREE.Vector2(1, 2.5), new THREE.Vector2(1.5, 3.5), new THREE.Vector2(2, 2.5)]];
+    faces('tri.frame', THREE.ShapeUtils.triangulateShape(frame, frameHoles));
+    P('tri.frame.holes', frameHoles.map((h) => h.length), THREE.ShapeUtils.area(frame), THREE.ShapeUtils.area(frameHoles[0]), THREE.ShapeUtils.isClockWise(frameHoles[0]));
+    faces('tri.degenerate', THREE.ShapeUtils.triangulateShape([new THREE.Vector2(0, 0), new THREE.Vector2(1, 1)], []));
+    // stars: an outline that goes in and out about a middle, with two holes; the larger ones are sorted along a curve first
+    for (const n of [7, 30, 30, 120, 120, 400]) {
+      const star = [];
+      for (let i = 0; i < n; i++) {
+        const a = (i + rnd() * 0.8) / n * PI * 2, rad = r(5, 10);
+        star.push(new THREE.Vector2(Math.cos(a) * rad, Math.sin(a) * rad));
+      }
+      const holes = [];
+      for (const [cx, cy] of [[-2, 0], [2, 0.5]]) {
+        const hole = [], m = 5 + (n % 7);
+        for (let i = 0; i < m; i++) {
+          const a = -(i + rnd() * 0.8) / m * PI * 2, rad = r(0.3, 1);
+          hole.push(new THREE.Vector2(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad));
+        }
+        holes.push(hole);
+      }
+      faces('tri.star.' + n, THREE.ShapeUtils.triangulateShape(star.slice(), []));
+      faces('tri.star.' + n + '.holes', THREE.ShapeUtils.triangulateShape(star, holes));
+      // on a grid: many points in lines and with the same x
+      const snapped = star.map((p) => new THREE.Vector2(Math.round(p.x), Math.round(p.y)));
+      faces('tri.star.' + n + '.grid', THREE.ShapeUtils.triangulateShape(snapped, []));
+    }
+    row('tri.earcut', Earcut.triangulate([0, 0, 10, 0, 10, 10, 0, 10, 2, 2, 2, 4, 4, 4, 4, 2, 6, 6, 6, 8, 8, 8, 8, 6], [4, 8]), 60);
+    row('tri.earcut.steiner', Earcut.triangulate([0, 0, 10, 0, 10, 10, 0, 10, 5, 5, 3, 3], [4, 5]), 60);
+    row('tri.earcut.empty', Earcut.triangulate([]), 6);
+  }
+
+  // --- merging
+  {
+    const parts = [new THREE.BoxGeometry(1, 2, 3).translate(0, 1, 0), new THREE.CylinderGeometry(0.5, 0.5, 2, 8).rotateZ(PI / 2), new THREE.SphereGeometry(0.7, 8, 6).translate(2, 0, 0)];
+    GS('merge', mergeGeometries(parts, false));
+    GS('merge.groups', mergeGeometries(parts, true));
+    const bare = parts.map((g) => g.toNonIndexed());
+    GS('merge.bare', mergeGeometries(bare, false));
+    GS('merge.bare.groups', mergeGeometries(bare, true));
+    P('merge.null', mergeGeometries([parts[0], bare[1]]) === null, mergeGeometries([parts[0], new THREE.BoxGeometry().deleteAttribute('uv')]) === null,
+      mergeGeometries([new THREE.BoxGeometry().deleteAttribute('uv'), parts[0]]) === null);
+    // more than 65535 vertices: an index of 32 bits
+    const many = [];
+    for (let i = 0; i < 8; i++) many.push(new THREE.PlaneGeometry(1, 1, 95, 95));
+    const big = mergeGeometries(many);
+    P('merge.big', big.index.array.constructor.name, big.index.count, big.attributes.position.count, sums(big.index.array));
+    // vertices that are alike become one
+    const welded = mergeVertices(new THREE.BoxGeometry(1, 2, 3));
+    GS('mergeVertices', welded);
+    const positionsOnly = new THREE.BoxGeometry(1, 2, 3, 2, 2, 2).toNonIndexed();
+    positionsOnly.deleteAttribute('normal');
+    positionsOnly.deleteAttribute('uv');
+    GS('mergeVertices.positions', mergeVertices(positionsOnly));
+    GS('mergeVertices.tolerance', mergeVertices(new THREE.SphereGeometry(1, 12, 8), 0.3));
+    const smoothed = mergeVertices(positionsOnly);
+    smoothed.computeVertexNormals();
+    GS('mergeVertices.normals', smoothed);
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+const sections = { math: mathSection, scene: sceneSection, geom: geomSection };
 const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(sections);
 for (const name of wanted) {
   if (!sections[name]) throw new Error('no such section: ' + name);
