@@ -88,7 +88,7 @@ class WorldLayer {
   /** the view in which every region is seen / one region fills the picture */
   MapView fitAll(double width, double height) const;
   MapView fit(const Region& r, double width, double height) const;
-  /** how many regions lie in a country (by its ISO code), for lists */
+  /** the outlines of the countries the layer draws (empty: none were read) */
   const WorldOutline& outline() const { return outline_; }
 
  private:
