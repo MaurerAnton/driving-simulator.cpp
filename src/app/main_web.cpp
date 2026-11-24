@@ -8,9 +8,12 @@
 #include <GLES3/gl3.h>
 #include <emscripten.h>
 
+#include <cmath>
 #include <string>
 
+#include "../../tools/dev/probe_scene.h"
 #include "core/task.h"
+#include "engine/renderer.h"
 #include "platform/dom.h"
 #include "platform/glhost.h"
 #include "platform/plat.h"
@@ -37,9 +40,37 @@ Task<void> boot() {
   bool gl = plat::gl::createContext("view", plat::innerWidth(), plat::innerHeight());
   box.append(line(std::string("graphics: ") + (gl ? plat::gl::rendererName() : "no WebGL 2")));
   if (gl) {
-    glViewport(0, 0, plat::innerWidth(), plat::innerHeight());
-    glClearColor(0.16f, 0.36f, 0.6f, 1);
-    glClear(GL_COLOR_BUFFER_BIT);
+    // the renderer's test scene (tools/dev/render_probe), drawn every frame
+    static Renderer renderer;
+    renderer.init();
+    renderer.setPixelRatio(plat::devicePixelRatio());
+    renderer.setSize(plat::innerWidth(), plat::innerHeight());
+    renderer.toneMapping = true;
+    renderer.toneMappingExposure = 0.85;
+    renderer.shadowMap.enabled = true;
+    static probe::ProbeScene ps = probe::makeScene(plat::innerWidth(), plat::innerHeight());
+    static dom::El stats = line("");
+    box.append(stats);
+    emscripten_set_main_loop(
+        [] {
+          static double last = plat::nowMs(), acc = 0;
+          static int frames = 0;
+          double now = plat::nowMs();
+          double a = now * 0.0002;
+          ps.camera->position.set(16 * std::sin(a), 6, 16 * std::cos(a));
+          ps.camera->lookAt(0, 1.5, 0);
+          renderer.render(*ps.scene, *ps.camera);
+          acc += now - last;
+          last = now;
+          if (++frames == 30) {
+            const Renderer::Info& i = renderer.info;
+            stats.textContent(std::to_string(static_cast<int>(1000.0 * frames / acc)) + " fps; " + std::to_string(i.calls) + " draw calls, " + std::to_string(i.triangles) +
+                              " triangles, " + std::to_string(i.programs) + " programs");
+            frames = 0;
+            acc = 0;
+          }
+        },
+        0, 0);
   }
 
   // (where the map is: the page says – beside it when served locally, the 1.7.7 site's on the test site)
