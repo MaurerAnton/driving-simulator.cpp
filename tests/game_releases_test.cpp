@@ -153,6 +153,9 @@ int main() {
     for (size_t i = 1; i < counted.size(); i++) {
       const ReleaseSize& newer = *counted[i - 1]->size;
       const ReleaseSize& older = *counted[i]->size;
+      // 2.0: from 1.7.7 to 2.0.0 the game was written anew in C++, in another repository, with part of it still to
+      // come (docs/STATUS.md) – the sizes are not of one code base; the rules hold within a major version
+      if (counted[i - 1]->version[0] != counted[i]->version[0]) continue;
       // (a version may tidy up a little, not lose a tenth)
       assert(newer.lines >= older.lines * 0.9);
       assert(newer.code >= older.code * 0.9);
