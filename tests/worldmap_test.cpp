@@ -1,4 +1,4 @@
-// LINK: ui i18n game sim audio world geo core platform
+// LINK: ui reality i18n game sim audio world geo core platform
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * 2.0: one map for all regions (docs/WORLD-MAP.md) on the native page: the big

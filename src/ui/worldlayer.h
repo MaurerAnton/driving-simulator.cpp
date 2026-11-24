@@ -17,6 +17,7 @@
 #include <optional>
 #include <array>
 #include <string>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -81,8 +82,10 @@ class WorldLayer {
    * when far out, and the regions.  `current`: the region that is loaded;
    * `chosen`: the one the player has tapped (drawn stronger); `roads`: the loaded
    * region's roads are drawn by the map itself, so its box is only outlined.
+   * `underlay` (2.0, the aerial photographs): drawn on the land, under the borders and the regions.
    */
-  void draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang) const;
+  void draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang,
+            const std::function<void()>& underlay = nullptr) const;
   /** The region under a point of the picture: the smallest box that holds it, a dot within reach of a finger. */
   const Region* regionAt(const MapView& v, double px, double py) const;
   /** the view in which every region is seen / one region fills the picture */

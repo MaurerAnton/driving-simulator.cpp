@@ -36,7 +36,7 @@ std::vector<std::pair<std::string, MiniMap::Place>> MiniMap::loadPlaces() {
 }
 
 MiniMap::MiniMap(const dom::El& box_, const Canvas& canvas_, MiniMapHost host_) : host(std::move(host_)), box(box_), canvas(canvas_), places(loadPlaces()) {
-  if (AerialCache::create) photosCache = AerialCache::create([] {}, 48);
+  photosCache = std::make_unique<AerialCache>([] {}, 48);
   box.addClass("mini");
   box.style("touchAction", "none");
   // (what a tap does, and that the rim moves it)
@@ -245,8 +245,6 @@ std::array<double, 2> MiniMap::centre(double x, double z, double yaw_, double sc
 
 bool MiniMap::photos(const Ctx2D& g, double cx, double cz, double range, double pxPerMetre) {
   if (!host.photos()) return false;
-  // (the aerial photographs are not translated yet: ui/maphooks.h)
-  if (!photosCache) return false;
   const MiniMapHost::Meta& m = host.meta;
   const double e0 = std::max(cx - range, m.minX) + m.originE;
   const double e1 = std::min(cx + range, m.maxX) + m.originE;
@@ -254,12 +252,13 @@ bool MiniMap::photos(const Ctx2D& g, double cx, double cz, double range, double 
   const double n1 = m.originN - std::max(cz - range, m.minZ);
   if (e1 <= e0 || n1 <= n0) return false;
   photosCache->beginFrame();
-  const int level = photosCache->aerialLevel(pxPerMetre);
+  const int level = aerialLevel(pxPerMetre);
   bool any = false;
   // a coarse picture first (there at once when the vehicle moves on), the fine ones over it
   const std::vector<int> levels = level + 2 <= 8 ? std::vector<int>{level + 2, level} : std::vector<int>{level};
   for (int l : levels) {
-    for (const AerialTile& t : photosCache->aerialTiles(l, e0, n0, e1, n1)) {
+    // 2.0: each tile from the state it lies in (a region's map may lie anywhere in Germany): reality/aerial.h
+    for (const AerialTile& t : aerialStateTiles(l, e0, n0, e1, n1)) {
       const Image* img = photosCache->get(t);
       if (!img) continue;
       g.drawImage(*img, t.minE - m.originE, m.originN - (t.minN + t.size), t.size, t.size);

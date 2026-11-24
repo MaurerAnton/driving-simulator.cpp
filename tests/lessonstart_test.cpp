@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: ui game i18n world core platform geo
+// LINK: ui reality game i18n world core platform geo
 // Origin: tests/game/lessonwatch.test.ts @ v1.7.7 (the case of ui/lessonstart.ts; game/lessonwatch.ts is not in 2.0.0)
 /** The map of the districts of the lesson start (ui/lessonstart.ts): every district on the picture, a tap picks the one under it. */
 #include <array>

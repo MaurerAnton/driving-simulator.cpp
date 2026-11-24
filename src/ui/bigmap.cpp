@@ -96,7 +96,7 @@ void BigMap::RoadPath::stroke(const Ctx2D& g) const {
 }
 
 BigMap::BigMap(BigMapHost host_, std::shared_ptr<WorldLayer> world) : host(std::move(host_)), worldLayer(std::move(world)) {
-  if (AerialCache::create) photos = AerialCache::create([this] { redraw(); }, 0);
+  photos = std::make_unique<AerialCache>([this] { redraw(); });
   if (TransitLayer::create) {
     TransitMapHost th;
     th.lang = [this] { return host.lang(); };
@@ -293,7 +293,8 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
       redraw();
     });
     aerialToggle.append(aerialBox, el("span", "", t("mapAerial")));
-    aerialToggle.title(photos->sourceName());
+    // 2.0: the states' orthophotos and Sentinel-2 (reality/aerial.h)
+    aerialToggle.title(aerialLayerName());
     bottom.append(scaleBox, aerialToggle, pathToggle, clear);
   } else bottom.append(scaleBox, pathToggle, clear);
   if (host.transit && transit) bottom.append(transit->toggle());
@@ -1176,7 +1177,8 @@ void BigMap::drawScale(double W, double s, bool aerial) {
   const std::string label = metres >= 1000 ? formatUnit(metres / 1000, Unit::Kilometer, lang) : formatUnit(metres, Unit::Meter, lang);
   if (scaleText.textContent() != label) scaleText.textContent(label);
   // whose pictures these are
-  const std::string creditText = aerial && photos ? photos->sourceAttribution() : "";
+  // 2.0: the credits of the sources on the screen (drawAerialLayer)
+  const std::string creditText = aerial && photos ? aerialCredit : "";
   if (credit.textContent() != creditText) credit.textContent(creditText);
 }
 
@@ -1216,9 +1218,11 @@ void BigMap::draw() {
     MapView v = view();
     v.width = W;
     v.height = H;
-    worldLayer->draw(g, v, current, chosen ? *chosen : current, host.lang());
+    // 2.0: the aerial photographs on the land, under the borders and the regions (ui/bigmap_aerial.cpp)
+    const bool aerialHere = photos && host.aerial();
+    worldLayer->draw(g, v, current, chosen ? *chosen : current, host.lang(), aerialHere ? std::function<void()>([&] { drawAerialLayer(g, W, H, dpr); }) : nullptr);
     if (far) {
-      drawScale(W, s, false);
+      drawScale(W, s, aerialHere);
       return;
     }
   }
@@ -1237,29 +1241,9 @@ void BigMap::draw() {
     g.fillRect(m.minX, m.minZ, m.maxX - m.minX, m.maxZ - m.minZ);
   }
 
-  // aerial photographs under the roads (only within the map, only what is in view)
+  // aerial photographs under the roads (2.0: Germany and beyond, ui/bigmap_aerial.cpp – with the world, drawn with its land)
   const bool aerial = photos && host.aerial();
-  if (aerial) {
-    photos->beginFrame();
-    const double e0 = std::max(minX, m.minX) + m.originE;
-    const double e1 = std::min(maxX, m.maxX) + m.originE;
-    const double n0 = m.originN - std::min(maxZ, m.maxZ);
-    const double n1 = m.originN - std::max(minZ, m.minZ);
-    if (e1 > e0 && n1 > n0) {
-      int level = photos->aerialLevel(s * dpr);
-      // never more than a screenful of pictures at once
-      while (level < 8 && ((e1 - e0) / photos->aerialTileSize(level) + 1) * ((n1 - n0) / photos->aerialTileSize(level) + 1) > 30) level++;
-      // a coarse picture first (it is there at once), the fine ones on top as they arrive
-      const int levels[2] = {level + 3 <= 8 ? level + 3 : 8, level};
-      for (const int l : levels) {
-        for (const AerialTile& tile : photos->aerialTiles(l, e0, n0, e1, n1)) {
-          const Image* img = photos->get(tile);
-          if (img) g.drawImage(*img, tile.minE - m.originE, m.originN - (tile.minN + tile.size), tile.size, tile.size);
-        }
-        if (l == level) break;
-      }
-    }
-  }
+  if (aerial && !withWorld) drawAerialLayer(g, W, H, dpr);
 
   g.lineCap("round");
   g.lineJoin("round");

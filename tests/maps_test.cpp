@@ -1,4 +1,4 @@
-// LINK: ui i18n game sim audio world geo core platform
+// LINK: ui reality i18n game sim audio world geo core platform
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: tests/ui/{addresspicker,geoip,placesearch,regions,pathdraw}.test.ts @ v1.7.7
 /**

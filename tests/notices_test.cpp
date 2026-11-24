@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: ui i18n core platform
+// LINK: ui reality i18n core platform
 // Origin: tests/game/notices.test.ts @ v1.7.7
 /** Which notice of the instructor is shown in the street-name block. */
 #include <cassert>

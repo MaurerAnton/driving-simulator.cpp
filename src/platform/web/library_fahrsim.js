@@ -562,6 +562,9 @@ addToLibrary({
   fsc_image_load: function (id, url) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
+    // nothing but the picture's address is sent: no cookies, no referrer (the aerial photographs' servers – reality/aerial.ts)
+    img.referrerPolicy = 'no-referrer';
+    img.decoding = 'async';
     img.onload = () => {
       FSD.images.push(img);
       _fsc_image_done(id, FSD.images.length - 1, img.naturalWidth, img.naturalHeight);

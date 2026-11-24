@@ -17,8 +17,8 @@
  *    which is kept (one place for the keyboard layout, one for the touch
  *    layout of the HUD); a double tap on the rim puts it back.
  *
- * (The aerial photographs are not translated yet – ui/maphooks.h AerialCache:
- * until they are, photos() draws nothing and answers false.)
+ * 2.0: the aerial photographs are those of the state the map lies in (reality/aerial.h
+ * aerialStateTiles), so a region's corner map has them anywhere in Germany.
  */
 #pragma once
 
@@ -104,7 +104,6 @@ class MiniMap {
   /** the heading and scale of the last picture of the corner map: a drag is turned into metres by them */
   double yaw = 0;
   double scale = 0.42;
-  /** (null until the aerial photographs are translated: ui/maphooks.h) */
   std::unique_ptr<AerialCache> photosCache;
   dom::El backBtn;
   std::optional<Drag> drag;

@@ -59,6 +59,43 @@ Geobasisdaten, „jede Nutzung … ohne Einschränkung oder Bedingung erlaubt“
 dabei die IP-Adresse und den gezeigten Ausschnitt – das sagen auch die Einstellungen. Die große Karte nennt
 die Herkunft der Bilder.
 
+Seit 2.0 zeigt die große Karte Luftbilder für ganz Deutschland und darüber hinaus, ebenfalls nur im eigenen
+Browser von den Diensten geladen; jeder Dienst erfährt die IP-Adresse und den gezeigten Ausschnitt. Die Karte
+nennt in ihrer Ecke die Herkunft der Bilder, die gerade zu sehen sind. Quellen, Lizenzen und Adressen im
+Einzelnen: `docs/AERIAL.md`.
+
+- Weit herausgezoomt und außerhalb Deutschlands: Sentinel-2 cloudless – https://s2maps.eu by EOX IT Services
+  GmbH (Contains modified Copernicus Sentinel data 2016), CC BY 4.0
+  (<https://creativecommons.org/licenses/by/4.0/>). Verwendet wird nur das Mosaik von 2016; die späteren
+  Jahrgänge stehen unter CC BY-NC-SA 4.0 und werden nicht verwendet.
+- Nah herangezoomt die Digitalen Orthophotos der Länder (WMS, EPSG:25832):
+  - Baden-Württemberg: LGL-BW (2026) Datenlizenz Deutschland – Namensnennung – Version 2.0, www.lgl-bw.de
+  - Bayern: © Bayerische Vermessungsverwaltung – www.geodaten.bayern.de, CC BY 4.0
+  - Berlin: Geoportal Berlin / Digitale farbige Orthophotos 2025 (DOP20RGBI), dl-de/zero-2.0
+  - Brandenburg: © GeoBasis-DE/LGB, dl-de/by-2-0 (Daten geändert)
+  - Bremen: © GeoBasis-DE / Landesamt GeoInformation Bremen 2023, CC BY 4.0
+  - Hessen: © Hessische Verwaltung für Bodenmanagement und Geoinformation (§ 24 HVGG)
+  - Mecklenburg-Vorpommern: © GeoBasis-DE/M-V 2026, CC BY 4.0
+  - Niedersachsen: © GeoBasis-DE / LGLN (2026), CC BY 4.0
+  - Nordrhein-Westfalen: Land NRW (2026), dl-de/zero-2.0
+  - Rheinland-Pfalz: ©GeoBasis-DE / LVermGeoRP (2026), dl-de/by-2-0, http://www.lvermgeo.rlp.de [Daten bearbeitet]
+  - Saarland: © GeoBasis DE/LVGL-SL (2026), dl-de/by-2-0
+  - Sachsen: © GeoBasis-DE / GeoSN, dl-de/by-2-0
+  - Schleswig-Holstein: © GeoBasis-DE/LVermGeo SH/CC BY 4.0
+  - Thüringen: © GDI-Th, CC BY 4.0
+
+  „Daten geändert“ / „Daten bearbeitet“: die Bilder werden auf der Karte verkleinert, zugeschnitten und mit
+  dem Straßennetz überlagert. Datenlizenz Deutschland: <https://www.govdata.de/dl-de/by-2-0>,
+  <https://www.govdata.de/dl-de/zero-2-0>.
+- Nicht verwendet: Hamburg (die Zeitreihen des LGV enthalten neben den offenen Luftbildern auch
+  Satellitenbilder unter geschlossener Lizenz, ohne dass erkennbar wäre, welche Jahrgänge) und Sachsen-Anhalt
+  (offen, dl-de/by-2.0, aber sein Dienst lässt sich vom Browser nicht in eine Karte laden). Dort zeigt die
+  Karte Sentinel-2. Die Bilder beider Länder sind im jeweiligen Geoportal zu sehen:
+  <https://geoportal-hamburg.de>, <https://www.lvermgeo.sachsen-anhalt.de/de/gdp-open-data.html>.
+- Die groben Umrisse der Länder, nach denen ein Bild einem Land zugeordnet wird: Natural Earth 1:10m
+  „Admin 1 – States, Provinces“, gemeinfrei, vereinfacht (`src/reality/aerialstates.cpp`,
+  `tools/aerial-states.py`).
+
 ## Wetter
 
 Das Projekt enthält und verteilt keine Wetterdaten. Mit der Einstellung „Wetter: echt“ (Voreinstellung)

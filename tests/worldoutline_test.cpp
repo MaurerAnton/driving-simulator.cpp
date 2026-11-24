@@ -1,4 +1,4 @@
-// LINK: ui geo core platform
+// LINK: ui reality geo core platform
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * The outline of the countries (web/data/outline.bin, read by ui/worldoutline): known

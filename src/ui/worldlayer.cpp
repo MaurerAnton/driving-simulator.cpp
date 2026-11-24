@@ -108,7 +108,8 @@ bool WorldLayer::overlaps(const std::vector<Placed>& placed, const Placed& p) {
   return false;
 }
 
-void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang) const {
+void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& current, const std::string& chosen, const std::string& lang,
+                      const std::function<void()>& underlay) const {
   g.fillStyle(SEA);
   g.fillRect(0, 0, v.width, v.height);
   const double mpp = 1 / v.scale;   // metres a pixel
@@ -141,6 +142,7 @@ void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& curre
       }
       g.fill();
     }
+    if (underlay) underlay();
     g.lineJoin("round");
     for (int pass = 0; pass < 2; pass++) {
       // borders under the coasts
@@ -176,6 +178,8 @@ void WorldLayer::draw(const Ctx2D& g, const MapView& v, const std::string& curre
         g.letterSpacing("0px");
       }
     }
+  } else if (underlay) {
+    underlay();
   }
   if (regions_.empty()) return;
 

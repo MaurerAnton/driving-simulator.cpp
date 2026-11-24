@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: ui i18n core platform
+// LINK: ui reality i18n core platform
 // Origin: tests/ui/fuelgauge.test.ts @ v1.7.7
 /** The fuel amount as a percentage (src/ui/fuelgauge.ts): three decimals, clipped to 0 … 100. */
 #include <cassert>

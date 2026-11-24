@@ -14,8 +14,7 @@
  * it to the game (BigMapHost::onOpenRegion).  Everything of it is marked
  * `// 2.0:`; without a layer the map is the original's.
  *
- * Not translated yet, and so behind hooks (ui/maphooks.h): the aerial
- * photographs, the trams and buses (ui/transitmap.ts), the roadworks and
+ * Not translated yet, and so behind hooks (ui/maphooks.h): the trams and buses (ui/transitmap.ts), the roadworks and
  * demonstrations, the fuels' names; ui/lessonroutes.ts is another translator's.
  */
 #pragma once
@@ -260,7 +259,6 @@ class BigMap {
   std::vector<std::pair<int, Pointer>> pointers;
   double moved = 0;
   double pinch = 0;
-  /** (null until the aerial photographs are translated: ui/maphooks.h) */
   std::unique_ptr<AerialCache> photos;
   /** the trams and buses and the stops (transitmap.ts – null until it is translated), drawing a way (pathdraw.ts), the grip of the panel for planning */
   std::unique_ptr<TransitLayer> transit;
@@ -308,6 +306,12 @@ class BigMap {
   void redraw();
   void draw();
   void drawScale(double W, double s, bool aerial);
+
+  // 2.0: the aerial layer for all of Germany and beyond (ui/bigmap_aerial.cpp, reality/aerial.h) --
+  /** whose pictures are on the screen (the map's corner) – set by drawAerialLayer */
+  std::string aerialCredit;
+  /** draw the aerial photographs for the picture of W × H CSS pixels (in screen pixels; under the roads) */
+  void drawAerialLayer(const Ctx2D& g, double W, double H, double dpr);
 
   // 2.0: one map for all regions ----------------------------------------------------------
   std::shared_ptr<WorldLayer> worldLayer;

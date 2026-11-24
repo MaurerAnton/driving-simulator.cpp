@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
  * HOOKS – what the maps ask of the parts of the original that are not translated yet
- * (docs/STATUS.md "Later"): the aerial photographs (reality/aerial.ts), the trams and buses
- * on the map (ui/transitmap.ts), the roadworks and demonstrations of the day
+ * (docs/STATUS.md "Later"): the trams and buses on the map (ui/transitmap.ts), the roadworks and demonstrations of the day
  * (sim/roadevents.ts) and the fuels of the stations (world/services.ts).
  *
  * Each stands here as a class of the original's name with just the members the maps call;
  * a class that is made by the maps themselves has a `create` that is null until the part
- * exists (`new AerialCache(onLoad)` is `AerialCache::create ? AerialCache::create(onLoad, n) : nullptr`),
+ * exists (`new TransitLayer(host)` is `TransitLayer::create ? TransitLayer::create(host) : nullptr`),
  * and whoever holds one holds a pointer that may be null:
  *
  *     if (transit) transit->closePopup();
@@ -27,47 +26,10 @@
 
 #include "platform/canvas.h"
 #include "platform/dom.h"
+// (the aerial photographs are translated: reality/aerial.h – the maps take them from here as before)
+#include "reality/aerial.h"
 
 namespace fs {
-
-// ---- src/reality/aerial.ts -------------------------------------------------------------------
-
-/** One picture of the land survey's aerial photographs (interface AerialTile). */
-struct AerialTile {
-  int level = 0;
-  /** column and row of the tile in the UTM grid of its level (east, north) */
-  int col = 0;
-  int row = 0;
-  /** its south-west corner (UTM metres) and its width */
-  double minE = 0;
-  double minN = 0;
-  double size = 0;
-};
-
-/**
- * Fetches tiles when they are asked for and keeps the most recently used ones (class
- * AerialCache) – and, while the module is not here, answers for its functions and for
- * AERIAL_SOURCE as well.
- */
-class AerialCache {
- public:
-  /** `new AerialCache(onLoad, max)`: `onLoad` is called whenever a picture has arrived (`max` 0: the module's own default) */
-  static inline std::function<std::unique_ptr<AerialCache>(std::function<void()> onLoad, int max)> create = nullptr;
-
-  virtual ~AerialCache() = default;
-  virtual void beginFrame() = 0;
-  /** the picture of a tile, null while it is not there (it is then fetched) */
-  virtual const Image* get(const AerialTile& t) = 0;
-  /** aerialLevel(pxPerMetre): the level whose pictures are just fine enough */
-  virtual int aerialLevel(double pxPerMetre) const = 0;
-  /** aerialTileSize(level): metres a tile of that level is wide */
-  virtual double aerialTileSize(int level) const = 0;
-  /** aerialTiles(level, minE, minN, maxE, maxN): the tiles that cover a rectangle */
-  virtual std::vector<AerialTile> aerialTiles(int level, double minE, double minN, double maxE, double maxN) const = 0;
-  /** AERIAL_SOURCE.name and AERIAL_SOURCE.attribution */
-  virtual std::string sourceName() const = 0;
-  virtual std::string sourceAttribution() const = 0;
-};
 
 // ---- src/world/timetables.ts, src/ui/transitmap.ts ---------------------------------------------
 
