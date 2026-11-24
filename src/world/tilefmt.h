@@ -165,6 +165,28 @@ UnpackedTile unpackTile(const std::vector<uint8_t>& buf);
  */
 double tileGround(const TileHeader& h, const std::vector<double>& hgt, double x, double z);
 
+/** What a section of whole numbers decodes to when it is stored in a coding. */
+void decodeSectionBytes(const uint8_t* bytes, const SectionInfo& info, std::vector<double>& out);
+
+/** The bytes of a section as the map build stores them (whole numbers, as they are). */
+void encodeSectionBytes(const std::vector<double>& values, SectionType t, int coding, int stride,
+                        std::vector<uint8_t>& out);
+
+/** The container with any header: named sections behind a JSON object (which gets their places as `sections`). */
+std::vector<uint8_t> packSections(const std::string& json,
+                                  const std::map<std::string, std::vector<double>>& sections);
+
+/** The header and sections of an FSB1 container with any header (net.bin, the tiles). */
+struct UnpackedSections {
+  std::string json;
+  std::map<std::string, std::vector<double>> sections;
+  const std::vector<double>* get(const std::string& name) const {
+    auto it = sections.find(name);
+    return it == sections.end() ? nullptr : &it->second;
+  }
+};
+UnpackedSections unpackSections(const std::vector<uint8_t>& buf);
+
 /** (the first tiles of this kind: x, y, z per tree in steps of 2 cm, section treeQ) */
 constexpr double TREE_SCALE = 0.1;
 constexpr double TREE_Q_SCALE = 0.02;

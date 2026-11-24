@@ -194,7 +194,7 @@ int64_t unzig(uint64_t u) { return static_cast<int64_t>((u >> 1) ^ (~(u & 1) + 1
  * decodeSection): PLANES/DELTA component by component, GRID as the
  * differences from what the neighbours say.
  */
-void decodeSection(const uint8_t* bytes, const SectionInfo& info, std::vector<double>& out) {
+void decodeSectionImpl(const uint8_t* bytes, const SectionInfo& info, std::vector<double>& out) {
   const size_t B = typeBytes(info.t);
   const size_t n = info.n;
   const int coding = info.c;
@@ -258,6 +258,10 @@ const char* typeName(SectionType t) {
 }
 
 }  // namespace
+
+void decodeSectionBytes(const uint8_t* bytes, const SectionInfo& info, std::vector<double>& out) {
+  decodeSectionImpl(bytes, info, out);
+}
 
 UnpackedTile unpackTile(const std::vector<uint8_t>& buf) {
   if (buf.size() < 8 || buf[0] != 0x46 || buf[1] != 0x53 || buf[2] != 0x42 || buf[3] != 0x31)
@@ -403,7 +407,7 @@ UnpackedTile unpackTile(const std::vector<uint8_t>& buf) {
     const uint8_t* p = buf.data() + base + info.off;
     if (info.c != CODING_RAW) {
       // stored in a coding: decoded here (the JS does it when first asked for)
-      decodeSection(p, info, out);
+      decodeSectionBytes(p, info, out);
       tile.sections[kv.first] = std::move(out);
       continue;
     }
@@ -548,6 +552,64 @@ double tileGround(const TileHeader& h, const std::vector<double>& hgt, double x,
   return h.terrainMin + v * h.terrainScale;
 }
 
+void encodeSectionBytes(const std::vector<double>& values, SectionType t, int coding, int stride,
+                        std::vector<uint8_t>& out) {
+  const size_t B = typeBytes(t);
+  const size_t n = values.size();
+  const size_t st = static_cast<size_t>(std::max(1, stride));
+  out.assign(n * B, 0);
+  if (coding == CODING_RAW) {
+    for (size_t i = 0; i < n; i++) {
+      double v = values[i];
+      if (B == 1) {
+        out[i] = static_cast<uint8_t>(v);
+      } else if (B == 2) {
+        uint16_t u = static_cast<uint16_t>(static_cast<int64_t>(v));
+        std::memcpy(out.data() + i * 2, &u, 2);
+      } else if (t == SectionType::F32) {
+        float f = static_cast<float>(v);
+        std::memcpy(out.data() + i * 4, &f, 4);
+      } else {
+        uint32_t u = static_cast<uint32_t>(static_cast<int64_t>(v));
+        std::memcpy(out.data() + i * 4, &u, 4);
+      }
+    }
+    return;
+  }
+  // the steps (or the differences from the neighbours), low bytes first
+  std::vector<uint64_t> vals(n, 0);
+  if (coding == CODING_GRID) {
+    for (size_t i = 0; i < n; i++) {
+      const size_t col = i % st;
+      const int64_t left = col > 0 ? static_cast<int64_t>(values[i - 1]) : 0;
+      const int64_t up = i >= st ? static_cast<int64_t>(values[i - st]) : 0;
+      const int64_t ul = col > 0 && i >= st ? static_cast<int64_t>(values[i - st - 1]) : 0;
+      vals[i] = zigTo(static_cast<int64_t>(values[i]) - (left + up - ul), B);
+    }
+  } else {
+    const size_t groups = st;
+    const size_t per = n / groups;
+    for (size_t c = 0; c < groups; c++) {
+      int64_t prev = 0;
+      for (size_t i = 0; i < per; i++) {
+        const int64_t v = static_cast<int64_t>(values[i * st + c]);
+        vals[c * per + i] =
+            coding == CODING_DELTA ? zigTo(wrapTo(v - prev, B), B)
+                                   : static_cast<uint64_t>(v) &
+                                         (B == 4 ? 0xffffffffu : B == 2 ? 0xffffu : 0xffu);
+        prev = v;
+      }
+    }
+  }
+  size_t o = 0;
+  const size_t groups = coding == CODING_GRID ? 1 : st;
+  const size_t per = n / groups;
+  for (size_t c = 0; c < groups; c++)
+    for (size_t b = 0; b < B; b++)
+      for (size_t i = 0; i < per; i++)
+        out[o++] = static_cast<uint8_t>((vals[c * per + i] >> (8 * b)) & 255);
+}
+
 int tileIndex(double v, double min, double size) {
   return static_cast<int>(std::floor((v - min) / size));
 }
@@ -592,6 +654,7 @@ std::vector<uint8_t> packTile(const TileHeader& headerWithoutSections,
   num("terrainMin", headerWithoutSections.terrainMin);
   num("terrainScale", headerWithoutSections.terrainScale);
   num("coverN", headerWithoutSections.coverN);
+  if (headerWithoutSections.clr) json += ",\"clr\":1";
   json += ",\"signs\":[";
   for (size_t i = 0; i < headerWithoutSections.signs.size(); i++) {
     const SignPost& sp = headerWithoutSections.signs[i];
@@ -647,6 +710,176 @@ std::vector<uint8_t> packTile(const TileHeader& headerWithoutSections,
     }
   }
   return out;
+}
+
+std::vector<uint8_t> packSections(const std::string& json,
+                                  const std::map<std::string, std::vector<double>>& sections) {
+  std::map<std::string, SectionInfo> infos;
+  size_t off = 0;
+  for (const auto& kv : sections) {
+    if (kv.second.empty()) continue;
+    SectionType t = SectionType::F32;  // the packer writes doubles as f32
+    off = (off + 3) & ~size_t(3);
+    SectionInfo info;
+    info.off = off;
+    info.n = kv.second.size();
+    info.t = t;
+    infos[kv.first] = info;
+    off += info.n * typeBytes(t);
+  }
+  const size_t payloadLen = (off + 3) & ~size_t(3);
+  std::string head = json;
+  // the section table joins the header JSON as `sections`
+  if (!head.empty() && head.back() == '}') head.pop_back();
+  if (!head.empty() && head.back() != ',') head += ',';
+  head += "\"sections\":{";
+  bool first = true;
+  for (const auto& kv : infos) {
+    if (!first) head += ",";
+    first = false;
+    head += "\"" + kv.first + "\":{\"off\":" + std::to_string(kv.second.off) +
+            ",\"n\":" + std::to_string(kv.second.n) + ",\"t\":\"" +
+            typeName(kv.second.t) + "\"}";
+  }
+  head += "}}";
+  // pad the JSON to 4 bytes with spaces (as the map build does)
+  while (head.size() % 4) head += ' ';
+
+  std::vector<uint8_t> out(8 + head.size() + payloadLen, 0);
+  out[0] = 0x46;
+  out[1] = 0x53;
+  out[2] = 0x42;
+  out[3] = 0x31;
+  const uint32_t jsonLen = static_cast<uint32_t>(head.size());
+  std::memcpy(out.data() + 4, &jsonLen, 4);
+  std::memcpy(out.data() + 8, head.data(), head.size());
+  const size_t base = 8 + head.size();
+  for (const auto& kv : infos) {
+    const SectionInfo& info = kv.second;
+    uint8_t* p = out.data() + base + info.off;
+    const std::vector<double>& v = sections.at(kv.first);
+    for (size_t i = 0; i < info.n; i++) {
+      float f = static_cast<float>(v[i]);
+      std::memcpy(p + i * 4, &f, 4);
+    }
+  }
+  return out;
+}
+
+UnpackedSections unpackSections(const std::vector<uint8_t>& buf) {
+  if (buf.size() < 8 || buf[0] != 0x46 || buf[1] != 0x53 || buf[2] != 0x42 || buf[3] != 0x31)
+    throw std::runtime_error("not a map tile (bad magic)");
+  uint32_t jsonLen = 0;
+  std::memcpy(&jsonLen, buf.data() + 4, 4);
+  if (8u + jsonLen > buf.size()) throw std::runtime_error("tile header truncated");
+  std::string json(reinterpret_cast<const char*>(buf.data() + 8), jsonLen);
+  while (!json.empty() && json.back() == ' ') json.pop_back();
+
+  UnpackedSections u;
+  u.json = json;
+  JsonReader r(json);
+  r.expect('{');
+  std::map<std::string, SectionInfo> table;
+  if (r.tryConsume('}')) return u;
+  for (;;) {
+    std::string key = r.parseKey();
+    r.expect(':');
+    if (key == "sections") {
+      r.expect('{');
+      if (!r.tryConsume('}')) {
+        for (;;) {
+          std::string name = r.parseKey();
+          r.expect(':');
+          SectionInfo info;
+          r.expect('{');
+          if (!r.tryConsume('}')) {
+            for (;;) {
+              std::string k = r.parseKey();
+              r.expect(':');
+              if (k == "off") info.off = static_cast<size_t>(r.parseNumber());
+              else if (k == "n") info.n = static_cast<size_t>(r.parseNumber());
+              else if (k == "t") info.t = typeOf(r.parseString());
+              else if (k == "c") info.c = static_cast<int>(r.parseNumber());
+              else if (k == "s") info.s = static_cast<int>(r.parseNumber());
+              else r.skipValue();
+              if (r.tryConsume(',')) continue;
+              r.expect('}');
+              break;
+            }
+          }
+          table[name] = info;
+          if (r.tryConsume(',')) continue;
+          r.expect('}');
+          break;
+        }
+      }
+    } else {
+      r.skipValue();
+    }
+    if (r.tryConsume(',')) continue;
+    r.expect('}');
+    break;
+  }
+
+  const size_t base = 8 + jsonLen;
+  for (const auto& kv : table) {
+    const SectionInfo& info = kv.second;
+    const size_t bytes = info.n * typeBytes(info.t);
+    if (base + info.off + bytes > buf.size()) continue;
+    const uint8_t* p = buf.data() + base + info.off;
+    std::vector<double> out;
+    if (info.c != CODING_RAW) {
+      decodeSectionBytes(p, info, out);
+      u.sections[kv.first] = std::move(out);
+      continue;
+    }
+    out.reserve(info.n);
+    switch (info.t) {
+      case SectionType::U8:
+        for (size_t i = 0; i < info.n; i++) out.push_back(p[i]);
+        break;
+      case SectionType::I8:
+        for (size_t i = 0; i < info.n; i++) out.push_back(static_cast<int8_t>(p[i]));
+        break;
+      case SectionType::U16:
+        for (size_t i = 0; i < info.n; i++) {
+          uint16_t v;
+          std::memcpy(&v, p + i * 2, 2);
+          out.push_back(v);
+        }
+        break;
+      case SectionType::I16:
+        for (size_t i = 0; i < info.n; i++) {
+          int16_t v;
+          std::memcpy(&v, p + i * 2, 2);
+          out.push_back(v);
+        }
+        break;
+      case SectionType::U32:
+        for (size_t i = 0; i < info.n; i++) {
+          uint32_t v;
+          std::memcpy(&v, p + i * 4, 4);
+          out.push_back(v);
+        }
+        break;
+      case SectionType::I32:
+        for (size_t i = 0; i < info.n; i++) {
+          int32_t v;
+          std::memcpy(&v, p + i * 4, 4);
+          out.push_back(v);
+        }
+        break;
+      case SectionType::F32:
+        for (size_t i = 0; i < info.n; i++) {
+          float v;
+          std::memcpy(&v, p + i * 4, 4);
+          out.push_back(v);
+        }
+        break;
+    }
+    u.sections[kv.first] = std::move(out);
+  }
+  return u;
 }
 
 }  // namespace fs
