@@ -342,6 +342,12 @@ struct ShaderPatch {
     bool text = false;
   };
   std::string key;
+  /**
+   * The whole shader as the original's onBeforeCompile leaves it (with its `#include`
+   * lines), in place of three.js's own for the material's kind – what
+   * tools/gen-game-glsl.mjs captures from the original.  Empty: three.js's, with the edits.
+   */
+  std::string vertexSource, fragmentSource;
   std::vector<Edit> edits;
   std::map<std::string, UniformPtr> uniforms;
 

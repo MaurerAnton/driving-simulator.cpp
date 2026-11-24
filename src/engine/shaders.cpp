@@ -286,8 +286,8 @@ std::string shaderKey(const ShaderParams& p) {
 
 void buildShader(const ShaderParams& p, std::string& vertex, std::string& fragment) {
   const three::Lib* lib = libOf(p.type);
-  std::string vs = p.custom ? p.custom->vertexShader : lib ? lib->vertex : "";
-  std::string fs = p.custom ? p.custom->fragmentShader : lib ? lib->fragment : "";
+  std::string vs = p.custom ? p.custom->vertexShader : (p.patch && !p.patch->vertexSource.empty()) ? p.patch->vertexSource : lib ? lib->vertex : "";
+  std::string fs = p.custom ? p.custom->fragmentShader : (p.patch && !p.patch->fragmentSource.empty()) ? p.patch->fragmentSource : lib ? lib->fragment : "";
   vs = applyPatch(std::move(vs), ShaderPatch::Vertex, p.patch);
   fs = applyPatch(std::move(fs), ShaderPatch::Fragment, p.patch);
 
