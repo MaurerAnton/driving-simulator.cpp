@@ -1,0 +1,43 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* The theory lessons (ui/theory.ts): a bar at the foot of the screen – the scene above it stays free to look at and tap. */
+.th-bar {
+  position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  width: min(720px, calc(100% - 20px)); max-height: 46vh; overflow: auto; box-sizing: border-box;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px 10px;
+  pointer-events: auto; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 1.35;
+}
+.th-head { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.th-head .th-n { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; flex: none; }
+.th-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+.th-icon { flex: none; width: 44px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.06); color: var(--text); font: inherit; font-size: 18px; cursor: pointer; }
+.th-icon:hover, .th-icon:focus-visible { border-color: var(--accent); outline: none; }
+.th-text { margin: 0; color: var(--muted); }
+.th-ask { margin: 0; font-weight: 700; font-size: 16px; }
+.th-answers { display: flex; flex-wrap: wrap; gap: 8px; }
+.th-answers button {
+  min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.08);
+  color: var(--text); font: inherit; cursor: pointer; text-align: start; flex: 1 1 auto; max-width: 100%;
+}
+.th-answers button:hover, .th-answers button:focus-visible { border-color: var(--accent); outline: none; }
+.th-answers button.right { border-color: var(--ok); background: rgba(55, 200, 113, 0.18); }
+.th-answers button.wrong { border-color: var(--bad); background: rgba(255, 82, 82, 0.16); }
+.th-answers button:disabled { cursor: default; opacity: 1; }
+.th-verdict { font-weight: 800; font-size: 17px; }
+.th-verdict.ok { color: var(--ok); }
+.th-verdict.bad { color: var(--bad); }
+.th-why { margin: 0; }
+.th-why .rule { display: block; margin-top: 4px; color: var(--muted); font-size: 13px; }
+.th-why .rule a { color: #8fc4ff; }
+.th-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.th-actions .btn { min-height: 44px; padding: 8px 18px; }
+.th-help { color: var(--muted); font-size: 12px; text-align: center; }
+.th-list .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.th-list .card { position: relative; }
+.th-list .card .th-done { position: absolute; inset-inline-end: 10px; top: 8px; color: var(--ok); font-weight: 800; }
+@media (max-height: 480px) {
+  .th-bar { max-height: 58vh; padding: 6px 10px 8px; gap: 4px; font-size: 14px; }
+  .th-help { display: none; }
+  .th-head { min-height: 32px; }
+  .th-icon { height: 34px; }
+  .th-answers button, .th-actions .btn { min-height: 40px; padding: 6px 12px; }
+}

@@ -44,5 +44,7 @@ bool texImageImage(int image, bool flipY, bool srgb, int& width, int& height);
 
 /** natively: the picture drawn so far as a PNG file (false: could not be written); in the browser: not available */
 bool savePng(const std::string& path, int width, int height);
+/** which driver draws ("Mali-G52", "llvmpipe" …; "none"; in the browser the WebGL renderer string) */
+std::string rendererName();
 
 }  // namespace fs::plat::gl
