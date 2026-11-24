@@ -8,6 +8,7 @@
 #include "engine/webgl.h"
 
 #include <cmath>
+#include <cstring>
 
 #ifdef __EMSCRIPTEN__
 #include <GLES3/gl3.h>
@@ -42,9 +43,6 @@ bool WebGLRenderer::init(int canvasWidth, int canvasHeight) {
   }
   emscripten_webgl_make_context_current(ctx);
   available_ = true;
-  // the game's colours are sRGB values (three.js bakes them into vertex
-  // colours and textures): draw them as they are (SRGB8_ALPHA8 = no encode)
-  glDisable(GL_FRAMEBUFFER_SRGB);
   glViewport(0, 0, width_, height_);
   return true;
 #else
@@ -66,11 +64,13 @@ void WebGLRenderer::setSize(int width, int height, bool updateStyle) {
 
 void WebGLRenderer::setPixelRatio(double ratio) { pixelRatio_ = ratio; }
 
+#ifndef __EMSCRIPTEN__
 void WebGLRenderer::uploadTexture(const std::string&, const uint8_t*, int, int, bool) {
   // no context in the native build: the collector never samples textures
 }
 
 void WebGLRenderer::bindTexture(const std::string&) {}
+#endif
 
 void WebGLRenderer::setSkyUniforms(const Color& zenith, const Color& horizon, const Color& sunColor) {
   skyZenith_ = zenith;
@@ -553,10 +553,26 @@ void WebGLRenderer::drawItem(const DrawItem& item, Program& p, const Matrix4& vi
   // -- the per-frame uniforms (three.js p_uniforms.setValue per render) -----
   Matrix4 modelView;
   modelView.multiplyMatrices(view, item.world);
-  if (int l = p.loc("modelMatrix"); l >= 0) glUniformMatrix4fv(l, 1, GL_FALSE, item.world.e);
-  if (int l = p.loc("viewMatrix"); l >= 0) glUniformMatrix4fv(l, 1, GL_FALSE, view.e);
-  if (int l = p.loc("projectionMatrix"); l >= 0) glUniformMatrix4fv(l, 1, GL_FALSE, projection.e);
-  if (int l = p.loc("modelViewMatrix"); l >= 0) glUniformMatrix4fv(l, 1, GL_FALSE, modelView.e);
+  float m16[16];
+  auto toFloat16 = [&](const Matrix4& m, float* out) {
+    for (int i = 0; i < 16; i++) out[i] = static_cast<float>(m.e[i]);
+  };
+  if (int l = p.loc("modelMatrix"); l >= 0) {
+    toFloat16(item.world, m16);
+    glUniformMatrix4fv(l, 1, GL_FALSE, m16);
+  }
+  if (int l = p.loc("viewMatrix"); l >= 0) {
+    toFloat16(view, m16);
+    glUniformMatrix4fv(l, 1, GL_FALSE, m16);
+  }
+  if (int l = p.loc("projectionMatrix"); l >= 0) {
+    toFloat16(projection, m16);
+    glUniformMatrix4fv(l, 1, GL_FALSE, m16);
+  }
+  if (int l = p.loc("modelViewMatrix"); l >= 0) {
+    toFloat16(modelView, m16);
+    glUniformMatrix4fv(l, 1, GL_FALSE, m16);
+  }
   if (int l = p.loc("normalMatrix"); l >= 0) {
     float nm[9];
     normalMatrix3(modelView, nm);
@@ -706,11 +722,19 @@ void WebGLRenderer::uploadTexture(const std::string& key, const uint8_t* rgba, i
   GLuint tex = textureFor(key);
   glBindTexture(GL_TEXTURE_2D, tex);
   // the sign atlas is drawn top-down like a canvas (three.js CanvasTexture
-  // flips Y on upload); the cover rasters are DataTextures (flipY = false)
-  bool flip = (key == "signs");
-  glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, flip ? GL_TRUE : GL_FALSE);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-  glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_FALSE);
+  // flips Y on upload); the cover rasters are DataTextures (flipY = false).
+  // GLES has no UNPACK_FLIP_Y, so the rows are turned here.
+  const uint8_t* pixels = rgba;
+  std::vector<uint8_t> flipped;
+  if (key == "signs") {
+    size_t row = static_cast<size_t>(width) * 4;
+    flipped.resize(static_cast<size_t>(row) * static_cast<size_t>(height));
+    for (int y = 0; y < height; y++)
+      std::memcpy(flipped.data() + static_cast<size_t>(y) * row,
+                  rgba + static_cast<size_t>(height - 1 - y) * row, row);
+    pixels = flipped.data();
+  }
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
   if (mipmaps) {
     glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
