@@ -3,6 +3,7 @@
 //   node tools/dev/fps.mjs <address with query> [seconds to measure, 12] [seconds to settle first, 15] [width] [height]
 // Works for the original (https://maureranton.github.io/driving-simulator/?start=free) and for the port alike:
 // it counts the page's animation frames, and reads window.__fs.info() (draw calls, triangles) where there is one.
+import { takeBrowserLock } from './browserlock.mjs';
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
@@ -18,6 +19,7 @@ function findChrome() {
   throw new Error('No Chromium found');
 }
 const [url, secs = '12', settle = '15', w = '1280', h = '720'] = process.argv.slice(2);
+await takeBrowserLock();
 const browser = await chromium.launch({
   executablePath: findChrome(),
   headless: true,

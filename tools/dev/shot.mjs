@@ -7,6 +7,7 @@
 // (steps are split at commas: an eval with a comma in it is cut).
 // FS_GPU=1 draws with the machine's graphics chip (when the browser can reach it without a window).
 // Prints what the page wrote to the console, and window.__fs.info() at the end.
+import { takeBrowserLock } from './browserlock.mjs';
 import { readFileSync } from 'node:fs';
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -32,6 +33,7 @@ function findChrome() {
 
 const [query = '', out = 'shot.png', w = '1280', h = '720', extra = '500'] = process.argv.slice(2);
 const base = process.env.FS_URL ?? 'http://127.0.0.1:5180/';
+await takeBrowserLock();
 const browser = await chromium.launch({
   executablePath: findChrome(),
   headless: true,
