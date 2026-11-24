@@ -12,7 +12,9 @@
 #include "i18n/unicode.h"
 #include "platform/frame.h"
 #include "platform/intl.h"
+#include "platform/json.h"
 #include "platform/plat.h"
+#include "geo/utm.h"
 #include "ui/geolocate.h"
 #include "ui/mapwindow.h"
 #include "ui/lessonroutes.h"
@@ -43,10 +45,7 @@ const RoadClass CLASSES[4] = {
     {6, 9, "#f5b942", 2.4, 0},
 };
 
-/** How prominent a place is on the map. */
-int rank(const std::string& kind) {
-  return kind == "city" || kind == "town" ? 3 : kind == "suburb" || kind == "village" ? 2 : kind == "quarter" || kind == "neighbourhood" || kind == "hamlet" ? 1 : 0;
-}
+// (2.0: how prominent a place is: MapOverview::placeRank – ui/mapoverview.h)
 
 /** `new Date(iso).getTime()` of a time as toISOString writes it ("2026-11-20T16:30:00.000Z") – NaN: it is none */
 double dateOfIso(const std::string& iso) {
@@ -152,6 +151,14 @@ Task<AddressSearchOf<PlaceHit>> BigMap::loadSearch() {
   const std::shared_ptr<bool> guard = alive;
   AddressIndex* idx = co_await host.loadAddresses();
   if (!*guard) co_return nullptr;
+  // 2.0: the names of the roads loaded now (those that come later are noted as they come: noteStreets)
+  if (streetsSeen != host.world->edges.size()) {
+    std::vector<Edge*> all;
+    for (size_t i = 0; i < host.world->edges.size(); i++)
+      if (Edge* e = host.world->edges[static_cast<int64_t>(i)]) all.push_back(e);
+    noteStreets(all);
+    streetsSeen = host.world->edges.size();
+  }
   co_return [this, guard, idx](const std::string& q, size_t n, const std::optional<AddressIndex::Near>& near) -> std::vector<PlaceHit> {
     if (!*guard) return {};
     // (the favourite places first, among the towns)
@@ -159,7 +166,21 @@ Task<AddressSearchOf<PlaceHit>> BigMap::loadSearch() {
     for (const FavouriteRecord& f : loadFavourites()) towns.push_back({f.name, "city", f.x, f.z});
     for (const PlaceJson& p : host.world->json.places) towns.push_back({p.name, p.kind, p.x, p.z});
     const std::vector<StopSource>* stopList = host.stops ? host.stops() : nullptr;
-    const AddressSearch addresses = idx ? AddressSearch([idx](const std::string& qq, size_t nn, const PlaceNear& nr) { return idx->search(qq, nn, nr); }) : AddressSearch(nullptr);
+    // (2.0: and the streets of the pieces loaded so far – where the map has no address list, all that is known of its streets)
+    const AddressSearch addresses = [this, idx](const std::string& qq, size_t nn, const PlaceNear& nr) {
+      std::vector<AddressHit> out = idx ? idx->search(qq, nn, nr) : std::vector<AddressHit>();
+      for (AddressHit& h : streets.search(qq, nn, nr)) {
+        if (out.size() >= nn) break;
+        bool known = false;
+        for (const AddressHit& o : out)
+          if (normaliseAddress(o.street) == normaliseAddress(h.street)) {
+            known = true;
+            break;
+          }
+        if (!known) out.push_back(std::move(h));
+      }
+      return out;
+    };
     std::vector<PlaceHit> hits = searchPlaces(q, towns, stopList ? *stopList : NO_STOPS, addresses, n, near, lineSources());
     // 2.0: the regions of the world, after the places of the loaded map (which make room for them)
     if (worldOn()) {
@@ -224,9 +245,34 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
   so.none = t("addressNone");
   so.load = [this] { return loadSearch(); };
   so.near = [this]() -> std::optional<AddressIndex::Near> { return AddressIndex::Near{cx, cz}; };
+  // 2.0: every town of the map before anything is typed; the online place search once typing pauses (unless switched off)
+  so.browse = [this] { return browsePlaces(); };
+  // (asked a moment later: the map may be gone by then)
+  so.online = [this, guard = alive](std::string q) { return *guard ? searchOnline(std::move(q)) : noPlaces(); };
+  so.onlineOn = [this] { return prefs.online; };
+  so.onlineNote = t("map2.onlineCredit");
+  so.searching = t("map2.searching");
+  so.dim = [](const PlaceHit& h) { return h.what == "far"; };
   so.pick = [this](const PlaceHit& hit) {
     searchInput.value("");
     searchInput.blur();
+    // 2.0: a place the online search found in another region: that region chosen, the map at the place (its schema comes)
+    if (hit.what == "regionPlace") {
+      showRegion(hit.region);
+      cx = hit.x;
+      cz = hit.z;
+      scale = std::max(scale, 0.02);
+      redraw();
+      return;
+    }
+    // 2.0: … or where the game has no map: the world there
+    if (hit.what == "far") {
+      cx = hit.x;
+      cz = hit.z;
+      if (worldOn()) scale = std::min(scale, WorldLayer::WORLD_SCALE * 0.5);
+      redraw();
+      return;
+    }
     // 2.0: a region: shown on the world, and selected
     if (hit.what == "region") {
       showRegion(hit.region);
@@ -317,6 +363,19 @@ void BigMap::open(const dom::El& parent, bool closeUp) {
       redraw();
     });
     l.append(box2, el("span", "", t(layerKey(id))));
+    layersBox.append(l);
+  }
+  // 2.0: the online place search may be switched off
+  {
+    El l = el("label", "bm-check");
+    El box2 = el("input");
+    box2.type("checkbox");
+    box2.checked(prefs.online);
+    box2.onchange([this, box2] {
+      prefs.online = box2.checked();
+      saveMapPrefs(prefs);
+    });
+    l.append(box2, el("span", "", t("map2.online")));
     layersBox.append(l);
   }
   bottom.append(layersBtn, layersBox);
@@ -991,6 +1050,7 @@ void BigMap::showSpot(double x, double z, const std::string& name) {
     chosen.reset();
     fillRegion();
   }
+  foreignSpot.reset();   // 2.0
   spot = host.spotAt(x, z);
   if (spot && !name.empty()) spot->name = name;
   const El bar = spotBar;
@@ -1218,16 +1278,20 @@ void BigMap::draw() {
     worldFar = far;
     fillRegion();
   }
+  // 2.0: the view as the overviews take it, and the names written so far (none is to lie on another, across the maps drawn)
+  MapView mv;
+  mv.cx = cx;
+  mv.cz = cz;
+  mv.scale = s;
+  mv.width = W;
+  mv.height = H;
+  std::vector<LabelBox> taken;
   if (withWorld) {
     const std::string current = currentRegion();
-    MapView v = view();
-    v.width = W;
-    v.height = H;
-    worldLayer->draw(g, v, current, chosen ? *chosen : current, host.lang(), st);
-    if (far) {
-      drawScale(W, s, false);
-      return;
-    }
+    worldLayer->draw(g, mv, current, chosen ? *chosen : current, host.lang(), st);
+    // … and on it the regions one has zoomed into: their roads and places (fetched once they fill enough of the picture).
+    // (1.7.7's map ended here far out; now the loaded map's own schema is drawn at every zoom, below)
+    drawForeign(g, mv, dpr, st, taken);
   }
   // world → screen
   g.translate(W / 2, H / 2);
@@ -1289,7 +1353,9 @@ void BigMap::draw() {
     return &paths[ci].back().second;
   };
   const NetIndex* net = host.net();
-  if (net) {
+  // 2.0: zoomed out, the whole network from the overview's bands (ui/mapoverview.h): the big roads first, the small ones as one zooms in
+  if (net && s < MapOverview::BAND_SCALE) ownOverview().drawRoads(g, mv, dpr, st, aerial ? 0.38 : 1);
+  else if (net) {
     // the roads of the whole map (most of them are not loaded): from the file that holds them all in a few points
     const std::vector<uint8_t>& cls = net->net->edgeCls;
     net->edgesInBox(
@@ -1431,43 +1497,12 @@ void BigMap::draw() {
   }
 
   // names of towns and districts
-  g.textAlign("center");
-  g.textBaseline("middle");
-  g.lineWidth(3);
-  g.strokeStyle(st.halo);
-  struct Taken {
-    double x, y, half;
-  };
-  std::vector<Taken> taken;
+  // (2.0: every place of the map, ranked city > town > village > suburb > hamlet, larger for the bigger, none on
+  //  another – ui/mapoverview.h; 1.7.7 named the towns and districts only)
   const BigMapHost::Car car = host.car();
   const double carX = sx(car.x);
   const double carY = sy(car.z);
-  std::vector<const PlaceJson*> places;
-  for (const PlaceJson& p : world.json.places)
-    if (p.x > minX && p.x < maxX && p.z > minZ && p.z < maxZ) places.push_back(&p);
-  std::stable_sort(places.begin(), places.end(), [](const PlaceJson* a, const PlaceJson* b) { return rank(a->kind) > rank(b->kind); });
-  for (const PlaceJson* p : places) {
-    const int r = rank(p->kind);
-    if (r == 0 || (r == 1 && s < 0.05) || (r == 2 && s < 0.03)) continue;
-    const int size = r == 3 ? 17 : r == 2 ? 14 : 12;
-    const double x = sx(p->x);
-    double y = sy(p->z);
-    const double half = (static_cast<double>(i18n::utf16Length(p->name)) * size * 0.3) + 6;
-    // a name that would lie under the car's arrow is written below it
-    if (std::abs(x - carX) < half + 10 && std::abs(y - carY) < size * 0.6 + 14) y = carY + 18 + size * 0.6;
-    bool clash = false;
-    for (const Taken& tk : taken)
-      if (std::abs(tk.x - x) < tk.half + half && std::abs(tk.y - y) < size + 4) {
-        clash = true;
-        break;
-      }
-    if (clash) continue;
-    taken.push_back({x, y, half});
-    g.font(std::string(r == 3 ? "700" : "600") + " " + std::to_string(size) + "px system-ui, sans-serif");
-    g.strokeText(p->name, x, y);
-    g.fillStyle(r == 3 ? st.bigName : st.name);
-    g.fillText(p->name, x, y);
-  }
+  ownOverview().drawNames(g, mv, st, taken, carX, carY);
 
   // the roadworks and demonstrations of the day, the fuel stations and car washes, the emergency vehicles
   drawEvents(g, W, H, s);
@@ -1685,6 +1720,8 @@ bool BigMap::worldTap(double x, double y) {
     const std::array<double, 4> box = own ? own->box : std::array<double, 4>{m.minX, m.minZ, m.maxX, m.maxZ};
     if (boxContains(box, v.wx(x), v.wz(y))) return false;
   }
+  // a road of a region that is not loaded, where its schema is drawn: put the car there
+  if (foreignTap(x, y)) return true;
   const Region* r = worldLayer->regionAt(v, x, y);
   if (!r) {
     if (!far) return false;
@@ -1801,6 +1838,292 @@ std::vector<RegionSource> BigMap::regionSources() const {
   const std::string lang = host.lang();
   for (const Region& r : worldLayer->regions()) out.push_back({r.id, r.name, worldLayer->countryOf(r, lang), (r.box[0] + r.box[2]) / 2, (r.box[1] + r.box[3]) / 2});
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// 2.0: the schema of the whole map, the search that finds everything, the regions not loaded
+// ---------------------------------------------------------------------------------------------
+
+MapOverview& BigMap::ownOverview() {
+  const NetIndex* ni = host.net ? host.net() : nullptr;
+  const std::shared_ptr<const NetData> net = ni ? ni->net : nullptr;
+  if (!own || own->net() != net.get() || own->places().size() != host.world->json.places.size()) own = std::make_unique<MapOverview>(net, host.world->json.places);
+  return *own;
+}
+
+void BigMap::noteStreets(const std::vector<Edge*>& edges) {
+  MapOverview& ov = ownOverview();
+  for (const Edge* e : edges) {
+    if (!e || e->name.empty() || e->pl.pts.size() < 3) continue;
+    // (the middle of the road; a street goes by the town nearest to it)
+    const std::vector<double>& p = e->pl.pts;
+    const size_t mid = (p.size() / 3 / 2) * 3;
+    const double x = p[mid], z = p[mid + 2];
+    if (streets.near(e->name, x, z, 1500)) continue;
+    const PlaceJson* town = ov.nearestPlace(x, z, 6000);
+    streets.add(e->name, x, z, town ? town->name : "");
+  }
+}
+
+std::vector<PlaceHit> BigMap::browsePlaces() {
+  // the cities and towns first, then the villages and the parts of towns – each kind the nearest first
+  const std::vector<PlaceJson>& all = host.world->json.places;
+  std::vector<const PlaceJson*> list;
+  for (const PlaceJson& p : all)
+    if (MapOverview::placeRank(p.kind) >= 2) list.push_back(&p);
+  std::stable_sort(list.begin(), list.end(), [this](const PlaceJson* a, const PlaceJson* b) {
+    const int ra = std::min(4, MapOverview::placeRank(a->kind)), rb = std::min(4, MapOverview::placeRank(b->kind));
+    if (ra != rb) return ra > rb;
+    return std::hypot(a->x - cx, a->z - cz) < std::hypot(b->x - cx, b->z - cz);
+  });
+  std::vector<PlaceHit> out;
+  for (size_t i = 0; i < list.size() && i < 200; i++) {
+    PlaceHit h;
+    h.label = list[i]->name;
+    h.street = "";
+    h.x = list[i]->x;
+    h.z = list[i]->z;
+    h.exact = false;
+    h.what = "town";
+    out.push_back(std::move(h));
+  }
+  // … then the streets nearest to the middle of the map (those of the pieces loaded so far)
+  for (AddressHit& a : streets.nearest(cx, cz, 60)) {
+    PlaceHit h;
+    static_cast<AddressHit&>(h) = std::move(a);
+    h.what = "address";
+    out.push_back(std::move(h));
+  }
+  return out;
+}
+
+Task<std::vector<PlaceHit>> BigMap::noPlaces() { co_return std::vector<PlaceHit>(); }
+
+Task<std::vector<PlaceHit>> BigMap::searchOnline(std::string q) {
+  const std::shared_ptr<bool> guard = alive;
+  const std::pair<double, double> near = host.latLon(cx, cz);
+  const std::string lang = host.lang();
+  const std::vector<OnlinePlace> found = co_await searchPhoton(q, near, 6, lang);
+  std::vector<PlaceHit> out;
+  if (!*guard) co_return out;
+  const WorldMetaJson& m = host.world->json.meta;
+  const std::array<double, 4> ownBox = {m.minX, m.minZ, m.maxX, m.maxZ};
+  const std::string current = currentRegion();
+  for (const OnlinePlace& p : found) {
+    const auto [x, z] = latLonToWorld(p.lat, p.lon);
+    PlaceHit h;
+    h.street = "";
+    h.x = x;
+    h.z = z;
+    h.exact = false;
+    const std::string label = p.detail.empty() ? p.name : p.name + ", " + p.detail;
+    // in the loaded map: the map goes there; in another region: that region; else only listed (greyed)
+    const Region* in = nullptr;
+    if (!boxContains(ownBox, x, z) && worldOn())
+      for (const Region& r : worldLayer->regions())
+        if (r.id != current && boxContains(r.box, x, z) && (!in || (r.box[2] - r.box[0]) * (r.box[3] - r.box[1]) < (in->box[2] - in->box[0]) * (in->box[3] - in->box[1]))) in = &r;
+    if (boxContains(ownBox, x, z)) {
+      h.what = "online";
+      h.label = label;
+    } else if (in) {
+      h.what = "regionPlace";
+      h.region = in->id;
+      h.label = label + " · " + in->name;
+    } else {
+      h.what = "far";
+      h.label = label + " · " + t("map2.outside");
+    }
+    out.push_back(std::move(h));
+  }
+  co_return out;
+}
+
+BigMap::Foreign* BigMap::foreignOf(const std::string& id) {
+  for (const std::shared_ptr<Foreign>& f : foreign)
+    if (f->id == id) return f.get();
+  return nullptr;
+}
+
+void BigMap::drawForeign(const Ctx2D& g, const MapView& v, double dpr, const MapStyle& st, std::vector<LabelBox>& taken) {
+  if (!worldOn()) return;
+  const std::string current = currentRegion();
+  const WorldMetaJson& m = host.world->json.meta;
+  /** the area of a box's part in the rectangle */
+  const auto overlap = [](double x0, double z0, double x1, double z1, double a0, double b0, double a1, double b1) {
+    return std::max(0.0, std::min(x1, a1) - std::max(x0, a0)) * std::max(0.0, std::min(z1, b1) - std::max(z0, b0));
+  };
+  std::vector<MapOverview*> shown;
+  std::string loading;
+  // (where a region overlaps the loaded map, the loaded map's own roads are drawn: the other's are kept out of its box)
+  g.save();
+  g.beginPath();
+  g.moveTo(0, 0);
+  g.lineTo(v.width, 0);
+  g.lineTo(v.width, v.height);
+  g.lineTo(0, v.height);
+  g.closePath();
+  g.moveTo(v.sx(m.minX), v.sy(m.minZ));
+  g.lineTo(v.sx(m.minX), v.sy(m.maxZ));
+  g.lineTo(v.sx(m.maxX), v.sy(m.maxZ));
+  g.lineTo(v.sx(m.maxX), v.sy(m.minZ));
+  g.closePath();
+  g.clip();
+  for (const Region& r : worldLayer->regions()) {
+    if (r.id == current) continue;
+    // the part of its box in the picture
+    const double x0 = std::max(v.wx(0), r.box[0]), x1 = std::min(v.wx(v.width), r.box[2]);
+    const double z0 = std::max(v.wz(0), r.box[1]), z1 = std::min(v.wz(v.height), r.box[3]);
+    if (x1 <= x0 || z1 <= z0) continue;
+    Foreign* f = foreignOf(r.id);
+    if (!f) {
+      // fetched once it fills enough of the picture – beside the loaded map – and its main roads are drawn at that scale
+      const double share = ((x1 - x0) * (z1 - z0) - overlap(x0, z0, x1, z1, m.minX, m.minZ, m.maxX, m.maxZ)) * v.scale * v.scale / std::max(1.0, v.width * v.height);
+      if (share < 0.15 || v.scale < MapOverview::roadFrom(RoadKind::primary)) continue;
+      const std::string base = host.regionFiles ? host.regionFiles(r.id) : r.id.empty() ? std::string() : std::string(MAP_ASSETS_URL) + REGIONS_DIR + "/" + r.id + "/";
+      if (base.empty()) continue;
+      // (the last few are kept: a region's network is some megabytes)
+      if (foreign.size() >= 3) {
+        size_t oldest = 0;
+        for (size_t i = 1; i < foreign.size(); i++)
+          if (foreign[i]->used < foreign[oldest]->used) oldest = i;
+        foreign.erase(foreign.begin() + static_cast<long>(oldest));
+      }
+      auto nf = std::make_shared<Foreign>();
+      nf->id = r.id;
+      foreign.push_back(nf);
+      loadForeign(nf, base).detach();
+      f = nf.get();
+    }
+    f->used = plat::nowMs();
+    if (f->loading) {
+      loading = r.name;
+      continue;
+    }
+    if (!f->ov) continue;
+    f->ov->drawRoads(g, v, dpr, st);
+    shown.push_back(f->ov.get());
+  }
+  for (MapOverview* ov : shown) ov->drawNames(g, v, st, taken);
+  g.restore();
+  if (!loading.empty()) {
+    // a small note while a region's roads are on their way
+    g.save();
+    g.textAlign("center");
+    g.textBaseline("middle");
+    g.font("600 13px system-ui, sans-serif");
+    g.lineJoin("round");
+    g.lineWidth(4);
+    g.strokeStyle(st.halo);
+    const std::string text = t("map2.loading", {{"name", loading}});
+    g.strokeText(text, v.width / 2, v.height - 70);
+    g.fillStyle(st.bigName);
+    g.fillText(text, v.width / 2, v.height - 70);
+    g.restore();
+  }
+}
+
+Task<void> BigMap::loadForeign(std::shared_ptr<Foreign> f, std::string base) {
+  const std::shared_ptr<bool> guard = alive;
+  Task<plat::Response> netAsked = plat::fetch(base + "net.bin.gz");
+  plat::Response mapRes = co_await plat::fetch(base + "map.json");
+  plat::Response netRes = co_await std::move(netAsked);
+  const auto plain = [](Bytes b) {
+    if (plat::isGzip(b)) {
+      Bytes p = plat::gunzip(b);
+      if (!p.empty()) return p;
+    }
+    return b;
+  };
+  std::shared_ptr<const NetData> net;
+  if (netRes.ok()) {
+    try {
+      net = std::make_shared<const NetData>(unpackNet(plain(std::move(netRes.body))));
+    } catch (const std::exception& e) {
+      plat::warn(std::string("[map] the roads of ") + f->id + " could not be read: " + e.what());
+    }
+  }
+  std::vector<PlaceJson> places;
+  if (mapRes.ok()) {
+    const Bytes b = plain(std::move(mapRes.body));
+    Json j;
+    if (Json::parse(std::string(b.begin(), b.end()), j) && j.at("places").isArray())
+      for (const Json& p : j.at("places").array) {
+        if (!p.at("name").isString() || !p.at("x").isNumber() || !p.at("z").isNumber()) continue;
+        places.push_back({p.at("name").str, p.at("kind").isString() ? p.at("kind").str : "", p.at("x").number, p.at("z").number});
+      }
+  }
+  f->loading = false;
+  f->failed = !net;
+  if (net || !places.empty()) f->ov = std::make_unique<MapOverview>(net, std::move(places));
+  if (*guard && node) redraw();
+}
+
+bool BigMap::foreignTap(double px, double py) {
+  if (!worldOn() || scale < MapOverview::roadFrom(RoadKind::secondary)) return false;
+  const MapView v = view();
+  const double x = v.wx(px), z = v.wz(py);
+  const std::string current = currentRegion();
+  for (const std::shared_ptr<Foreign>& f : foreign) {
+    if (!f->ov || !f->ov->net() || f->id == current) continue;
+    const Region* r = worldLayer->byId(f->id);
+    if (!r || !boxContains(r->box, x, z)) continue;
+    // (within a finger's reach of a road)
+    const std::optional<OverviewSpot> at = f->ov->nearest(x, z, 28 / scale);
+    if (!at) continue;
+    showForeignSpot(*r, *at);
+    return true;
+  }
+  return false;
+}
+
+void BigMap::showForeignSpot(const Region& r, const OverviewSpot& at) {
+  if (chosen) {
+    chosen.reset();
+    fillRegion();
+  }
+  if (transit) transit->closePopup();
+  Foreign* f = foreignOf(r.id);
+  const PlaceJson* town = f && f->ov ? f->ov->nearestPlace(at.x, at.z, 6000) : nullptr;
+  SpawnJson s;
+  s.name = town ? town->name : "";
+  s.x = at.x;
+  s.z = at.z;
+  s.yaw = at.yaw;
+  s.kind = "street";
+  // (taken from the overview: put into a lane of that road once the region's roads are loaded there)
+  s.rough = true;
+  spot = s;
+  foreignSpot = r.id;
+  const El bar = spotBar;
+  bar.replaceChildren();
+  bar.hidden(false);
+  El closeBtn = el("button", "btn ghost bm-spot-close", "✕");
+  closeBtn.type("button");
+  closeBtn.title(t("realityClose"));
+  closeBtn.setAttribute("aria-label", t("realityClose"));
+  closeBtn.onclick([this, bar] {
+    spot.reset();
+    foreignSpot.reset();
+    bar.hidden(true);
+    redraw();
+  });
+  const auto [lat, lon] = host.latLon(s.x, s.z);
+  El text = el("div");
+  text.append(el("b", "", !s.name.empty() ? s.name : t("mapPlace")), el("small", "", t("map2.regionPlace", {{"name", r.name}}) + " · " + toFixed(lat, 5) + ", " + toFixed(lon, 5)));
+  bar.append(closeBtn, text);
+  // "Put the car here": that region is loaded and the drive begins there (no autopilot: it cannot drive across maps)
+  if (host.startInRegion && (host.canTeleport() || (host.menu && host.menu()))) {
+    El go = el("button", "btn", t("mapTeleport"));
+    go.type("button");
+    const Region region = r;
+    go.onclick([this, region, s] {
+      // (copies: the game reloads, and takes this map away with it)
+      const std::function<void(const Region&, const SpawnJson&)> startIt = host.startInRegion;
+      startIt(region, s);
+    });
+    bar.append(go);
+  }
+  redraw();
 }
 
 }  // namespace fs
