@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// LINK: game render engine world core platform geo
 /**
  * A picture of the map without a browser: opens the map from disk, loads what lies
  * around a place, draws it off screen and writes a PNG – and says what the frame
