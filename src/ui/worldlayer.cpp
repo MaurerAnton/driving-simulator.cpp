@@ -49,15 +49,20 @@ Task<void> WorldLayer::load(std::string siteBase, std::array<double, 4> siteMap,
   Task<plat::Response> outlineAsked = plat::fetch(siteBase + "data/outline.bin");
   std::optional<RegionIndex> index = co_await loadRegionIndex(siteBase);
   plat::Response res = co_await std::move(outlineAsked);
-  if (res.ok()) outline_ = parseWorldOutline(res.body);
+  if (ready_) co_return;
+  set(res.ok() ? parseWorldOutline(res.body) : WorldOutline(), index ? &*index : nullptr, siteMap, std::move(siteName));
+}
+
+void WorldLayer::set(WorldOutline outline, const RegionIndex* index, std::array<double, 4> siteMap, std::string siteName) {
+  outline_ = std::move(outline);
   regions_.clear();
   Region site;
   site.id = SITE;
-  site.name = siteName;
+  site.name = std::move(siteName);
   site.box = siteMap;
   regions_.push_back(site);
   if (index)
-    for (Region& r : index->regions) regions_.push_back(std::move(r));
+    for (const Region& r : index->regions) regions_.push_back(r);
   country_.assign(regions_.size(), -1);
   if (!outline_.empty()) {
     for (size_t i = 0; i < regions_.size(); i++) {
@@ -66,6 +71,22 @@ Task<void> WorldLayer::load(std::string siteBase, std::array<double, 4> siteMap,
     }
   }
   ready_ = true;
+  readied_.resolve();
+}
+
+void WorldLayer::setDownloadBytes(const std::string& id, double bytes) {
+  for (auto& b : bytes_)
+    if (b.first == id) {
+      b.second = bytes;
+      return;
+    }
+  bytes_.emplace_back(id, bytes);
+}
+
+std::optional<double> WorldLayer::downloadBytes(const Region& r) const {
+  for (const auto& b : bytes_)
+    if (b.first == r.id && b.second > 0) return b.second;
+  return std::nullopt;
 }
 
 const Region* WorldLayer::byId(const std::string& id) const {

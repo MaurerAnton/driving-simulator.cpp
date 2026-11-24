@@ -1,0 +1,8 @@
+{
+  "worldAll": "Toate regiunile",
+  "worldOpen": "Deschide această hartă",
+  "worldBack": "Înapoi la {name}",
+  "worldHint": "Atinge o regiune pentru a o alege",
+  "worldSize": "Descărcare: {mb} MB",
+  "worldRegion": "Regiune"
+}

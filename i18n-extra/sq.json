@@ -1,0 +1,8 @@
+{
+  "worldAll": "Të gjitha rajonet",
+  "worldOpen": "Hap këtë hartë",
+  "worldBack": "Kthehu te {name}",
+  "worldHint": "Prek një rajon për ta zgjedhur",
+  "worldSize": "Shkarkim: {mb} MB",
+  "worldRegion": "Rajon"
+}

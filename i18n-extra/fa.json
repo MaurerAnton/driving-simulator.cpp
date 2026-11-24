@@ -1,0 +1,8 @@
+{
+  "worldAll": "همهٔ منطقه‌ها",
+  "worldOpen": "باز کردن این نقشه",
+  "worldBack": "بازگشت به {name}",
+  "worldHint": "برای انتخاب، روی یک منطقه بزنید",
+  "worldSize": "بارگیری: {mb} مگابایت",
+  "worldRegion": "ناحیه"
+}

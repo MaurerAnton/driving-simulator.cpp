@@ -1,0 +1,8 @@
+{
+  "worldAll": "所有地区",
+  "worldOpen": "打开这张地图",
+  "worldBack": "返回{name}",
+  "worldHint": "点按一个地区即可选择",
+  "worldSize": "下载：{mb} MB",
+  "worldRegion": "地区"
+}

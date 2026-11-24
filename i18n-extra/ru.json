@@ -1,0 +1,8 @@
+{
+  "worldAll": "Все регионы",
+  "worldOpen": "Открыть эту карту",
+  "worldBack": "Назад: {name}",
+  "worldHint": "Коснитесь региона, чтобы выбрать его",
+  "worldSize": "Загрузка: {mb} МБ",
+  "worldRegion": "Регион"
+}
