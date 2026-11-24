@@ -286,6 +286,8 @@ Task<void> giveUp(std::string key, TrParams params = {}) {
 std::unique_ptr<Game> game;
 
 Task<void> bootGame() {
+  // (the page's own screen while the program was downloaded: the game shows its own from here)
+  if (dom::El boot = dom::getElementById("boot")) boot.remove();
   std::string why;
   try {
     game = std::make_unique<Game>(dom::getElementById("view"), dom::getElementById("ui"));
