@@ -21,8 +21,6 @@ namespace fs {
 
 namespace {
 
-const double INF = std::numeric_limits<double>::infinity();
-
 /**
  * `function*` of the original: something that runs to its next `yield` each time it is asked to go on
  * (`next()`), hands out what it yielded (`value()`), and in the end what it returned (`result()`).
@@ -136,7 +134,7 @@ Generator<double, std::optional<TourPlan>> planner(const RouteGraph& g, int star
   ok[goal] = g.len[goal] > 0 ? 1 : 0;
 
   // --- how far it is from the end of each way to the end of the tour (metres, without turning round) ---
-  std::vector<double> home(n, INF);
+  std::vector<double> home(n, JS_INF);
   MinHeap heap(4096);
   home[goal] = 0;
   heap.push(static_cast<uint32_t>(goal), 0);
@@ -274,7 +272,7 @@ Generator<double, std::optional<TourPlan>> planner(const RouteGraph& g, int star
       const double left = metres - used;
       std::ptrdiff_t best = -1;
       double bestCost = 0;
-      double bestScore = -INF;
+      double bestScore = -JS_INF;
       for (size_t k = g.first[w]; k < g.first[w + 1]; k++) {
         const size_t v = g.to[k];
         if (!ok[v] || !fresh[v >> 1] || g.turn[k] == TURN_UTURN) continue;
@@ -317,7 +315,7 @@ Generator<double, std::optional<TourPlan>> planner(const RouteGraph& g, int star
       if (w == goal && !ways.empty()) break;
       std::ptrdiff_t best = -1;
       double bestCost = 0;
-      double bd = INF;
+      double bd = JS_INF;
       for (size_t k = g.first[w]; k < g.first[w + 1]; k++) {
         const size_t v = g.to[k];
         if (!ok[v] || g.turn[k] == TURN_UTURN) continue;

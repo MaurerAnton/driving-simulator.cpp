@@ -108,11 +108,11 @@ struct LessonSpot {
 };
 
 struct PlaceOptions {
-  std::optional<double> radius;
+  std::optional<double> radius = std::nullopt;
   /** (Math.random unless given) */
-  std::function<double()> rnd;
+  std::function<double()> rnd = nullptr;
   /** lanes of the network one can drive around in (the start must be one) */
-  std::function<bool(const Lane& lane)> usable;
+  std::function<bool(const Lane& lane)> usable = nullptr;
 };
 
 /**

@@ -12,8 +12,6 @@ namespace fs {
 
 namespace {
 
-const double INF = std::numeric_limits<double>::infinity();
-
 /** `list.indexOf(lane)` */
 int indexOf(const std::vector<Lane*>& list, const Lane* lane) {
   for (size_t i = 0; i < list.size(); i++)
@@ -58,7 +56,7 @@ std::optional<std::vector<Connector*>> connectorsAlong(const LaneGraph& graph, c
     through[i].resize(cur.size());
     for (size_t a = 0; a < cur.size(); a++) {
       Connector* best = nullptr;
-      double bc = INF;
+      double bc = JS_INF;
       for (Connector* c : cur[a]->out) {
         const int j = indexOf(tgt, c->to);
         if (j < 0) continue;
@@ -75,7 +73,7 @@ std::optional<std::vector<Connector*>> connectorsAlong(const LaneGraph& graph, c
     if (!any) return std::nullopt;
     onward.assign(cur.size(), 0.0);
     for (size_t a = 0; a < cur.size(); a++) {
-      double m = INF;
+      double m = JS_INF;
       for (size_t b = 0; b < through[i].size(); b++) {
         const auto& t = through[i][b];
         if (t) m = std::min(m, t->cost + std::fabs(static_cast<double>(a) - static_cast<double>(b)) * change(i));
@@ -87,7 +85,7 @@ std::optional<std::vector<Connector*>> connectorsAlong(const LaneGraph& graph, c
   int at = std::max(0, indexOf(*layers[0], &from));
   for (size_t i = 0; i + 1 < n; i++) {
     int best = -1;
-    double bc = INF;
+    double bc = JS_INF;
     for (size_t b = 0; b < through[i].size(); b++) {
       const auto& t = through[i][b];
       if (!t) continue;
@@ -194,7 +192,7 @@ void Navigator::rejoinWays(Lane& lane) {
   const int here = wayOf(lane);
   std::optional<std::vector<int>> next;
   if (tour) {
-    double bestCost = INF;
+    double bestCost = JS_INF;
     for (size_t j = std::min(w.size() - 1, static_cast<size_t>(idx + 1)), n = 0; j < w.size() && n < 10; j++, n++) {
       if (w[j] == here) {
         next = std::vector<int>(w.begin() + static_cast<std::ptrdiff_t>(j + 1), w.end());
@@ -221,7 +219,7 @@ void Navigator::rejoin(Lane& lane) {
   const std::vector<Connector*>& r = *route;
   std::optional<std::vector<Connector*>> best;
   int bestAt = -1;
-  double bestCost = INF;
+  double bestCost = JS_INF;
   for (int i = std::min(static_cast<int>(r.size()) - 1, idx + 1), n = 0; i >= 0 && i < static_cast<int>(r.size()) && n < 10; i++, n++) {
     const Lane* target = r[static_cast<size_t>(i)]->from;
     if (target->edge == lane.edge && target->dir == lane.dir) {

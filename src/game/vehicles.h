@@ -86,7 +86,7 @@ struct VehicleDef {
     double rural = 0;
     double motorway = 0;
   };
-  std::optional<Caps> caps;
+  std::optional<Caps> caps = std::nullopt;
   /** the fault when it is faster than that */
   std::string capFault;
   /** its top speed by construction or governor (km/h; 0: none) */
@@ -100,7 +100,7 @@ struct VehicleDef {
   /** the instruments are small or missing in its cockpit: the dashboard strip stays on */
   bool dash = false;
   /** a crane (game/craneplay.ts): its free drive is the work on the construction site ('tower' | 'mobile' | 'loader') */
-  std::optional<std::string> crane;
+  std::optional<std::string> crane = std::nullopt;
 };
 
 /**

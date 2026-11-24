@@ -49,7 +49,7 @@ struct ReleaseSize {
    * the bytes of the additional maps in the repository (map-assets – the map itself is a file of a
    * release).  Absent in the releases from before there were any: they count the whole repository.
    */
-  std::optional<double> maps;
+  std::optional<double> maps = std::nullopt;
 };
 
 struct Release {
@@ -62,15 +62,15 @@ struct Release {
    */
   std::string at;
   /** a line before the list (i18n key), if there is one */
-  std::optional<std::string> intro;
+  std::optional<std::string> intro = std::nullopt;
   /** what it brought: i18n keys, one line each */
   std::vector<std::string> items;
   /** how big the game was then – null until it is counted (the newest, before its release) */
-  std::optional<ReleaseSize> size;
+  std::optional<ReleaseSize> size = std::nullopt;
   /** a development version (before 1.0.0, without a tag of its own) */
   bool dev = false;
   /** the commit of a development version */
-  std::optional<std::string> commit;
+  std::optional<std::string> commit = std::nullopt;
 };
 
 inline const std::vector<Release> RELEASES = {

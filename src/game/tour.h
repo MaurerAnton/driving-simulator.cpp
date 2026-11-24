@@ -44,21 +44,21 @@ struct TourPlan {
 
 struct TourOptions {
   /** roads (by edge) that are known already: driving them is nothing new */
-  std::function<bool(int edge)> known;
+  std::function<bool(int edge)> known = nullptr;
   /** how long to look for a better tour, in milliseconds */
-  std::optional<double> budgetMs;
+  std::optional<double> budgetMs = std::nullopt;
   /** for the chance in it: the same seed gives the same tour */
-  std::optional<double> seed;
+  std::optional<double> seed = std::nullopt;
   /** ways the tour must not use (a motorway, a main road – as the driver wishes) */
-  std::function<bool(int way)> avoid;
+  std::function<bool(int way)> avoid = nullptr;
   /** how welcome a road (by edge) is as a new street of the tour: 1 as any, 0 not looked for, 2 twice as welcome */
-  std::function<double(int edge)> like;
+  std::function<double(int edge)> like = nullptr;
 };
 
 /** … and, planned a slice at a time: who is told how far it is, and how long a slice may take (ms; 30 unless said) */
 struct TourSliceOptions : TourOptions {
-  std::function<void(double share)> progress;
-  std::optional<double> sliceMs;
+  std::function<void(double share)> progress = nullptr;
+  std::optional<double> sliceMs = std::nullopt;
 };
 
 /**

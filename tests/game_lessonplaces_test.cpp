@@ -6,8 +6,8 @@
  * and the places found in a town: right before a junction of the lesson's
  * kind, in a lane leading to it, with the way through it to the destination.
  *
- * Origin: tests/game/lessonplaces.test.ts @ v1.7.7 (its last case looks for the places on the
- * real map, which needs the map's loader; here they are looked for in the small town of tests/town.h).
+ * Origin: tests/game/lessonplaces.test.ts @ v1.7.7 (with two cases of the port's own, in the small
+ * town of tests/town.h, for when the real map is not there).
  */
 #include <cassert>
 #include <cmath>
@@ -19,6 +19,7 @@
 
 #include "game/lessonplaces.h"
 #include "game/nav.h"
+#include "tests/game_realmap.h"
 #include "tests/town.h"
 #include "world/types.h"
 
@@ -143,6 +144,49 @@ int main() {
     const std::optional<LessonSpot> at = findLessonPlace(*town.world, *town.lanes, "signals", 400, 400);
     assert(at && at->node && at->node->ctrl == CTRL_SIGNALS && at->goal);
     assert(at->node == town.world->nodes[town.node(2, 2)]);
+  }
+
+  // on the real map: places for each lesson round Baunatal and in Kassel
+  if (const std::unique_ptr<RealMap> r = openRealMap()) {
+    double seed = 11;
+    const auto rnd = [&seed] {
+      seed = std::fmod(seed * 16807, 2147483647);
+      return seed / 2147483647;
+    };
+    const std::vector<std::string> kinds = {"quiet", "rbl", "priority", "signals", "roundabout", "rural", "motorway"};
+    std::map<std::string, int> found;
+    const double centres[2][2] = {{744, -272}, {4265, -5927}};
+    for (const auto& centre : centres) {
+      const double x = centre[0];
+      const double z = centre[1];
+      r->loadAround(x, z, 3100);
+      for (const std::string& kind : kinds) {
+        PlaceOptions options;
+        options.rnd = rnd;
+        options.usable = [&r](const Lane& l) { return r->usable(l); };
+        const std::optional<LessonSpot> at = findLessonPlace(*r->world, *r->lanes, kind, x, z, options);
+        if (!at) continue;
+        found[kind]++;
+        if (kind == "quiet") {
+          assert(at->goal == nullptr);
+          continue;
+        }
+        assert(at->node);   // a junction
+        if (kind != "rural" && kind != "motorway") assert(junctionOfType(*at->node, kind));   // the junction is of the lesson's kind
+        // about a hundred metres before it (less where the road is short), facing it
+        const double d = std::hypot(at->node->x - at->x, at->node->z - at->z);
+        assert(d > 15 && d < 250);
+        const double fx = -std::sin(at->yaw);
+        const double fz = -std::cos(at->yaw);
+        assert(((at->node->x - at->x) * fx + (at->node->z - at->z) * fz) / d > 0.3);   // facing the junction
+        assert(at->goal);   // a destination
+        if (kind == "motorway") assert(at->goal->cls == MOTORWAY);
+        if (kind == "rural") assert((at->goal->flags & EF_URBAN) == 0);
+        if (kind == "roundabout") assert((at->goal->flags & EF_ROUNDABOUT) == 0);   // out of the ring
+      }
+    }
+    // what a town of this size has: every kind somewhere
+    for (const std::string& kind : kinds) assert(found[kind] > 0);
   }
 
   std::printf("game_lessonplaces_test: ok\n");

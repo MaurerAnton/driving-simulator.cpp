@@ -255,7 +255,7 @@ static const char FOLD_TEXT[] =
     "lsx;ABDEGHIJKLMNOPRTUWabdegkmoptuviruvcfzaabbbbbbccddddddddddeeeeeeeeeeffgghhhhhhhhhhiiiikkkkkklllll"
     "lllmmmmmmnnnnnnnnoooooooopppprrrrrrrrssssssssssttttttttuuuuuuuuuuvvvvwwwwwwwwwwxxxxyyzzzzzzhtwya sss"
     "aaaaaaaaaaaaaaaaaaaaaaaaeeeeeeeeeeeeeeeeiiiioooooooooooooooooooooooouuuuuuuuuuuuuuyyyyyyyy`......!!?"
-    "??!!?0i456789+=()n0123456789+=()aeoxhklmnpstRsa/ca/sC Cc/oc/u FgHHHhIILlNNoPQRRRSMTELTMZZkaBCeEFMoiF"
+    "?\?!!?0i456789+=()n0123456789+=()aeoxhklmnpstRsa/ca/sC Cc/oc/u FgHHHhIILlNNoPQRRRSMTELTMZZkaBCeEFMoiF"
     "AXDdeij1 71 91 101 32 31 52 53 54 51 65 61 83 85 87 81 iiiiiiivvviviiviiiixxxixiilcdmiiiiiiivvviviiv"
     "iiiixxxixiilcdm0 3=<>1234567891011121314151617181920(1)(2)(3)(4)(5)(6)(7)(8)(9)(10)(11)(12)(13)(14)("
     "15)(16)(17)(18)(19)(20)1.2.3.4.5.6.7.8.9.10.11.12.13.14.15.16.17.18.19.20.(a)(b)(c)(d)(e)(f)(g)(h)(i"

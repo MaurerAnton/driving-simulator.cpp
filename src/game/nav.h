@@ -133,13 +133,13 @@ struct LessonDef {
   std::string kind;
   std::vector<TargetType> targets;
   /** only for this vehicle (default: all but those in `notFor`) – or for these */
-  std::optional<VehicleKind> vehicle;
-  std::optional<std::vector<VehicleKind>> vehicles;
-  std::optional<std::vector<VehicleKind>> notFor;
+  std::optional<VehicleKind> vehicle = std::nullopt;
+  std::optional<std::vector<VehicleKind>> vehicles = std::nullopt;
+  std::optional<std::vector<VehicleKind>> notFor = std::nullopt;
   /** tasks on the practice yard, done one after the other before the drive (see game/ce.ts): 'couple' | 'corner' | 'ramp' */
-  std::optional<std::vector<std::string>> tasks;
+  std::optional<std::vector<std::string>> tasks = std::nullopt;
   /** the basic tasks of class B on the practice yard, one after the other (see game/drills.ts: its DrillId; 'exam': three tasks as in the test – one of group a, two of group b, Anlage 7 FeV Nr. 2.1.4.2) */
-  std::optional<std::vector<std::string>> drills;
+  std::optional<std::vector<std::string>> drills = std::nullopt;
 };
 
 inline const std::vector<LessonDef> LESSONS = [] {
