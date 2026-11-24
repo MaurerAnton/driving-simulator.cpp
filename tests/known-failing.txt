@@ -1,6 +1,3 @@
 geom_test
 lanes_test
-sim_test
-traffic_test
-vehicle_test
 world_test
