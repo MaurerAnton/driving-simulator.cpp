@@ -7,6 +7,7 @@
 // (steps are split at commas: an eval with a comma in it is cut).
 // FS_GPU=1 draws with the machine's graphics chip (when the browser can reach it without a window).
 // Prints what the page wrote to the console, and window.__fs.info() at the end.
+import { readFileSync } from 'node:fs';
 import { existsSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
@@ -70,6 +71,8 @@ for (const step of (process.env.FS_STEPS ?? '').split(',').filter(Boolean)) {
     else if (kind === 'at') await page.mouse.click(Number(a), Number(b));   // at:x:y – a click at that point of the page
     else if (kind === 'wait') await page.waitForTimeout(Number(a));
     else if (kind === 'eval') logs.push(`[eval] ${JSON.stringify(await page.evaluate(step.slice(5)))}`);
+    // evalfile:path – a script of any length (commas and all) run in the page, its value logged
+    else if (kind === 'evalfile') logs.push(`[eval] ${JSON.stringify(await page.evaluate(readFileSync(step.slice(9), 'utf8')))}`);
   } catch (e) {
     logs.push(`[shot] step ${step}: ${e.message.split('\n')[0]}`);
   }

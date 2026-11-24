@@ -698,6 +698,10 @@ class InstancedMesh : public Mesh {
   int capacity() const { return capacity_; }
   /** InstancedMesh.dispose(): the graphics card's buffers of the instances are given back (the geometry and material stay theirs) */
   void dispose();
+  ~InstancedMesh() override;
+  /** the vertex array of this mesh: its geometry's arrays with its own instance arrays (the renderer's) */
+  mutable uint32_t gpuVao = 0;
+  mutable uint64_t gpuLayout = 0;
 
  private:
   int capacity_;

@@ -86,6 +86,11 @@ std::string tileKeyOf(const std::string& url) {
 
 App::App(const dom::El& canvasElement) : canvas(canvasElement) {
   baseUrl = plat::locationBase() + "map/";
+  // (the page may say where the map is: the test site takes the 1.7.7 site's – web/index.html, <meta name="fahrsim-map">)
+  if (dom::El meta = dom::querySelector("meta[name='fahrsim-map']")) {
+    const std::string at = meta.getAttribute("content");
+    if (!at.empty()) baseUrl = plat::locationBase() + at;
+  }
   renderer.init();
   renderer.toneMapping = true;   // THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 0.85;

@@ -38,6 +38,10 @@ int main(int argc, char** argv) {
   int width = 1280, height_px = 720, shadows = 3072, frames = 30;
   // --plain all|ground|terrain|bldg|mark|struct: those meshes with a plain Lambert material (what their shaders cost)
   std::string plain;
+  struct FragEdit {
+    std::string mesh, from, to;
+  };
+  std::vector<FragEdit> edits;
   for (int i = 1; i < argc; i++) {
     std::string a = argv[i];
     auto next = [&]() -> const char* { return i + 1 < argc ? argv[++i] : ""; };
@@ -52,6 +56,13 @@ int main(int argc, char** argv) {
     else if (a == "--map") mapDir = next();
     else if (a == "--sun") std::sscanf(next(), "%lf,%lf", &sunEl, &sunAz);
     else if (a == "--plain") plain = next();
+    else if (a == "--frag") {
+      // --frag MESH 'FROM|TO': in that kind of mesh's fragment shader, FROM is replaced by TO (an experiment: what a part costs)
+      const std::string mesh = next();
+      const std::string ft = next();
+      const size_t bar = ft.find('|');
+      edits.push_back({mesh, ft.substr(0, bar), bar == std::string::npos ? "" : ft.substr(bar + 1)});
+    }
     else out = a;
   }
   if (!mapDir.empty() && mapDir.back() != '/') mapDir += '/';
@@ -93,6 +104,30 @@ int main(int argc, char** argv) {
       if (o.type == ObjectType::Mesh) {
         const std::string name = o.name.empty() && o.parent && o.parent->type == ObjectType::LOD ? "terrain" : o.name;
         if (plain == "all" || name == plain) static_cast<Mesh&>(o).material = flat;
+      }
+      for (const ObjectPtr& c : o.children) walk(*c);
+    };
+    walk(*app.tiles->group);
+  }
+  for (const FragEdit& e : edits) {
+    std::map<Material*, MaterialPtr> made;
+    std::function<void(Object3D&)> walk = [&](Object3D& o) {
+      if (o.type == ObjectType::Mesh) {
+        Mesh& m = static_cast<Mesh&>(o);
+        const std::string name = o.name.empty() && o.parent && o.parent->type == ObjectType::LOD ? "terrain" : o.name;
+        if (name == e.mesh && m.material && m.material->patch) {
+          MaterialPtr& to = made[m.material.get()];
+          if (!to) {
+            to = m.material->clone();
+            auto p = std::make_shared<ShaderPatch>(*m.material->patch);
+            const size_t at = p->fragmentSource.find(e.from);
+            if (at == std::string::npos) std::printf("--frag %s: not found: %s\n", e.mesh.c_str(), e.from.c_str());
+            else p->fragmentSource.replace(at, e.from.size(), e.to);
+            p->key += "+x";
+            to->patch = p;
+          }
+          m.material = to;
+        }
       }
       for (const ObjectPtr& c : o.children) walk(*c);
     };

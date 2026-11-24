@@ -565,6 +565,12 @@ struct Renderer::Impl {
   }
 
   // --- geometry -------------------------------------------------------------------
+  /**
+   * The instance buffers each vertex array is set up with (matrices, colours): a vertex array keeps
+   * them, so they are pointed to only when they change – not for every draw (WebGL checks each call).
+   */
+  std::unordered_map<GLuint, std::array<GLuint, 2>> vaoInstances;
+
   void uploadAttribute(const BufferAttribute& a, GLenum target) {
     if (a.gpu && a.gpuVersion == a.version) return;
     bool fresh = !a.gpu;
@@ -572,6 +578,9 @@ struct Renderer::Impl {
       GLuint id = 0;
       glGenBuffers(1, &id);
       a.gpu = id;
+      // (an id given out again: a vertex array that pointed to the buffer of that id before must be set up anew)
+      for (auto it = vaoInstances.begin(); it != vaoInstances.end();)
+        it = it->second[0] == id || it->second[1] == id ? vaoInstances.erase(it) : std::next(it);
     }
     glBindBuffer(target, a.gpu);
     glBufferData(target, static_cast<GLsizeiptr>(a.byteLength()), a.data(), a.dynamic ? GL_DYNAMIC_DRAW : GL_STATIC_DRAW);
@@ -600,17 +609,26 @@ struct Renderer::Impl {
     curVao = vao;
   }
 
-  /** the geometry's vertex array, its arrays uploaded; bound */
-  void useGeometry(BufferGeometry& g) {
+  /**
+   * The geometry's vertex array, its arrays uploaded; bound.  An InstancedMesh has a vertex array of its
+   * own (its geometry's arrays and its instance arrays): several of them often share one geometry – the
+   * cars of the traffic – and one array for all would be pointed anew at every switch.
+   */
+  void useGeometry(BufferGeometry& g, Object3D* object = nullptr) {
+    InstancedMesh* inst = object && object->type == ObjectType::InstancedMesh ? static_cast<InstancedMesh*>(object) : nullptr;
+    uint32_t& vaoOf = inst ? inst->gpuVao : g.gpuVao;
+    uint64_t& layoutStored = inst ? inst->gpuLayout : g.gpuLayout;
     uint64_t layout = layoutOf(g);
-    bool rebuild = !g.gpuVao || g.gpuLayout != layout;
-    if (!g.gpuVao) {
+    bool rebuild = !vaoOf || layoutStored != layout;
+    if (!vaoOf) {
       GLuint vao = 0;
       glGenVertexArrays(1, &vao);
-      g.gpuVao = vao;
+      vaoOf = vao;
       r.info.geometries++;
     }
-    bindVao(g.gpuVao);
+    // (a vertex array made anew, or with other arrays: the instance arrays it held are gone)
+    if (rebuild) vaoInstances.erase(vaoOf);
+    bindVao(vaoOf);
     for (const auto& kv : g.attributes) {
       const BufferAttribute& a = *kv.second;
       bool changed = !a.gpu || a.gpuVersion != a.version;
@@ -633,13 +651,18 @@ struct Renderer::Impl {
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ix.gpu);
       }
     }
-    g.gpuLayout = layout;
+    layoutStored = layout;
   }
 
   /** the arrays of an InstancedMesh, on the bound vertex array */
   void useInstances(InstancedMesh& m) {
+    if (m.instanceMatrix) uploadAttribute(*m.instanceMatrix, GL_ARRAY_BUFFER);
+    if (m.instanceColor) uploadAttribute(*m.instanceColor, GL_ARRAY_BUFFER);
+    const std::array<GLuint, 2> want{m.instanceMatrix ? m.instanceMatrix->gpu : 0u, m.instanceColor ? m.instanceColor->gpu : 0u};
+    auto known = vaoInstances.find(curVao);
+    if (known != vaoInstances.end() && known->second == want) return;
+    vaoInstances[curVao] = want;
     if (m.instanceMatrix) {
-      uploadAttribute(*m.instanceMatrix, GL_ARRAY_BUFFER);
       glBindBuffer(GL_ARRAY_BUFFER, m.instanceMatrix->gpu);
       for (int c = 0; c < 4; c++) {
         GLuint loc = static_cast<GLuint>(4 + c);
@@ -649,7 +672,6 @@ struct Renderer::Impl {
       }
     }
     if (m.instanceColor) {
-      uploadAttribute(*m.instanceColor, GL_ARRAY_BUFFER);
       glBindBuffer(GL_ARRAY_BUFFER, m.instanceColor->gpu);
       glEnableVertexAttribArray(8);
       glVertexAttribPointer(8, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -1244,7 +1266,7 @@ struct Renderer::Impl {
       setDepth(m.depthTest, m.depthWrite);
       setColorWrite(m.colorWrite);
       setPolygonOffset(m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits);
-      useGeometry(*it.geometry);
+      useGeometry(*it.geometry, it.object);
       GLenum mode = o.type == ObjectType::Points ? GL_POINTS : o.type == ObjectType::LineSegments ? GL_LINES : o.type == ObjectType::Line ? GL_LINE_STRIP : GL_TRIANGLES;
       drawCall(it, mode);
     }
@@ -1314,7 +1336,7 @@ struct Renderer::Impl {
       // three.js: the back of a front-sided material is what is drawn into the shadow map
       Side side = m.shadowSide ? *m.shadowSide : (m.side == Side::Front ? Side::Back : m.side == Side::Back ? Side::Front : Side::Double);
       setSide(side, o.matrixWorld.determinant() < 0);
-      useGeometry(*it.geometry);
+      useGeometry(*it.geometry, it.object);
       BufferGeometry& g = *it.geometry;
       int total = g.index ? static_cast<int>(g.index->count()) : (g.position() ? static_cast<int>(g.position()->count()) : 0);
       it.start = std::max(0, g.drawRange.start);

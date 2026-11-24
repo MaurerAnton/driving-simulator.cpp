@@ -539,12 +539,12 @@ void InstancedMesh::dispose() {
     a->gpu = 0;
     a->gpuVersion = 0;
   }
-  // (the vertex array names the instance buffers: it is made again on the next draw)
-  if (geometry) {
-    gpu::release(gpu::Kind::VertexArray, geometry->gpuVao);
-    geometry->gpuVao = 0;
-    geometry->gpuLayout = 0;
-  }
+  // (its vertex array names the instance buffers: it is made again on the next draw)
+  gpu::release(gpu::Kind::VertexArray, gpuVao);
+  gpuVao = 0;
+  gpuLayout = 0;
 }
+
+InstancedMesh::~InstancedMesh() { gpu::release(gpu::Kind::VertexArray, gpuVao); }
 
 }  // namespace fs
