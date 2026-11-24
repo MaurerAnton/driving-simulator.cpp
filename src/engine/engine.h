@@ -399,6 +399,8 @@ struct MaterialParams {
   TexturePtr map{};
   /** `alphaMap`: the green channel is the opacity */
   TexturePtr alphaMap{};
+  /** `emissiveMap`: the emissive colour times this picture */
+  TexturePtr emissiveMap{};
   bool vertexColors = false;
   /** not given: the class's own (a SpriteMaterial is transparent, the others are not) */
   std::optional<bool> transparent{};
@@ -597,6 +599,8 @@ class Object3D : public std::enable_shared_from_this<Object3D> {
   std::map<std::string, double> userData;
   /** `onBeforeRender`: called before the object is drawn (not for the shadow map) */
   std::function<void(Renderer&, Scene&, Camera&)> onBeforeRender;
+  /** `onAfterRender`: called after the object is drawn (not for the shadow map) */
+  std::function<void(Renderer&, Scene&, Camera&)> onAfterRender;
 
   Object3D();
   virtual ~Object3D();

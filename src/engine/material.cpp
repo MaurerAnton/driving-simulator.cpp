@@ -118,6 +118,7 @@ Material::Material(MaterialType t, const MaterialParams& p) : Material(t) {
   if (p.color) color.copy(*p.color);
   map = p.map;
   alphaMap = p.alphaMap;
+  emissiveMap = p.emissiveMap;
   vertexColors = p.vertexColors;
   if (p.transparent) transparent = *p.transparent;
   opacity = p.opacity;
@@ -149,6 +150,7 @@ std::shared_ptr<Material> Material::clone() const {
   m->name = name;
   m->color.copy(color);
   m->map = map;
+  m->alphaMap = alphaMap;
   m->vertexColors = vertexColors;
   m->transparent = transparent;
   m->opacity = opacity;

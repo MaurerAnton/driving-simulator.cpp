@@ -23,6 +23,8 @@
 #include "engine/engine.h"
 #include "platform/canvas.h"
 #include "render/carBody.h"
+#include "render/cardetail.h"
+#include "render/caropen.h"
 #include "render/fleet.h"
 #include "render/instruments.h"
 #include "render/mirrors.h"
@@ -122,72 +124,6 @@ struct DoorTrim {
   std::vector<GeometryPtr> doors;
 };
 
-// ------------------------------------------------------------------ hooks ----
-//
-// render/cardetail.ts (the much finer car of the "very high" graphics) and render/caropen.ts
-// (doors, bonnet and boot that open) are not translated yet.  Each stands here as a class of
-// the original's name with just the members the car calls, for the missing part to fill in;
-// `create` is its constructor (`new CarDetail(car)`, `new CarOpenings(host)`) and null until
-// then – the car is the plain one meanwhile, and nothing of it opens.  When a part is
-// translated its declaration here goes and the real class takes its place: nothing in car.cpp
-// changes but the two `create` calls.
-
-/** What the finer model is fixed to: the parts of the player's car (render/cardetail.ts CarParts). */
-struct CarParts {
-  CarExterior* exterior = nullptr;
-  std::shared_ptr<Group> cockpit;
-  std::vector<Mirror*> mirrors;
-  std::shared_ptr<Group> steering;
-  std::shared_ptr<Group> lever;
-  std::shared_ptr<Group> handbrake;
-  std::vector<std::shared_ptr<Group>> pedals;
-  std::shared_ptr<Group> stalk;
-  Vector3 eye;
-};
-
-/** render/cardetail.ts */
-class CarDetail {
- public:
-  static inline std::function<std::unique_ptr<CarDetail>(const CarParts& car)> create = nullptr;
-
-  virtual ~CarDetail() = default;
-  /** the meshes the see-through cabin is to take in, with their layer (1: the controls in front) */
-  std::vector<std::pair<std::shared_ptr<Mesh>, int>> ghosts;
-  /** What the finer model added (for the parts that open to take theirs: render/caropen.ts) – the original's getter `meshes`. */
-  virtual const std::vector<ObjectPtr>& meshes() const = 0;
-  virtual void show(bool on) = 0;
-  /** The moving parts: the wheels as the plain ones stand, the gear knob or the selector's display. */
-  virtual void update(const CarVisualState& s) = 0;
-};
-
-/** What of the player's car the parts are taken from (render/caropen.ts OpeningsHost). */
-struct OpeningsHost {
-  std::shared_ptr<Group> root;
-  struct Exterior {
-    std::shared_ptr<Group> group;
-    const CarShell* shell = nullptr;
-    const CarDims* dims = nullptr;
-  } exterior;
-  std::shared_ptr<Group> cockpit;
-  std::vector<Mirror*> mirrors;
-  /** the door panels inside: their material's mesh as a whole, without them, and each door's own (fl fr rl rr) */
-  const std::vector<DoorTrim>* doorTrim = nullptr;
-  /** take a new mesh into the see-through cabin (the original's `register`, a word C++ keeps to itself) */
-  std::function<void(const std::shared_ptr<Mesh>& mesh)> register_;
-};
-
-/** render/caropen.ts */
-class CarOpenings {
- public:
-  static inline std::function<std::unique_ptr<CarOpenings>(const OpeningsHost& host)> create = nullptr;
-
-  virtual ~CarOpenings() = default;
-  /** The finer model's meshes (render/cardetail.ts): what lies on a part goes with it. */
-  virtual void addDetail(const std::vector<ObjectPtr>& objects) = 0;
-  /** How far each part is open (fl fr rl rr bonnet boot), 0 … 1. */
-  virtual void pose(const std::vector<double>& values) = 0;
-};
-
 /** The driving-school car with its interior and mirrors. */
 class PlayerCar : public VehicleModel {
  public:
@@ -232,7 +168,6 @@ class PlayerCar : public VehicleModel {
 
   /**
    * The doors, the bonnet and the tailgate (render/caropen.ts) – cut out of the body the first time this is asked for.
-   * (Null while render/caropen is not translated.)
    */
   CarOpenings* openings();
 

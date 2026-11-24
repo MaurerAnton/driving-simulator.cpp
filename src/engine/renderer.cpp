@@ -1284,6 +1284,7 @@ struct Renderer::Impl {
       useGeometry(*it.geometry, it.object);
       GLenum mode = o.type == ObjectType::Points ? GL_POINTS : o.type == ObjectType::LineSegments ? GL_LINES : o.type == ObjectType::Line ? GL_LINE_STRIP : GL_TRIANGLES;
       drawCall(it, mode);
+      if (o.onAfterRender) o.onAfterRender(r, *scene, camera);
     }
   }
 

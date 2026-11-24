@@ -68,10 +68,14 @@
 
 namespace fs {
 
+/** The motorcycle of each class has its own build (render/bike.ts): moped, 125, 35 kW, the big one. */
+BikeVariant bikeVariant(const std::string& kind) {
+  return kind == "moped" ? "moped" : kind == "motorcycle125" ? "light" : kind == "motorcycle35" ? "mid" : "big";
+}
+
 /** Which model a vehicle is drawn with: its kind of model – for a motorcycle, the build of its class. */
 std::string modelKey(const VehicleDef& def) {
-  // (later: bikeVariant, the motorcycles' builds – game.ts:263)
-  return def.model;
+  return def.model == "motorcycle" ? "motorcycle:" + bikeVariant(def.kind) : def.model;
 }
 
 // ---- URLSearchParams ----
@@ -865,7 +869,11 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
   else if (mk == "bus") made = std::make_unique<PlayerBus>();
   else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
   else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
-  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker; motorcycle – game.ts:1906)
+  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker – game.ts:1906)
+  else if (mk == "motorcycle") {
+    bikes.push_back(std::make_unique<PlayerBike>(bikeVariant(def.kind)));
+    return bikes.back().get();
+  }
   // (the aeroplane's model is kept beside these: planeAdapter)
   else if (mk == "towerCrane" || mk == "mobileCrane" || mk == "loaderCrane") {
     craneModels.push_back(makeCraneModel(def.crane.value_or("tower"), settings.quality == "low" ? "low" : "full"));

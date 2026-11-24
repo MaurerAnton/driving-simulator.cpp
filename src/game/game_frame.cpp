@@ -45,6 +45,7 @@
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "sim/trailer.h"
+#include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
 #include "ui/bigmap.h"
 #include "ui/hud.h"
@@ -403,7 +404,8 @@ void Game::frame(double now) {
       if (truck && def->kind == "truck") truck->setTrailer(t->x, t->y, t->z, t->yaw, t->pitch, t->wheelSpin, t->coupled);
       if (carTrailer && def->model != "truck") carTrailer->place(t->x, t->y, t->z, t->yaw, t->pitch, t->wheelSpin, lastVisual);
     }
-    // (later: the motorcycle's lean – game.ts:6608)
+    // a motorcycle leans into the bend: as far as it must for the speed and the curve
+    if (PlayerBike* bike = dynamic_cast<PlayerBike*>(&model)) bike->setLean(bikeLean(v.speed, v.angVel[1]));
     // the aeroplane: where the flight has it, turned every way it is
     if (aircraft && planeModel) {
       Aircraft& ac = *aircraft;
@@ -801,10 +803,19 @@ void Game::updateCamera(double dt) {
     // (later: lessonWatch – game.ts:7372)
     const double want = demo && demo->active ? demo->look * 0.8 : 0;
     demoHead += std::max(-dt * 5, std::min(dt * 5, want - demoHead));
-    // (later: a rider's gaze and lean (PlayerBike) – game.ts:7375)
-    const double gaze = aircraft ? 0.17 : 0;
+    // (a rider looks a little down the road: the instruments, the bar and the mirrors in view)
+    PlayerBike* bike = dynamic_cast<PlayerBike*>(&model());
+    const double gaze = bike ? bike->gaze : aircraft ? 0.17 : 0;
     tmpQ.setFromEuler(Euler(c.lookPitch - gaze, c.lookYaw + demoHead, 0, Euler::YXZ));
     cam.quaternion.copy(car.quaternion).multiply(tmpQ);
+    if (bike) {
+      // the rider leans with the motorcycle: the eye swings round the line where the tyres touch the road
+      Quaternion bikeRoll;
+      bikeRoll.setFromAxisAngle(Vector3(0, 0, 1), -bike->leaning());
+      eyeWorld.copy(bike->eye).applyQuaternion(bikeRoll).applyMatrix4(car.matrixWorld);
+      cam.position.copy(eyeWorld);
+      cam.quaternion.copy(car.quaternion).multiply(bikeRoll).multiply(tmpQ);
+    }
   } else if (cameraMode == "chase") {
     cam.near = 0.3;
     cam.fov = 55;
