@@ -762,6 +762,26 @@ void exitFullscreen() {
   fire(p.doc, e, false);
 }
 
+int handleLimit() { return static_cast<int>(page().nodes.size()); }
+int refCount(int h) {
+  Node* n = node(h);
+  return n ? n->refs : 0;
+}
+void liveness(int limit, std::vector<uint8_t>& connectedOut, std::vector<int>& tree) {
+  connectedOut.assign(static_cast<size_t>(limit), 0);
+  tree.assign(static_cast<size_t>(limit), 0);
+  Page& p = page();
+  for (int h = 1; h < limit; h++) {
+    if (!node(h)) continue;
+    if (h == p.win || h == p.doc || connected(h)) connectedOut[static_cast<size_t>(h)] = 1;
+    else tree[static_cast<size_t>(h)] = rootOf(h);
+  }
+}
+void forgetListener(int listener) {
+  // (the handler is gone; the element still lists it, which costs nothing: it is never asked for again)
+  (void)listener;
+}
+
 }  // namespace backend
 
 // --- what the tests use ------------------------------------------------------------

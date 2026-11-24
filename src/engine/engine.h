@@ -130,6 +130,10 @@ class BufferAttribute {
   BufferAttribute& applyMatrix4(const Matrix4& m);
   /** applyNormalMatrix on a normal attribute, by the matrix's upper 3×3 inverse transpose */
   BufferAttribute& transformNormals(const Matrix4& m);
+  /** applyMatrix3 (itemSize 2 or 3), applyNormalMatrix (the normal matrix itself), transformDirection */
+  BufferAttribute& applyMatrix3(const Matrix3& m);
+  BufferAttribute& applyNormalMatrix(const Matrix3& m);
+  BufferAttribute& transformDirection(const Matrix4& m);
 
   /** the renderer's handle of the uploaded array (0: not uploaded) */
   mutable uint32_t gpu = 0;
@@ -152,7 +156,7 @@ AttrPtr attr(std::vector<T> array, int itemSize, bool normalized = false) {
 // BufferGeometry
 // ---------------------------------------------------------------------------
 
-class BufferGeometry {
+class BufferGeometry : public std::enable_shared_from_this<BufferGeometry> {
  public:
   struct Group {
     int start = 0;
@@ -380,15 +384,18 @@ using ShaderPatchPtr = std::shared_ptr<ShaderPatch>;
 
 /** The parameters of `new THREE.Mesh…Material({ … })`, for lambert(), basic(), phong(). */
 struct MaterialParams {
-  std::optional<Color> color;
-  TexturePtr map;
+  // (every member has an initialiser, so that `{.color = 0x808890}` leaves nothing for -Wmissing-field-initializers to name)
+  std::optional<Color> color{};
+  TexturePtr map{};
   bool vertexColors = false;
-  bool transparent = false;
+  /** not given: the class's own (a SpriteMaterial is transparent, the others are not) */
+  std::optional<bool> transparent{};
   double opacity = 1;
   Side side = Side::Front;
   bool depthWrite = true;
   bool depthTest = true;
-  bool fog = true;
+  /** not given: the class's own (a ShaderMaterial has no fog, the others have) */
+  std::optional<bool> fog{};
   bool toneMapped = true;
   bool flatShading = false;
   double alphaTest = 0;
@@ -396,12 +403,12 @@ struct MaterialParams {
   bool polygonOffset = false;
   double polygonOffsetFactor = 0;
   double polygonOffsetUnits = 0;
-  std::optional<Color> emissive;
+  std::optional<Color> emissive{};
   double emissiveIntensity = 1;
-  std::optional<Color> specular;
+  std::optional<Color> specular{};
   double shininess = 30;
   bool colorWrite = true;
-  std::string name;
+  std::string name{};
 };
 
 class Material {
@@ -593,7 +600,7 @@ class Object3D : public std::enable_shared_from_this<Object3D> {
 
   void updateMatrix();
   virtual void updateMatrixWorld(bool force = false);
-  void updateWorldMatrix(bool updateParents, bool updateChildren);
+  virtual void updateWorldMatrix(bool updateParents, bool updateChildren, bool force = false);
   void lookAt(double x, double y, double z);
   void lookAt(const Vector3& v) { lookAt(v.x, v.y, v.z); }
   Object3D& applyMatrix4(const Matrix4& m);
@@ -756,6 +763,7 @@ class Camera : public Object3D {
   Camera() : Object3D(ObjectType::Camera) {}
   void updateProjectionMatrix();
   void updateMatrixWorld(bool force = false) override;
+  void updateWorldMatrix(bool updateParents, bool updateChildren, bool force = false) override;
   Vector3& getWorldDirection(Vector3& target) override;
   void setViewOffset(double fullWidth, double fullHeight, double x, double y, double width, double height);
   void clearViewOffset();

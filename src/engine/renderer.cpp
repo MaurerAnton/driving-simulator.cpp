@@ -770,7 +770,7 @@ struct Renderer::Impl {
     p.toneMapping = tone;
     p.srgbOutput = screen;
     p.vertexNormals = normals;
-    p.sizeAttenuation = m.sizeAttenuation && m.type != MaterialType::Sprite ? m.sizeAttenuation : (m.type == MaterialType::Sprite && m.sizeAttenuation);
+    p.sizeAttenuation = m.sizeAttenuation && (m.type == MaterialType::Points || m.type == MaterialType::Sprite);
     if (lit) {
       p.numDirLights = static_cast<int>(lights.dir.size());
       p.numHemiLights = static_cast<int>(lights.hemi.size());
@@ -974,8 +974,8 @@ struct Renderer::Impl {
       setMat3(s.loc, *m3);
     } else if (const Matrix4* m4 = std::get_if<Matrix4>(&v)) {
       setMat4(s.loc, *m4);
-    } else if (const TexturePtr* t = std::get_if<TexturePtr>(&v)) {
-      if (*t && s.unit >= 0) useTexture(s.unit, **t);
+    } else if (std::get_if<TexturePtr>(&v)) {
+      // (a picture: bound for every draw – bindMaterialTextures)
     } else if (const std::vector<float>* a = std::get_if<std::vector<float>>(&v)) {
       int n = static_cast<int>(a->size());
       if (n == 0) return;
@@ -996,9 +996,7 @@ struct Renderer::Impl {
         case U::Diffuse: setColor(s.loc, m.color); break;
         case U::Opacity: glUniform1f(s.loc, static_cast<GLfloat>(m.opacity)); break;
         case U::Emissive: setColor(s.loc, m.emissive, m.emissiveIntensity); break;
-        case U::Map:
-          if (m.map) useTexture(0, *m.map);
-          break;
+        case U::Map: break;   // (bound for every draw: bindMaterialTextures)
         case U::MapTransform:
         case U::UvTransform:
           if (m.map) {
@@ -1028,19 +1026,40 @@ struct Renderer::Impl {
     }
   }
 
+  /**
+   * The material's pictures on their units.  For every draw, not once per material: in the
+   * list of see-through things two materials of one program may take turns.  (Nearly always
+   * the picture is the one that is bound already, and nothing is sent.)
+   */
+  void bindMaterialTextures(Program& p, Material& m) {
+    if (m.map) useTexture(0, *m.map);
+    for (const Slot& s : p.custom) {
+      if (s.unit < 0) continue;
+      const Uniform* u = nullptr;
+      auto it = m.uniforms.find(s.name);
+      if (it != m.uniforms.end()) u = it->second.get();
+      else if (m.patch) {
+        auto pt = m.patch->uniforms.find(s.name);
+        if (pt != m.patch->uniforms.end()) u = pt->second.get();
+      }
+      if (!u) continue;
+      if (const TexturePtr* t = std::get_if<TexturePtr>(&u->value))
+        if (*t) useTexture(s.unit, **t);
+    }
+  }
+
   void setObjectUniforms(Program& p, Object3D& o) {
+    Matrix4 mv;
+    bool haveMv = false;
     for (const Slot& s : p.object) {
+      if ((s.kind == U::ModelViewMatrix || s.kind == U::NormalMatrix) && !haveMv) {
+        mv.multiplyMatrices(viewMatrix, o.matrixWorld);
+        haveMv = true;
+      }
       switch (s.kind) {
         case U::ModelMatrix: setMat4(s.loc, o.matrixWorld); break;
-        case U::ModelViewMatrix: {
-          Matrix4 mv;
-          mv.multiplyMatrices(viewMatrix, o.matrixWorld);
-          setMat4(s.loc, mv);
-          break;
-        }
+        case U::ModelViewMatrix: setMat4(s.loc, mv); break;
         case U::NormalMatrix: {
-          Matrix4 mv;
-          mv.multiplyMatrices(viewMatrix, o.matrixWorld);
           Matrix3 n;
           n.getNormalMatrix(mv);
           setMat3(s.loc, n);
@@ -1201,6 +1220,7 @@ struct Renderer::Impl {
         p.materialStamp = frameStamp;
         setMaterialUniforms(p, m, targetHeight);
       }
+      bindMaterialTextures(p, m);
       setObjectUniforms(p, o);
       const bool mirrored = (o.type == ObjectType::Mesh || o.type == ObjectType::InstancedMesh) && o.matrixWorld.determinant() < 0;
       setSide(m.side, mirrored);
@@ -1315,12 +1335,18 @@ bool Renderer::init() {
 void Renderer::setSize(int width, int height) {
   width_ = std::max(1, width);
   height_ = std::max(1, height);
-  if (available_) plat::gl::resizeDrawingBuffer(bufferWidth(), bufferHeight());
+  if (available_) {
+    plat::gl::resizeDrawingBuffer(bufferWidth(), bufferHeight());
+    d_->resetState();   // (the host may have bound things of its own meanwhile)
+  }
 }
 
 void Renderer::setPixelRatio(double ratio) {
   pixelRatio_ = ratio > 0 ? ratio : 1;
-  if (available_) plat::gl::resizeDrawingBuffer(bufferWidth(), bufferHeight());
+  if (available_) {
+    plat::gl::resizeDrawingBuffer(bufferWidth(), bufferHeight());
+    d_->resetState();
+  }
 }
 
 int Renderer::bufferWidth() const { return std::max(1, static_cast<int>(std::floor(width_ * pixelRatio_))); }
@@ -1402,7 +1428,7 @@ void Renderer::render(Scene& scene, Camera& camera) {
 
   int w = 0, h = 0;
   d.bindTarget(w, h);
-  if (d.viewportSet) glViewport(d.vp[0], d.vp[1], d.vp[2], d.vp[3]);
+  if (d.viewportSet && !target_) glViewport(d.vp[0], d.vp[1], d.vp[2], d.vp[3]);
   else glViewport(0, 0, w, h);
   if (autoClear) clear(true, true);
   else if (d.scissorTest) {
@@ -1427,7 +1453,8 @@ void Renderer::render(Scene& scene, Camera& camera) {
     return a.object->id < b.object->id;
   });
 
-  int th = d.viewportSet ? d.vp[3] : h;
+  // (what a PointsMaterial's size is measured against: the picture's height as three.js takes it)
+  int th = target_ ? h : height_;
   d.drawItems(d.opaque, camera, th);
   d.drawItems(d.transparent, camera, th);
 

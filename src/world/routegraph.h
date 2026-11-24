@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Origin: src/world/routegraph.ts @ v1.7.7
 /**
  * The road network as a route planner sees it: every road in each direction
  * it can be driven in is a "way", and from the end of each way lead the turns
@@ -10,12 +11,14 @@
  * it are lists of ways, which the navigation turns back into lanes and the
  * paths through the junctions (`connectorsAlong` in game/nav.ts).
  *
- * Origin: src/world/routegraph.ts (MaurerAnton/driving-simulator @ 3420ad0,
- * v0.8.0).
+ * (The arrays of 32-bit floats keep their numbers as floats, as the original's
+ * Float32Arrays do: calculate with them as doubles – `double(g.len[w])`.)
  */
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <vector>
 
 namespace fs {
@@ -23,7 +26,7 @@ namespace fs {
 struct Lane;
 class LaneGraph;
 
-/** Properties of a way (bits of RouteGraph::kind). */
+/** Properties of a way (bits of RouteGraph.kind) (RG). */
 enum RG : int {
   /** "Anlieger frei", a car park, a yard: to get somewhere, not to drive through */
   RG_ACCESS_ONLY = 1,
@@ -37,24 +40,59 @@ enum RG : int {
   RG_URBAN = 16,
   /** part of a roundabout */
   RG_ROUNDABOUT = 32,
-  /** less than 2.4 m wide */
+  /** too narrow for two cars to pass each other */
   RG_NARROW = 64,
 };
 
-/** A binary heap of (id, key) pairs, smallest key first (the JS MinHeap). */
+struct RouteGraph {
+  /** number of ways: one for each road and direction – way = edge * 2 + (0: from node a to b, 1: from b to a) */
+  int n = 0;
+  /** length in metres; 0: the road cannot be driven in this direction */
+  std::vector<float> len;
+  /** seconds it takes at the speed allowed (at most 130 km/h) */
+  std::vector<float> secs;
+  /** RG bits */
+  std::vector<uint8_t> kind;
+  /** road class (CLS) */
+  std::vector<uint8_t> cls;
+  /** where the way begins and ends (x, z) */
+  std::vector<float> x0;
+  std::vector<float> z0;
+  std::vector<float> x1;
+  std::vector<float> z1;
+  /** the turns at the end of way w: entries first[w] … first[w + 1] - 1 of `to` (the way turned into), `turn` (TURN) and `across` (metres through the junction) */
+  std::vector<uint32_t> first;
+  std::vector<uint32_t> to;
+  std::vector<uint8_t> turn;
+  std::vector<float> across;
+  /** the same turns sorted by where they lead: the ways `from[k]` turn into way w for k = firstIn[w] … firstIn[w + 1] - 1 (`inTurn`: index into `to`) */
+  std::vector<uint32_t> firstIn;
+  std::vector<uint32_t> from;
+  std::vector<uint32_t> inTurn;
+};
+
+/** The way a lane belongs to. */
+int wayOf(const Lane& lane);
+
+RouteGraph routeGraphOf(const LaneGraph& lanes);
+
+/** A binary heap of (id, key) pairs, smallest key first. */
 class MinHeap {
  public:
-  size_t size() const { return ids_.size(); }
-  void clear() {
-    ids_.clear();
-    keys_.clear();
-  }
-  void push(int id, double key) {
-    ids_.push_back(id);
-    keys_.push_back(key);
-    size_t i = ids_.size() - 1;
+  size_t size = 0;
+
+  explicit MinHeap(size_t capacity = 1024) : ids_(capacity), keys_(capacity) {}
+
+  void clear() { size = 0; }
+
+  void push(uint32_t id, double key) {
+    if (size == ids_.size()) {
+      ids_.resize(size * 2);
+      keys_.resize(size * 2);
+    }
+    size_t i = size++;
     while (i > 0) {
-      size_t p = (i - 1) >> 1;
+      const size_t p = (i - 1) >> 1;
       if (keys_[p] <= key) break;
       ids_[i] = ids_[p];
       keys_[i] = keys_[p];
@@ -63,76 +101,37 @@ class MinHeap {
     ids_[i] = id;
     keys_[i] = key;
   }
+
   /** the key of the smallest pair (read before pop) */
-  double topKey() const { return keys_.empty() ? 0 : keys_[0]; }
+  double topKey() const { return keys_[0]; }
+
   /** Remove the smallest pair and return its id. */
-  int pop() {
-    const int top = ids_[0];
-    int lastId = ids_.back();
-    double lastKey = keys_.back();
-    ids_.pop_back();
-    keys_.pop_back();
-    size_t n = ids_.size();
+  uint32_t pop() {
+    const uint32_t top = ids_[0];
+    const size_t n = --size;
     if (n > 0) {
+      const uint32_t id = ids_[n];
+      const double key = keys_[n];
       size_t i = 0;
       for (;;) {
         size_t c = i * 2 + 1;
         if (c >= n) break;
         if (c + 1 < n && keys_[c + 1] < keys_[c]) c++;
-        if (keys_[c] >= lastKey) break;
+        if (keys_[c] >= key) break;
         ids_[i] = ids_[c];
         keys_[i] = keys_[c];
         i = c;
       }
-      ids_[i] = lastId;
-      keys_[i] = lastKey;
+      ids_[i] = id;
+      keys_[i] = key;
     }
     return top;
   }
 
  private:
-  std::vector<int> ids_;
+  std::vector<uint32_t> ids_;
   std::vector<double> keys_;
 };
-
-/**
- * The network as plain arrays: `n` ways (road * 2 + direction), the turns at
- * the end of each way (`first` … `first[w+1]-1` of `to`/`turn`/`across`), and
- * the same turns sorted by where they lead (`firstIn`/`from`/`inTurn`).
- */
-struct RouteGraph {
-  int n = 0;
-  /** metres (at most 0.5: a way that cannot be driven) */
-  std::vector<double> len;
-  /** seconds it takes at the speed allowed (at most 130 km/h) */
-  std::vector<double> secs;
-  /** RG bits */
-  std::vector<uint8_t> kind;
-  /** road class (CLS) */
-  std::vector<uint8_t> cls;
-  /** where the way begins and ends (x, z) */
-  std::vector<double> x0, z0, x1, z1;
-  std::vector<uint32_t> first;
-  std::vector<uint32_t> to;
-  std::vector<uint8_t> turn;
-  std::vector<double> across;
-  std::vector<uint32_t> firstIn;
-  std::vector<uint32_t> from;
-  std::vector<uint32_t> inTurn;
-};
-
-/** The way a lane belongs to: its road, and which way it is driven along. */
-int wayOfLane(const Lane& lane);
-
-/** The network of the roads of the map, from its lanes. */
-RouteGraph routeGraphOf(const LaneGraph& lanes);
-
-/** The same, from the whole map's network file (netfile.h). */
-struct NetData;
-RouteGraph routeGraphOfNet(const NetData& d);
-
-/** What a turn costs on top of the time it takes: seconds. */
-double turnSeconds(const RouteGraph& g, int w, int k);
 
 /**
  * The quickest route from the end of way `start` to way `goal`: the ways to
@@ -140,13 +139,27 @@ double turnSeconds(const RouteGraph& g, int w, int k);
  * Private roads are not used (the goal itself may be one); "Anlieger frei"
  * and car parks are no short cuts.
  */
-std::vector<int> quickest(const RouteGraph& g, int start, int goal);
+std::optional<std::vector<int>> quickest(const RouteGraph& g, int start, int goal);
 
 /** The same to a road, whichever way it is then driven along: the quicker of the two. */
-std::vector<int> quickestToEdge(const RouteGraph& g, int start, int edge);
+std::optional<std::vector<int>> quickestToEdge(const RouteGraph& g, int start, int edge);
 
-/** The same, with the seconds it takes (0 ways when there is none). */
-bool quickestTimed(const RouteGraph& g, int start, int goal, std::vector<int>& ways, double& secs);
+/** A route with the seconds it takes (what `quickest` works with; the comparison with the original prints the seconds). */
+struct TimedRoute {
+  std::vector<int> ways;
+  double secs = 0;
+};
+std::optional<TimedRoute> quickestTimed(const RouteGraph& g, int start, int goal);
+
+/**
+ * What the ways are planned for: a vehicle that may not use the motorway (a tractor) is led round it;
+ * `wayCost` adds seconds to a way – Infinity where it is closed today (sim/roadevents.ts); none: nothing.
+ */
+struct RouteFor {
+  bool noMotorway = false;
+  std::function<double(int way)> wayCost;
+};
+extern RouteFor routeFor;
 
 /**
  * The ways of the network one can drive around in: from each of them every

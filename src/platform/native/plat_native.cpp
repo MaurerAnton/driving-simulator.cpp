@@ -3,13 +3,17 @@
  * plat.h on this machine: files from mounted folders, stores in memory, a clock
  * that can be driven by hand, and a queue in place of the browser's event loop.
  */
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <fstream>
 #include <map>
 #include <stdexcept>
+#include <unistd.h>
 
 #include "platform/native/native.h"
 #include "platform/plat.h"
@@ -38,6 +42,8 @@ struct Host {
   bool coarse = false;
   int width = 1280, height = 720;
   double pixelRatio = 1;
+  /** addresses nothing is mounted for are fetched from the real network (tools; never in tests) */
+  bool network = false;
 };
 
 Host& host() {
@@ -137,6 +143,55 @@ void log(const std::string& text) { std::fprintf(stdout, "%s\n", text.c_str()); 
 void warn(const std::string& text) { std::fprintf(stderr, "warn: %s\n", text.c_str()); }
 void error(const std::string& text) { std::fprintf(stderr, "error: %s\n", text.c_str()); }
 
+/** "bytes=a-b" of a Range header (false: there is none, or not of that plain shape) */
+static bool rangeOf(const Request& request, double& a, double& b) {
+  for (const auto& h : request.headers) {
+    if (h.first != "Range" && h.first != "range") continue;
+    unsigned long long x = 0, y = 0;
+    if (std::sscanf(h.second.c_str(), "bytes=%llu-%llu", &x, &y) == 2 && y >= x) {
+      a = static_cast<double>(x);
+      b = static_cast<double>(y);
+      return true;
+    }
+  }
+  return false;
+}
+
+/** The real network, for the tools that look at the published maps: through the `curl` program. */
+static Response curlFetch(const Request& request) {
+  Response res;
+  char tmp[] = "/tmp/fahrsim-fetch-XXXXXX";
+  int fd = mkstemp(tmp);
+  if (fd < 0) return res;
+  close(fd);
+  std::string cmd = "curl -s -L --max-time 120 -o '" + std::string(tmp) + "' -w '%{http_code} %{content_type}'";
+  if (request.method != "GET") cmd += " -X " + request.method;
+  for (const auto& h : request.headers) {
+    // (only what a header may hold: nothing that could end the quoting)
+    std::string v = h.first + ": " + h.second;
+    bool plain = true;
+    for (char c : v)
+      if (c == '\'' || c == '\\' || c == '\n' || c == '\r') plain = false;
+    if (plain) cmd += " -H '" + v + "'";
+  }
+  std::string url = request.url;
+  for (char c : url)
+    if (c == '\'' || c == '\\' || c == ' ' || c == '\n') return res;
+  cmd += " '" + url + "' 2>/dev/null";
+  if (FILE* p = popen(cmd.c_str(), "r")) {
+    char buf[256] = {0};
+    if (std::fgets(buf, sizeof buf, p)) {
+      res.status = std::atoi(buf);
+      const char* sp = std::strchr(buf, ' ');
+      if (sp) res.contentType = sp + 1;
+    }
+    pclose(p);
+  }
+  if (res.status > 0) readFile(tmp, res.body);
+  std::remove(tmp);
+  return res;
+}
+
 Task<Response> fetch(Request request) {
   Resolver<Response> r;
   Host& h = host();
@@ -152,13 +207,23 @@ Task<Response> fetch(Request request) {
     std::string path = best->second;
     if (!path.empty() && path.back() != '/' && !rest.empty() && rest.front() != '/') path += '/';
     path += rest;
-    if (readFile(path, res.body)) res.status = 200;
-    else res.status = 404;
+    if (readFile(path, res.body)) {
+      res.status = 200;
+      double a = 0, b = 0;
+      if (rangeOf(request, a, b) && a < static_cast<double>(res.body.size())) {
+        size_t end = std::min(res.body.size(), static_cast<size_t>(b) + 1);
+        res.body = Bytes(res.body.begin() + static_cast<long>(a), res.body.begin() + static_cast<long>(end));
+        res.status = 206;
+      }
+      if (path.size() > 5 && path.compare(path.size() - 5, 5, ".json") == 0) res.contentType = "application/json";
+    } else res.status = 404;
+  } else if (!best && h.network && (request.url.compare(0, 8, "https://") == 0 || request.url.compare(0, 7, "http://") == 0)) {
+    res = curlFetch(request);
   }
   auto progress = request.progress;
   // (the answer comes later, as in a browser: whoever asked goes on first)
   h.ready.push_back([r, res = std::move(res), progress]() mutable {
-    if (progress && res.status == 200) progress(static_cast<double>(res.body.size()), static_cast<double>(res.body.size()));
+    if (progress && res.ok()) progress(static_cast<double>(res.body.size()), static_cast<double>(res.body.size()));
     r.resolve(std::move(res));
   });
   return r.task();
@@ -204,6 +269,7 @@ namespace native {
 
 void mount(const std::string& prefix, const std::string& dir) { host().mounts.emplace_back(prefix, dir); }
 void unmountAll() { host().mounts.clear(); }
+void useNetwork(bool on) { host().network = on; }
 void setSearch(const std::string& search) { host().search = search; }
 void manualClock(bool on, double date) {
   Host& h = host();

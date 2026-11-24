@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-/**
- * Ground-cover classes of the terrain raster (shared by pipeline and renderer).
- *
- * Origin: src/world/cover.ts (MaurerAnton/driving-simulator @ 5b6ddc7, v0.1.0).
- */
+// Origin: src/world/cover.ts @ v1.7.7
+/** Ground-cover classes of the terrain raster (shared by pipeline and renderer): COVER.MEADOW is COVER_MEADOW. */
 #pragma once
 
 #include <cstdint>

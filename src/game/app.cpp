@@ -6,7 +6,6 @@
 
 #include "core/js.h"
 #include "platform/plat.h"
-#include "sim/signals.h"
 
 namespace fs {
 
@@ -78,7 +77,9 @@ Task<void> App::loadWorld(std::function<void(std::string)> onProgress) {
   const DateFields today = plat::localFields(plat::dateMs());
   const int day = today.year * 372 + today.month * 31 + today.date;
   WorldOptions options;
-  options.lightsOut = lightsOutBy(day, share);
+  // (which lights are out is decided by sim/signals' lightsOutBy(day, share): wired when that layer is merged)
+  (void)day;
+  (void)share;
   map = co_await MapLoader::open(files, options);
   co_await plat::sleep(0);
   files->version = map->version;

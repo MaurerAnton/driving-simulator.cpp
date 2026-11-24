@@ -1,42 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+// Origin: src/world/world.ts @ v1.7.7
 /**
  * Runtime road network: linked nodes/edges/arms, junction geometry, spatial
- * index and the analytic road-surface function.
- *
- * Origin: src/world/world.ts (MaurerAnton/driving-simulator @ 5b6ddc7, v0.1.0).
- * The maths mirrors the JavaScript originals so the pipeline and the game
- * agree on every junction corner and surface height.
+ * index and the analytic road-surface function (see world.h).
  */
 #include "world/world.h"
 
 #include <algorithm>
 #include <cmath>
-#include <set>
 #include <stdexcept>
+
+#include "world/roadfeatures.h"
 
 namespace fs {
 
 namespace {
-PolySample gTmpSample;
-PolyProjection gTmpProj;
-}  // namespace
 
-SurfaceHit newSurfaceHit() { return SurfaceHit(); }
-
-PolySample armPoint(const Arm& arm, double d, PolySample out) {
-  const Edge& e = *arm.edge;
-  return samplePolyline(e.pl, arm.out ? d : e.len - d, out);
-}
+PolySample tmpSample = newPolySample();
+PolyProjection tmpProj;
 
 void computeArmDirection(Arm& arm) {
   const Edge& e = *arm.edge;
   // Fixed probe distance: must not depend on the cut, otherwise the pipeline
   // (which solves the cuts) and the runtime would see different corner geometry.
-  double probe = clamp(8, 0.5, e.len);
-  gTmpSample = armPoint(arm, probe, gTmpSample);
-  double dx = gTmpSample.x - arm.node->x;
-  double dz = gTmpSample.z - arm.node->z;
-  double l = std::hypot(dx, dz);
+  const double probe = clamp(8, 0.5, e.len);
+  armPoint(arm, probe, tmpSample);
+  double dx = tmpSample.x - arm.node->x;
+  double dz = tmpSample.z - arm.node->z;
+  const double l = jsHypot(dx, dz);
   if (l < 1e-6) {
     dx = 1;
     dz = 0;
@@ -50,34 +41,38 @@ void computeArmDirection(Arm& arm) {
 }
 
 /** Desired kerb radius between two arms (before length limits). */
-static double desiredFilletRadius(const Arm& a, const Arm& b) {
-  double t = std::min(a.edge->tier, b.edge->tier);
+double desiredFilletRadius(const Arm& a, const Arm& b) {
+  // (a mouth over a continuous pavement has no kerbed corners: src/world/roadfeatures.h)
+  if (flushMouth(a) || flushMouth(b)) return 0.6;
+  const double t = jsMin(a.edge->tier, b.edge->tier);
   double r = t >= 3 ? 8 : t >= 2 ? 5.5 : t >= 1 ? 3.5 : 3;
-  double sw = std::max(a.swL, b.swR);
-  if (sw > 0) r = std::max(r, sw + 0.6);
+  const double sw = jsMax(a.swL, b.swR);
+  if (sw > 0) r = jsMax(r, sw + 0.6);
   return r;
 }
 
 struct CornerSolve {
   /** distances from the node (along each arm) to the sharp corner, or -1 */
-  double t = -1, u = -1;
-  double cx = 0, cz = 0;
+  double t = -1;
+  double u = -1;
+  double cx = 0;
+  double cz = 0;
   double phi = 0;
 };
 
-static CornerSolve solveCorner(const Arm& a, const Arm& b, const Node& n) {
-  double phi = wrap2Pi(b.ang - a.ang);
+CornerSolve solveCorner(const Arm& a, const Arm& b, const Node& n) {
+  const double phi = wrap2Pi(b.ang - a.ang);
   CornerSolve res;
   res.phi = phi;
   if (phi < 0.12 || phi > 3.0) return res;  // ~7° … ~172°
   // left edge of a: P + left_a * half_a ; left of (dx,dz) is (dz,-dx)
-  double ax = n.x + a.dz * a.half;
-  double az = n.z - a.dx * a.half;
+  const double ax = n.x + a.dz * a.half;
+  const double az = n.z - a.dx * a.half;
   // right edge of b: P - left_b * half_b
-  double bx = n.x - b.dz * b.half;
-  double bz = n.z + b.dx * b.half;
-  LineHit r = lineLine(ax, az, a.dx, a.dz, bx, bz, b.dx, b.dz);
-  if (!r.has) return res;
+  const double bx = n.x - b.dz * b.half;
+  const double bz = n.z + b.dx * b.half;
+  const LineHit r = lineLine(ax, az, a.dx, a.dz, bx, bz, b.dx, b.dz);
+  if (!r) return res;
   res.t = r.t;
   res.u = r.u;
   res.cx = ax + a.dx * r.t;
@@ -85,82 +80,126 @@ static CornerSolve solveCorner(const Arm& a, const Arm& b, const Node& n) {
   return res;
 }
 
-void computeJunctionCuts(Node& node) {
-  auto& arms = node.arms;
-  const int n = static_cast<int>(arms.size());
-  node.fr.assign(static_cast<size_t>(n), 0);
-  for (auto& arm : arms) arm.cut = 0;
-  if (n < 2) return;
-  for (auto& arm : arms) computeArmDirection(arm);
+/** Mouth corner of an arm: the ribbon edge point at the cut station. side = +1 left, -1 right (looking away from node). */
+void mouthPoint(const Arm& arm, double side, double out[2]) {
+  armPoint(arm, arm.cut, tmpSample);
+  // tangent of the polyline points a→b; flip so it points away from the node
+  const double tx = arm.out ? tmpSample.tx : -tmpSample.tx;
+  const double tz = arm.out ? tmpSample.tz : -tmpSample.tz;
+  out[0] = tmpSample.x + tz * arm.half * side;
+  out[1] = tmpSample.z - tx * arm.half * side;
+}
 
-  std::vector<double> maxCut(static_cast<size_t>(n));
-  for (int i = 0; i < n; i++) {
-    const Edge& e = *arms[static_cast<size_t>(i)].edge;
-    const Node& other = *(arms[static_cast<size_t>(i)].out ? e.b : e.a);
+/** Is (x,z) on the sidewalk strip behind a junction kerb line? */
+bool pointNearKerb(double x, double z, const JunctionCorner& c) {
+  const std::vector<double>& k = c.kerb;
+  const size_t n = k.size() / 2;
+  double best = JS_INF;
+  double bestT = 0;
+  double side = 0;
+  double total = 0;
+  double acc = 0;
+  for (size_t i = 0; i + 1 < n; i++) total += jsHypot(k[i * 2 + 2] - k[i * 2], k[i * 2 + 3] - k[i * 2 + 1]);
+  if (total < 1e-6) return false;
+  for (size_t i = 0; i + 1 < n; i++) {
+    const double ax = k[i * 2];
+    const double az = k[i * 2 + 1];
+    const double dx = k[i * 2 + 2] - ax;
+    const double dz = k[i * 2 + 3] - az;
+    const double l2 = dx * dx + dz * dz;
+    const double l = std::sqrt(l2);
+    double t = l2 > 1e-9 ? ((x - ax) * dx + (z - az) * dz) / l2 : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const double ex = x - (ax + dx * t);
+    const double ez = z - (az + dz * t);
+    const double d2 = ex * ex + ez * ez;
+    if (d2 < best) {
+      best = d2;
+      bestT = (acc + l * t) / total;
+      // The kerb is part of the counter-clockwise junction ring, so the
+      // carriageway is on its left and the block (sidewalk) on its RIGHT.
+      // left-of-(dx,dz) is (dz,-dx): positive = left.
+      side = ex * dz - ez * dx;
+    }
+    acc += l;
+  }
+  if (side >= 0) return false;
+  const double w = c.swA + (c.swB - c.swA) * bestT;
+  return best <= w * w;
+}
+
+}  // namespace
+
+PolySample& armPoint(const Arm& arm, double d, PolySample& out) {
+  const Edge& e = *arm.edge;
+  return samplePolyline(e.pl, arm.out ? d : e.len - d, out);
+}
+
+void computeJunctionCuts(Node& node) {
+  const std::vector<Arm*>& arms = node.arms;
+  const size_t n = arms.size();
+  node.fr.assign(n, 0);
+  for (Arm* arm : arms) arm->cut = 0;
+  if (n < 2) return;
+  for (Arm* arm : arms) computeArmDirection(*arm);
+
+  std::vector<double> maxCut;
+  maxCut.reserve(n);
+  for (const Arm* arm : arms) {
+    const Edge& e = *arm->edge;
+    const Node& other = arm->out ? *e.b : *e.a;
     // an edge that ends in a dead end may be consumed almost entirely
-    double share = other.arms.size() <= 1 ? 0.8 : 0.45;
-    maxCut[static_cast<size_t>(i)] = std::max(0.0, e.len * share);
+    const double share = other.arms.size() <= 1 ? 0.8 : 0.45;
+    maxCut.push_back(jsMax(0, e.len * share));
   }
 
   if (n == 2) {
-    Arm& p = arms[0];
-    Arm& q = arms[1];
-    bool same = std::fabs(p.half - q.half) < 0.05 && std::fabs(p.swL - q.swR) < 0.05 &&
-                std::fabs(p.swR - q.swL) < 0.05;
-    double bend = std::fabs(PI_ - wrap2Pi(q.ang - p.ang));
+    Arm& p = *arms[0];
+    Arm& q = *arms[1];
+    const bool same = std::fabs(p.half - q.half) < 0.05 && std::fabs(p.swL - q.swR) < 0.05 && std::fabs(p.swR - q.swL) < 0.05;
+    const double bend = std::fabs(PI - wrap2Pi(q.ang - p.ang));
     if (same && bend < 0.6) return;  // smooth continuation: ribbons simply meet
-    double taper = bend >= 0.6 ? std::max(p.half, q.half) * std::tan(std::min(bend, 2.4) / 2) + 1 : 2;
-    p.cut = std::min(maxCut[0], taper);
-    q.cut = std::min(maxCut[1], taper);
+    const double taper = bend >= 0.6 ? jsMax(p.half, q.half) * std::tan(jsMin(bend, 2.4) / 2) + 1 : 2;
+    p.cut = jsMin(maxCut[0], taper);
+    q.cut = jsMin(maxCut[1], taper);
     return;
   }
 
-  for (int i = 0; i < n; i++) {
-    int j = (i + 1) % n;
-    Arm& a = arms[static_cast<size_t>(i)];
-    Arm& b = arms[static_cast<size_t>(j)];
-    CornerSolve c = solveCorner(a, b, node);
+  for (size_t i = 0; i < n; i++) {
+    const size_t j = (i + 1) % n;
+    Arm& a = *arms[i];
+    Arm& b = *arms[j];
+    const CornerSolve c = solveCorner(a, b, node);
     if (c.t < 0 || c.u < 0) {
       // No convex corner (straight-through side or reflex gap): tiny cut only.
-      a.cut = std::max(a.cut, std::min(maxCut[static_cast<size_t>(i)], 0.6));
-      b.cut = std::max(b.cut, std::min(maxCut[static_cast<size_t>(j)], 0.6));
+      a.cut = jsMax(a.cut, jsMin(maxCut[i], 0.6));
+      b.cut = jsMax(b.cut, jsMin(maxCut[j], 0.6));
       continue;
     }
-    double tanHalf = std::tan(c.phi / 2);
+    const double tanHalf = std::tan(c.phi / 2);
     double r = desiredFilletRadius(a, b);
     // keep the tangent length sane on acute corners and inside short edges
-    r = std::min(r, 12 * tanHalf);
-    double room = std::min(maxCut[static_cast<size_t>(i)] - c.t, maxCut[static_cast<size_t>(j)] - c.u);
-    r = std::min(r, std::max(0.0, room) * tanHalf);
+    r = jsMin(r, 12 * tanHalf);
+    const double room = jsMin(maxCut[i] - c.t, maxCut[j] - c.u);
+    r = jsMin(r, jsMax(0, room) * tanHalf);
     if (r < 0.4) r = 0;
-    node.fr[static_cast<size_t>(i)] = r;
-    double tl = r > 0 ? r / tanHalf : 0;
-    a.cut = std::max(a.cut, std::min(maxCut[static_cast<size_t>(i)], c.t + tl + 0.05));
-    b.cut = std::max(b.cut, std::min(maxCut[static_cast<size_t>(j)], c.u + tl + 0.05));
+    node.fr[i] = r;
+    const double tl = r > 0 ? r / tanHalf : 0;
+    a.cut = jsMax(a.cut, jsMin(maxCut[i], c.t + tl + 0.05));
+    b.cut = jsMax(b.cut, jsMin(maxCut[j], c.u + tl + 0.05));
   }
-  for (int i = 0; i < n; i++)
-    arms[static_cast<size_t>(i)].cut = clamp(arms[static_cast<size_t>(i)].cut, 0, maxCut[static_cast<size_t>(i)]);
+  for (size_t i = 0; i < n; i++) arms[i]->cut = clamp(arms[i]->cut, 0, maxCut[i]);
 }
 
-/** Mouth corner of an arm: the ribbon edge point at the cut station. side = +1 left, -1 right. */
-static void mouthPoint(const Arm& arm, double side, double& outX, double& outZ) {
-  gTmpSample = armPoint(arm, arm.cut, gTmpSample);
-  // tangent of the polyline points a→b; flip so it points away from the node
-  double tx = arm.out ? gTmpSample.tx : -gTmpSample.tx;
-  double tz = arm.out ? gTmpSample.tz : -gTmpSample.tz;
-  outX = gTmpSample.x + tz * arm.half * side;
-  outZ = gTmpSample.z - tx * arm.half * side;
-}
-
-std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
-  auto& arms = node.arms;
-  const int n = static_cast<int>(arms.size());
+std::unique_ptr<JunctionShape> buildJunctionShape(const Node& node) {
+  const std::vector<Arm*>& arms = node.arms;
+  const size_t n = arms.size();
   if (n == 1 && node.tc > 0) {
     // turning circle at the end of a cul-de-sac
     auto shape = std::make_unique<JunctionShape>();
     const int steps = 20;
     for (int k = 0; k < steps; k++) {
-      double t = static_cast<double>(k) / steps * TAU;
+      const double t = (static_cast<double>(k) / steps) * PI * 2;
       // counter-clockwise seen from above (north-up): x = cos, north = sin → z = -sin
       shape->ring.push_back(node.x + std::cos(t) * node.tc);
       shape->ring.push_back(node.z - std::sin(t) * node.tc);
@@ -173,56 +212,63 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
   }
   if (n < 2) return nullptr;
   bool any = false;
-  for (const auto& a : arms)
-    if (a.cut > 1e-3) any = true;
+  for (const Arm* a : arms)
+    if (a->cut > 1e-3) any = true;
   if (!any) return nullptr;
 
   auto shape = std::make_unique<JunctionShape>();
-  auto& ring = shape->ring;
-  auto& corners = shape->corners;
+  std::vector<double>& ring = shape->ring;
+  std::vector<JunctionCorner>& corners = shape->corners;
+  double pt[2] = {0, 0};
+  for (size_t i = 0; i < n; i++) {
+    const Arm& a = *arms[i];
+    const Arm& b = *arms[(i + 1) % n];
+    mouthPoint(a, -1, pt);
+    ring.push_back(pt[0]);
+    ring.push_back(pt[1]);
+    mouthPoint(a, +1, pt);
+    const double lx = pt[0];
+    const double lz = pt[1];
+    mouthPoint(b, -1, pt);
+    const double rx = pt[0];
+    const double rz = pt[1];
 
-  for (int i = 0; i < n; i++) {
-    const Arm& a = arms[static_cast<size_t>(i)];
-    const Arm& b = arms[static_cast<size_t>((i + 1) % n)];
-    double lx, lz, rx, rz;
-    mouthPoint(a, -1, lx, lz);
-    ring.push_back(lx);
-    ring.push_back(lz);
-    mouthPoint(a, +1, lx, lz);
-    const double alx = lx, alz = lz;
-    mouthPoint(b, -1, rx, rz);
-
-    std::vector<double> kerb{alx, alz};
-    int arc0 = -1, arc1 = -1;
-    double ox = 0, oz = 0;
-    double r = node.fr.empty() ? 0 : node.fr[static_cast<size_t>(i)];
-    CornerSolve c = n > 2 ? solveCorner(a, b, node) : CornerSolve();
-    if (c.t >= 0 && c.u >= 0) {
+    std::vector<double> kerb = {lx, lz};
+    int arc0 = -1;
+    int arc1 = -1;
+    double ox = 0;
+    double oz = 0;
+    const double r = i < node.fr.size() ? node.fr[i] : 0;
+    CornerSolve c;
+    const bool solved = n > 2;
+    if (solved) c = solveCorner(a, b, node);
+    if (solved && c.t >= 0 && c.u >= 0) {
       if (r > 0) {
-        double tl = r / std::tan(c.phi / 2);
-        double tix = c.cx + a.dx * tl;
-        double tiz = c.cz + a.dz * tl;
-        double tjx = c.cx + b.dx * tl;
-        double tjz = c.cz + b.dz * tl;
-        double bx = a.dx + b.dx, bz = a.dz + b.dz;
-        double bl = std::hypot(bx, bz);
-        if (bl == 0) bl = 1;
+        const double tl = r / std::tan(c.phi / 2);
+        const double tix = c.cx + a.dx * tl;
+        const double tiz = c.cz + a.dz * tl;
+        const double tjx = c.cx + b.dx * tl;
+        const double tjz = c.cz + b.dz * tl;
+        double bx = a.dx + b.dx;
+        double bz = a.dz + b.dz;
+        double bl = jsHypot(bx, bz);
+        if (bl == 0 || bl != bl) bl = 1;
         bx /= bl;
         bz /= bl;
-        double od = r / std::sin(c.phi / 2);
+        const double od = r / std::sin(c.phi / 2);
         ox = c.cx + bx * od;
         oz = c.cz + bz * od;
-        double sweep = PI_ - c.phi;
-        int steps = std::max(2, static_cast<int>(std::ceil(sweep / 0.21)));
-        double a0 = std::atan2(tiz - oz, tix - ox);
+        const double sweep = PI - c.phi;
+        const double steps = jsMax(2, std::ceil(sweep / 0.21));
+        const double a0 = std::atan2(tiz - oz, tix - ox);
         double a1 = std::atan2(tjz - oz, tjx - ox);
         double d = a1 - a0;
-        while (d > PI_) d -= TAU;
-        while (d < -PI_) d += TAU;
+        while (d > PI) d -= 2 * PI;
+        while (d < -PI) d += 2 * PI;
         a1 = a0 + d;
         arc0 = static_cast<int>(kerb.size() / 2);
-        for (int k = 0; k <= steps; k++) {
-          double t = a0 + d * k / steps;
+        for (double k = 0; k <= steps; k++) {
+          const double t = a0 + (d * k) / steps;
           kerb.push_back(ox + std::cos(t) * r);
           kerb.push_back(oz + std::sin(t) * r);
         }
@@ -235,11 +281,13 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
     kerb.push_back(rx);
     kerb.push_back(rz);
     // drop consecutive duplicates
-    std::vector<double> clean{kerb[0], kerb[1]};
-    int removedBeforeArc0 = 0, removedBeforeArc1 = 0;
+    std::vector<double> clean = {kerb[0], kerb[1]};
+    int removedBeforeArc0 = 0;
+    int removedBeforeArc1 = 0;
     for (size_t k = 2; k < kerb.size(); k += 2) {
-      double px = clean[clean.size() - 2], pz = clean[clean.size() - 1];
-      if (std::hypot(kerb[k] - px, kerb[k + 1] - pz) < 0.02) {
+      const double px = clean[clean.size() - 2];
+      const double pz = clean[clean.size() - 1];
+      if (jsHypot(kerb[k] - px, kerb[k + 1] - pz) < 0.02) {
         if (static_cast<int>(k / 2) <= arc0) removedBeforeArc0++;
         if (static_cast<int>(k / 2) <= arc1) removedBeforeArc1++;
         continue;
@@ -251,8 +299,12 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
       arc0 -= removedBeforeArc0;
       arc1 -= removedBeforeArc1;
     }
+    for (size_t k = 0; k + 2 < clean.size(); k += 2) {
+      ring.push_back(clean[k]);
+      ring.push_back(clean[k + 1]);
+    }
     JunctionCorner corner;
-    corner.kerb = clean;
+    corner.kerb = std::move(clean);
     corner.swA = a.swL;
     corner.swB = b.swR;
     corner.arc0 = arc0;
@@ -261,18 +313,17 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
     corner.oz = oz;
     corner.r = r;
     corners.push_back(std::move(corner));
-    for (size_t k = 0; k + 1 < clean.size(); k += 2) {
-      ring.push_back(clean[k]);
-      ring.push_back(clean[k + 1]);
-    }
   }
 
-  double minX = 1e300, maxX = -1e300, minZ = 1e300, maxZ = -1e300;
+  double minX = JS_INF;
+  double maxX = -JS_INF;
+  double minZ = JS_INF;
+  double maxZ = -JS_INF;
   for (size_t k = 0; k < ring.size(); k += 2) {
-    minX = std::min(minX, ring[k]);
-    maxX = std::max(maxX, ring[k]);
-    minZ = std::min(minZ, ring[k + 1]);
-    maxZ = std::max(maxZ, ring[k + 1]);
+    minX = jsMin(minX, ring[k]);
+    maxX = jsMax(maxX, ring[k]);
+    minZ = jsMin(minZ, ring[k + 1]);
+    maxZ = jsMax(maxZ, ring[k + 1]);
   }
   shape->minX = minX;
   shape->maxX = maxX;
@@ -281,157 +332,356 @@ std::unique_ptr<JunctionShape> buildJunctionShape(Node& node) {
   return shape;
 }
 
+std::vector<double> edgePoints(const std::vector<double>& q) {
+  std::vector<double> p(q.size());
+  double x = 0;
+  double y = 0;
+  double z = 0;
+  for (size_t i = 0; i + 2 < q.size(); i += 3) {
+    x += q[i];
+    y += q[i + 1];
+    z += q[i + 2];
+    p[i] = x / 100;
+    p[i + 1] = y / 100;
+    p[i + 2] = z / 100;
+  }
+  return p;
+}
+
+std::vector<double> packEdgePoints(const std::vector<double>& p) {
+  std::vector<double> q(p.size());
+  double x = 0;
+  double y = 0;
+  double z = 0;
+  for (size_t i = 0; i + 2 < p.size(); i += 3) {
+    const double cx = jsRound(p[i] * 100);
+    const double cy = jsRound(p[i + 1] * 100);
+    const double cz = jsRound(p[i + 2] * 100);
+    q[i] = cx - x;
+    q[i + 1] = cy - y;
+    q[i + 2] = cz - z;
+    x = cx;
+    y = cy;
+    z = cz;
+  }
+  return q;
+}
+
 // ---------------------------------------------------------------------------
 // World
 // ---------------------------------------------------------------------------
 
-World::World(const WorldJson& json) {
-  jsonDoc_ = json;
-  meta_ = json.meta;
-  signals_ = json.signals;
-  signalsPresent_.assign(signals_.size(), 1);
-  crossings_ = json.crossings;
-
-  nodes_.resize(json.nodes.size());
-  for (size_t i = 0; i < json.nodes.size(); i++) {
-    const NodeJson& nj = json.nodes[i];
-    Node& n = nodes_[i];
-    n.id = static_cast<int>(i);
-    n.x = nj.x;
-    n.y = nj.y;
-    n.z = nj.z;
-    n.gx = nj.gx;
-    n.gz = nj.gz;
-    n.ctrl = nj.t;
-    n.sc = nj.sc;
-    n.fr = nj.fr;
-    n.tc = nj.tc;
-    n.osm = nj.o;
-    n.shape = nullptr;
+World::World(WorldJson json_, WorldOptions opts)
+    : json(std::move(json_)), meta(json.meta), lightsOut(opts.lightsOut ? std::move(opts.lightsOut) : std::function<bool(int)>([](int) { return false; })) {
+  if (json.nodes.empty() && json.edges.empty()) return;
+  // the same as one big piece: crossings and forbidden turns go with their edges
+  std::unordered_map<int, std::vector<EdgeCrossingJson>> xings;
+  for (const CrossingJson& c : json.crossings) xings[c.e].push_back(c);
+  std::unordered_map<int, std::vector<int>> bans;
+  for (const std::array<int, 3>& b : json.banned) {
+    std::vector<int>& list = bans[b[0]];
+    list.push_back(b[1]);
+    list.push_back(b[2]);
   }
-
-  edges_.resize(json.edges.size());
+  WorldChange change;
+  for (size_t i = 0; i < json.signals.size(); i++) signals.set(static_cast<int64_t>(i), std::make_unique<SignalControllerJson>(json.signals[i]));
   for (size_t i = 0; i < json.edges.size(); i++) {
-    const EdgeJson& ej = json.edges[i];
-    Edge& e = edges_[i];
-    e.id = static_cast<int>(i);
-    e.a = &nodes_[static_cast<size_t>(ej.a)];
-    e.b = &nodes_[static_cast<size_t>(ej.b)];
-    e.cls = ej.c;
-    e.tier = CLASS_TIER[ej.c];
-    e.name = ej.n;
-    e.ref = ej.r;
-    e.pl = makePolyline(ej.p);
-    e.len = e.pl.len;
-    e.lanesF = ej.lf;
-    e.lanesB = ej.lb;
-    e.laneW = ej.lw;
-    e.width = ej.w;
-    e.margin = ej.mg;
-    e.maxF = ej.mf;
-    e.maxB = ej.mb;
-    e.zone = ej.z;
-    e.surf = ej.s;
-    e.swL = ej.sl;
-    e.swR = ej.sr;
-    e.flags = ej.f;
-    e.access = ej.ac;
-    e.cutA = ej.ca;
-    e.cutB = ej.cb;
-    e.layer = ej.ly;
-    e.turnF = ej.tf;
-    e.turnB = ej.tb;
-    e.osm = ej.o;
-    e.armA = nullptr;
-    e.armB = nullptr;
-    e.blendA = 0;
-    e.blendB = 0;
+    const int id = static_cast<int>(i);
+    if (edges[id]) continue;
+    auto x = xings.find(id);
+    auto bn = bans.find(id);
+    change.edges.push_back(addEdge(id, json.edges[i], x == xings.end() ? nullptr : &x->second, bn == bans.end() ? nullptr : &bn->second));
   }
-
-  // arms in stored (counter-clockwise) order
   for (size_t i = 0; i < json.nodes.size(); i++) {
-    Node& node = nodes_[i];
-    const NodeJson& nj = json.nodes[i];
-    node.arms.reserve(nj.arms.size());
-    for (size_t k = 0; k < nj.arms.size(); k++) {
-      const ArmJson& aj = nj.arms[k];
-      Edge& edge = edges_[static_cast<size_t>(aj.e)];
-      // A loop edge (a === b) appears twice: first occurrence is the "out" end.
-      bool out = edge.a == &node && !(edge.b == &node && edge.armA != nullptr);
-      Arm arm;
-      arm.node = &node;
-      arm.edge = &edge;
-      arm.out = out;
-      arm.idx = static_cast<int>(k);
-      arm.role = aj.r;
-      arm.sg = aj.g;
-      arm.stopS = aj.sl;
-      arm.cut = out ? edge.cutA : edge.cutB;
-      arm.dx = 1;
-      arm.dz = 0;
-      arm.ang = 0;
-      arm.half = edge.width / 2;
-      arm.swL = out ? edge.swL : edge.swR;
-      arm.swR = out ? edge.swR : edge.swL;
-      arm.isApproach = out ? edge.lanesB > 0 : edge.lanesF > 0;
-      arm.isExit = out ? edge.lanesF > 0 : edge.lanesB > 0;
-      if (arm.stopS < arm.cut) arm.stopS = arm.cut;
-      node.arms.push_back(std::move(arm));
-    }
-    // point the edge arms back at the stored copies
-    for (auto& arm : node.arms) {
-      if (arm.out) arm.edge->armA = &arm;
-      else arm.edge->armB = &arm;
-    }
+    const int id = static_cast<int>(i);
+    const Node* have = nodes[id];
+    if (have && !have->stub) continue;
+    change.nodes.push_back(completeNode(id, json.nodes[i]));
   }
-
-  // the geometry of every road: where it lies, and its place in the index
-  for (auto& e : edges_) indexEdge(e, true);
-
-  shapes_.reserve(nodes_.size());
-  for (auto& node : nodes_) {
-    for (auto& arm : node.arms) computeArmDirection(arm);
-    std::unique_ptr<JunctionShape> sh = buildJunctionShape(node);
-    if (sh) {
-      nodeGrid_.insertBox(sh->minX, sh->minZ, sh->maxX, sh->maxZ, &node);
-      node.shape = nullptr;  // filled once shapes_ is stable (below)
-      shapes_.push_back(std::move(*sh));
-      node.shape = &shapes_.back();
-    } else {
-      node.shape = nullptr;
-    }
-  }
-
-  for (const auto& b : json.banned) {
-    banned_[b[0]].push_back(b[1]);
-    banned_[b[0]].push_back(b[2]);
+  // (the far ends of the new roads: which way they leave, for whoever looks)
+  for (Edge* e : change.edges) {
+    if (e->a->stub) computeArmDirection(*e->armA);
+    if (e->b->stub) computeArmDirection(*e->armB);
   }
 }
 
+Node* World::stubNode(int id, const std::vector<double>& p, size_t at) {
+  auto node = std::make_unique<Node>();
+  node->id = id;
+  // (a road without a course: the original reads `undefined` there)
+  node->x = at < p.size() ? p[at] : JS_NAN;
+  node->y = at + 1 < p.size() ? p[at + 1] : JS_NAN;
+  node->z = at + 2 < p.size() ? p[at + 2] : JS_NAN;
+  node->gx = 0;
+  node->gz = 0;
+  node->ctrl = CTRL_NONE;
+  node->sc = -1;
+  node->dark = false;
+  node->tc = 0;
+  node->osm = 0;
+  node->stub = true;
+  Node* made = nodes.set(id, std::move(node));
+  allNodes.add(made);
+  return made;
+}
+
+void World::newArm(Arm& arm, Node* node, Edge* edge, bool out) {
+  arm.node = node;
+  arm.edge = edge;
+  arm.out = out;
+  arm.idx = 0;
+  arm.role = ROLE_NONE;
+  arm.sg = -1;
+  arm.lamp = -1;
+  arm.stopS = out ? edge->cutA : edge->cutB;
+  arm.cut = out ? edge->cutA : edge->cutB;
+  arm.dx = 1;
+  arm.dz = 0;
+  arm.ang = 0;
+  arm.half = edge->width / 2;
+  arm.swL = out ? edge->swL : edge->swR;
+  arm.swR = out ? edge->swR : edge->swL;
+  arm.isApproach = out ? edge->lanesB > 0 : edge->lanesF > 0;
+  arm.isExit = out ? edge->lanesF > 0 : edge->lanesB > 0;
+}
+
+Edge* World::addEdge(int id, const EdgeJson& ej, const std::vector<EdgeCrossingJson>* x, const std::vector<int>* bn) {
+  std::vector<double> p = ej.q ? edgePoints(*ej.q) : ej.p;
+  Node* a = nodes[ej.a];
+  if (!a) a = stubNode(ej.a, p, 0);
+  Node* b = nodes[ej.b];
+  if (!b) b = stubNode(ej.b, p, p.size() - 3);
+  auto made = std::make_unique<Edge>();
+  Edge& e = *made;
+  e.id = id;
+  e.a = a;
+  e.b = b;
+  e.cls = ej.c;
+  e.tier = ej.c >= 0 && ej.c < 15 ? CLASS_TIER[ej.c] : JS_NAN;
+  e.name = ej.n;
+  e.ref = ej.r;
+  e.pl = makePolyline(std::move(p));
+  e.len = e.pl.len;
+  e.lanesF = ej.lf;
+  e.lanesB = ej.lb;
+  e.laneW = ej.lw;
+  e.width = ej.w;
+  e.margin = ej.mg;
+  e.marginL = ej.mg + sideInner(ej.xl.get());
+  e.marginR = ej.mg + sideInner(ej.xr.get());
+  e.xl = ej.xl;
+  e.xr = ej.xr;
+  e.median = ej.md;
+  e.kerbL = kerbHeight(ej.xl.get());
+  e.kerbR = kerbHeight(ej.xr.get());
+  e.maxF = ej.mf;
+  e.maxB = ej.mb;
+  e.zone = ej.z;
+  e.surf = ej.s;
+  e.swL = ej.sl;
+  e.swR = ej.sr;
+  e.flags = ej.f;
+  e.access = ej.ac;
+  e.cutA = ej.ca;
+  e.cutB = ej.cb;
+  e.layer = ej.ly;
+  e.turnF = ej.tf;
+  e.turnB = ej.tb;
+  e.osm = ej.o;
+  e.calm = ej.cm;
+  e.mouth = ej.mk;
+  e.blendA = 0;
+  e.blendB = 0;
+  e.minX = 0;
+  e.maxX = 0;
+  e.minZ = 0;
+  e.maxZ = 0;
+  const std::vector<EdgeCrossingJson>& xs = x ? *x : ej.x;
+  e.xings.reserve(xs.size());
+  for (const EdgeCrossingJson& one : xs) {
+    CrossingJson c;
+    static_cast<EdgeCrossingJson&>(c) = one;
+    c.e = id;
+    e.xings.push_back(c);
+  }
+  if (ej.bo) e.narrow = narrowingsOf(e, &*ej.bo);
+  newArm(e.ends[0], a, &e, true);
+  newArm(e.ends[1], b, &e, false);
+  e.armA = &e.ends[0];
+  e.armB = &e.ends[1];
+  // (of a junction that is not loaded itself, the roads are kept in the order they came)
+  if (a->stub) a->arms.push_back(e.armA);
+  if (b->stub) b->arms.push_back(e.armB);
+  Edge* kept = edges.set(id, std::move(made));
+  allEdges.add(kept);
+  indexEdge(*kept, true);
+  for (CrossingJson& c : kept->xings) crossings.push_back(&c);
+  const std::vector<int>& bans = bn ? *bn : ej.bn;
+  if (bn || !ej.bn.empty()) banned_[id] = bans;
+  return kept;
+}
+
+Node* World::completeNode(int id, const NodeJson& nj) {
+  Node* node = nodes[id];
+  if (!node) {
+    auto made = std::make_unique<Node>();
+    made->id = id;
+    made->x = nj.x;
+    made->y = nj.y;
+    made->z = nj.z;
+    made->ctrl = nj.t;
+    made->stub = true;
+    node = nodes.set(id, std::move(made));
+    allNodes.add(node);
+  }
+  node->x = nj.x;
+  node->y = nj.y;
+  node->z = nj.z;
+  node->gx = nj.gx;
+  node->gz = nj.gz;
+  node->ctrl = nj.t;
+  node->sc = nj.sc;
+  node->dark = nj.t == CTRL_SIGNALS && node->sc >= 0 && lightsOut(node->sc);
+  node->fr = nj.fr;
+  node->tc = nj.tc;
+  node->osm = nj.o;
+  node->stub = false;
+  // the arms in their stored (counter-clockwise) order
+  std::vector<Arm*> arms;
+  arms.reserve(nj.arms.size());
+  std::vector<const Edge*> seen;
+  for (size_t k = 0; k < nj.arms.size(); k++) {
+    const ArmJson& aj = nj.arms[k];
+    Edge* edge = edges[aj.e];
+    if (!edge) throw std::runtime_error("junction " + std::to_string(id) + ": its road " + std::to_string(aj.e) + " is not part of the piece it came with");
+    // A loop edge (a === b) appears twice: first occurrence is the "out" end.
+    const bool out = edge->a == node && !(edge->b == node && std::find(seen.begin(), seen.end(), edge) != seen.end());
+    seen.push_back(edge);
+    Arm* arm = out ? edge->armA : edge->armB;
+    arm->idx = static_cast<int>(k);
+    arm->role = aj.r;
+    arm->lamp = aj.g;
+    arm->sg = node->dark ? -1 : arm->lamp;
+    arm->stopS = jsMax(aj.sl, arm->cut);
+    arms.push_back(arm);
+  }
+  node->arms = std::move(arms);
+  // Lights out of order: what the signs say counts (the map build gave every approach its role
+  // before it put up the lights) – and where there are no signs, right before left.
+  if (node->dark) {
+    bool roundabout = false;
+    bool rbl = false;
+    for (const Arm* a : node->arms) {
+      if ((a->edge->flags & EF_ROUNDABOUT) != 0) roundabout = true;
+      if (a->isApproach && a->role == ROLE_RBL) rbl = true;
+    }
+    node->ctrl = roundabout ? CTRL_ROUNDABOUT : rbl ? CTRL_RBL : CTRL_SIGNS;
+  }
+  for (Arm* arm : node->arms) computeArmDirection(*arm);
+  node->shape = buildJunctionShape(*node);
+  if (node->shape) nodeGrid_.insertBox(node->shape->minX, node->shape->minZ, node->shape->maxX, node->shape->maxZ, node);
+  return node;
+}
+
+WorldChange World::add(const WorldChunkJson& chunk) {
+  WorldChange change;
+  for (const auto& [id, c] : chunk.signals) signals.set(id, std::make_unique<SignalControllerJson>(c));
+  for (const auto& [id, ej] : chunk.edges)
+    if (!edges[id]) change.edges.push_back(addEdge(id, ej));
+  for (const auto& [id, nj] : chunk.nodes) {
+    const Node* have = nodes[id];
+    if (have && !have->stub) continue;
+    change.nodes.push_back(completeNode(id, nj));
+  }
+  // (the far ends of the new roads: which way they leave, for whoever looks)
+  for (Edge* e : change.edges) {
+    if (e->a->stub) computeArmDirection(*e->armA);
+    if (e->b->stub) computeArmDirection(*e->armB);
+  }
+  return change;
+}
+
+WorldChange World::remove(const std::vector<int>& nodeIds) {
+  // (what went the last time has been let go of by now)
+  goneEdges_.clear();
+  goneNodes_.clear();
+  removals++;
+  WorldChange change;
+  OrderedSet<Node> touched;
+  for (int id : nodeIds) {
+    Node* node = nodes[id];
+    if (!node || node->stub) continue;
+    if (node->shape) nodeGrid_.removeBox(node->shape->minX, node->shape->minZ, node->shape->maxX, node->shape->maxZ, node);
+    node->shape = nullptr;
+    node->stub = true;
+    change.nodes.push_back(node);
+    touched.add(node);
+  }
+  // (the far ends of the roads that go are looked at as well: the set grows while it is gone through)
+  for (auto it = touched.begin(); it != touched.end(); ++it) {
+    Node* node = *it;
+    const std::vector<Arm*> arms = node->arms;
+    for (Arm* arm : arms) {
+      Edge* e = arm->edge;
+      if (!edges[e->id] || !e->a->stub || !e->b->stub) continue;
+      // both ends are gone: the road goes
+      indexEdge(*e, false);
+      goneEdges_.push_back(edges.take(e->id));
+      allEdges.erase(e);
+      banned_.erase(e->id);
+      for (CrossingJson& x : e->xings) {
+        auto at = std::find(crossings.begin(), crossings.end(), &x);
+        if (at != crossings.end()) {
+          *at = crossings.back();
+          crossings.pop_back();
+        }
+      }
+      for (Arm* end : {e->armA, e->armB}) {
+        std::vector<Arm*>& list = end->node->arms;
+        auto at = std::find(list.begin(), list.end(), end);
+        if (at != list.end()) list.erase(at);
+        touched.add(end->node);
+      }
+      change.edges.push_back(e);
+    }
+  }
+  for (Node* node : touched) {
+    if (node->stub && node->arms.empty()) {
+      if (nodes[node->id] == node) goneNodes_.push_back(nodes.take(node->id));
+      allNodes.erase(node);
+    }
+  }
+  return change;
+}
+
 void World::indexEdge(Edge& e, bool on) {
-  double usable = std::max(0.0, e.len - e.cutA - e.cutB);
-  e.blendA = std::min(14.0, usable * 0.45);
-  e.blendB = std::min(14.0, usable * 0.45);
-  const auto& pts = e.pl.pts;
+  const double usable = jsMax(0, e.len - e.cutA - e.cutB);
+  e.blendA = jsMin(14, usable * 0.45);
+  e.blendB = jsMin(14, usable * 0.45);
+  const std::vector<double>& pts = e.pl.pts;
   const size_t n = e.pl.cum.size();
-  double pad = e.width / 2 + std::max(e.swL, e.swR) + 1;
-  double minX = 1e300, maxX = -1e300, minZ = 1e300, maxZ = -1e300;
+  const double pad = e.width / 2 + jsMax(e.swL, e.swR) + 1;
+  const double segPad = e.width / 2 + jsMax(e.swL, e.swR) + 0.5;
+  double minX = JS_INF;
+  double maxX = -JS_INF;
+  double minZ = JS_INF;
+  double maxZ = -JS_INF;
   for (size_t i = 0; i < n; i++) {
-    double x = pts[i * 3];
-    double z = pts[i * 3 + 2];
-    minX = std::min(minX, x);
-    maxX = std::max(maxX, x);
-    minZ = std::min(minZ, z);
-    maxZ = std::max(maxZ, z);
+    const double x = pts[i * 3];
+    const double z = pts[i * 3 + 2];
+    minX = jsMin(minX, x);
+    maxX = jsMax(maxX, x);
+    minZ = jsMin(minZ, z);
+    maxZ = jsMax(maxZ, z);
     if (i + 1 < n) {
-      double x2 = pts[i * 3 + 3];
-      double z2 = pts[i * 3 + 5];
-      const double x0 = std::min(x, x2) - pad;
-      const double z0 = std::min(z, z2) - pad;
-      const double x1 = std::max(x, x2) + pad;
-      const double z1 = std::max(z, z2) + pad;
-      const int code = e.id * 4096 + static_cast<int>(i);
-      if (on) segGrid_.insertBox(x0, z0, x1, z1, code);
+      const double x2 = pts[i * 3 + 3];
+      const double z2 = pts[i * 3 + 5];
+      const double x0 = jsMin(x, x2) - pad;
+      const double z0 = jsMin(z, z2) - pad;
+      const double x1 = jsMax(x, x2) + pad;
+      const double z1 = jsMax(z, z2) + pad;
+      const int64_t code = static_cast<int64_t>(e.id) * 4096 + static_cast<int64_t>(i);
+      if (on) segGrid_.insertBox(x0, z0, x1, z1, code, jsMin(x, x2) - segPad, jsMin(z, z2) - segPad, jsMax(x, x2) + segPad, jsMax(z, z2) + segPad);
       else segGrid_.removeBox(x0, z0, x1, z1, code);
     }
   }
@@ -441,192 +691,189 @@ void World::indexEdge(Edge& e, bool on) {
   e.maxZ = maxZ + pad;
 }
 
-bool World::isBanned(int fromEdge, int viaNode, int toEdge) const {
-  auto it = banned_.find(fromEdge);
+bool World::isBanned(int from, int via, int to) const {
+  auto it = banned_.find(from);
   if (it == banned_.end()) return false;
   const std::vector<int>& list = it->second;
   for (size_t i = 0; i + 1 < list.size(); i += 2)
-    if (list[i] == viaNode && list[i + 1] == toEdge) return true;
+    if (list[i] == via && list[i + 1] == to) return true;
   return false;
 }
 
-double World::planeY(const Node& node, double x, double z) const {
-  return node.y + node.gx * (x - node.x) + node.gz * (z - node.z);
-}
-
 double World::edgeY(const Edge& edge, double s, double x, double z) const {
-  gTmpSample = samplePolyline(edge.pl, s, gTmpSample);
-  double y = gTmpSample.y;
-  double sa = s - edge.cutA;
+  samplePolyline(edge.pl, s, tmpSample);
+  double y = tmpSample.y;
+  const double sa = s - edge.cutA;
   if (sa < edge.blendA) {
-    double w = edge.blendA > 0 ? 1 - smoothstep(0, edge.blendA, sa) : (sa <= 0 ? 1 : 0);
+    const double w = edge.blendA > 0 ? 1 - smoothstep(0, edge.blendA, sa) : sa <= 0 ? 1 : 0;
     if (w > 0) y += (planeY(*edge.a, x, z) - y) * w;
   }
-  double sb = edge.len - s - edge.cutB;
+  const double sb = edge.len - s - edge.cutB;
   if (sb < edge.blendB) {
-    double w = edge.blendB > 0 ? 1 - smoothstep(0, edge.blendB, sb) : (sb <= 0 ? 1 : 0);
+    const double w = edge.blendB > 0 ? 1 - smoothstep(0, edge.blendB, sb) : sb <= 0 ? 1 : 0;
     if (w > 0) y += (planeY(*edge.b, x, z) - y) * w;
   }
   return y;
 }
 
-namespace {
-/** Candidate selection state for surfaceAt (mirrors the JS private fields). */
-struct BestState {
-  double y = 0;
-  double score = 0;
-  bool found = false;
-  void reset() { found = false; }
-  void consider(SurfaceHit& out, double y_, double score_, Edge* edge, Node* node, double s,
-                double off, int zone, int surf) {
-    if (found) {
-      double dy = y_ - y;
-      if (dy < -1.5) return;
-      if (dy <= 1.5 && score_ >= score) return;
-    }
-    found = true;
-    y = y_;
-    score = score_;
-    out.y = y_;
-    out.edge = edge;
-    out.node = node;
-    out.s = s;
-    out.off = off;
-    out.zone = zone;
-    out.surf = surf;
+void World::consider(SurfaceHit& out, double y, double score, Edge* edge, Node* node, double s, double off, int zone, int surf) {
+  if (bestFound_) {
+    const double dy = y - bestY_;
+    if (dy < -1.5) return;
+    if (dy <= 1.5 && score >= bestScore_) return;
   }
-};
-}  // namespace
+  bestFound_ = true;
+  bestY_ = y;
+  bestScore_ = score;
+  out.y = y;
+  out.edge = edge;
+  out.node = node;
+  out.s = s;
+  out.off = off;
+  out.zone = zone;
+  out.surf = surf;
+}
 
 bool World::surfaceAt(double x, double z, double yRef, SurfaceHit& out) {
-  BestState best;
-  out = SurfaceHit();
+  bestFound_ = false;
+  out.edge = nullptr;
+  out.node = nullptr;
   out.zone = 2;
-  double ceiling = yRef + 1.6;
+  const double ceiling = yRef + 1.6;
 
   // 1) junction carriageway polygons
-  const auto& nodes = nodeGrid_.at(x, z);
-  for (Node* node : nodes) {
-    JunctionShape* sh = node->shape;
-    if (!sh) continue;
-    if (x < sh->minX || x > sh->maxX || z < sh->minZ || z > sh->maxZ) continue;
-    if (!pointInRing(x, z, sh->ring)) continue;
-    double y = planeY(*node, x, z);
+  const std::vector<Node*>& nodesHere = nodeGrid_.at(x, z);
+  for (size_t i = 0; i < nodesHere.size(); i++) {
+    Node* node = nodesHere[i];
+    const JunctionShape& sh = *node->shape;
+    if (x < sh.minX || x > sh.maxX || z < sh.minZ || z > sh.maxZ) continue;
+    if (!pointInRing(x, z, sh.ring)) continue;
+    const double y = planeY(*node, x, z);
     if (y > ceiling) continue;
-    best.consider(out, y, -50, nullptr, node, 0, 0, 0, SURF_ASPHALT);
+    consider(out, y, -50, nullptr, node, 0, 0, 0, SURF_ASPHALT);
   }
 
   // 2) edges: carriageway between the cuts, plus sidewalks
-  const auto& segs = segGrid_.at(x, z);
-  for (int code : segs) {
-    Edge& edge = edges_[static_cast<size_t>(code / 4096)];
-    if (x < edge.minX || x > edge.maxX || z < edge.minZ || z > edge.maxZ) continue;
-    int seg = code % 4096;
-    gTmpProj = projectOnPolyline(edge.pl, x, z, gTmpProj, seg, seg);
-    double s = gTmpProj.s;
-    double off = gTmpProj.off;
-    double absOff = std::fabs(off);
-    double half = edge.width / 2;
-    double sw = off > 0 ? edge.swL : edge.swR;
-    double reach = half + sw;
+  const SegCell* cell = segGrid_.cellAt(x, z);
+  const size_t segCount = cell ? cell->codes.size() : 0;
+  for (size_t i = 0; i < segCount; i++) {
+    // (the segment's own box first: most segments of a cell lie far away – see `segGrid`)
+    const double* box = &cell->boxes[i * 4];
+    if (x < box[0] || x > box[2] || z < box[1] || z > box[3]) continue;
+    const int64_t code = cell->codes[i];
+    const int64_t id = code / 4096;
+    const int seg = static_cast<int>(code % 4096);
+    Edge* edge = edges[id];
+    if (x < edge->minX || x > edge->maxX || z < edge->minZ || z > edge->maxZ) continue;
+    projectOnPolyline(edge->pl, x, z, tmpProj, seg, seg);
+    const double s = tmpProj.s;
+    const double off = tmpProj.off;
+    const double absOff = std::fabs(off);
+    const double half = edge->width / 2;
+    const double sw = off > 0 ? edge->swL : edge->swR;
+    const double reach = half + sw;
     if (absOff > reach) continue;
-    const auto& cum = edge.pl.cum;
-    bool clampedStart = s <= cum[static_cast<size_t>(seg)] + 1e-6;
-    bool clampedEnd = s >= cum[static_cast<size_t>(seg) + 1] - 1e-6;
+    const std::vector<double>& cum = edge->pl.cum;
+    const bool clampedStart = s <= cum[static_cast<size_t>(seg)] + 1e-6;
+    const bool clampedEnd = s >= cum[static_cast<size_t>(seg) + 1] - 1e-6;
     // lateral distance used for ranking: for a projection clamped to a
-    // segment end it is the true distance to that vertex
+    // segment end it is the true distance to that vertex – the
+    // perpendicular offset alone would make far-away segments look close
     double lateral = absOff;
     if (clampedStart || clampedEnd) {
-      bool interior = clampedStart ? seg > 0 : seg < static_cast<int>(cum.size()) - 2;
+      const bool interior = clampedStart ? seg > 0 : seg < static_cast<int>(cum.size()) - 2;
       if (interior) {
-        if (gTmpProj.d2 > reach * reach) continue;
-        lateral = std::sqrt(gTmpProj.d2);
-      } else if (gTmpProj.d2 > absOff * absOff + 0.04) {
+        // outer side of a bend: round join around the vertex
+        if (tmpProj.d2 > reach * reach) continue;
+        lateral = std::sqrt(tmpProj.d2);
+      } else if (tmpProj.d2 > absOff * absOff + 0.04) {
         continue;  // beyond the physical end of the road
       }
     }
-    bool inJunctionZone = s < edge.cutA || s > edge.len - edge.cutB;
+    const bool inJunctionZone = s < edge->cutA || s > edge->len - edge->cutB;
     if (inJunctionZone && lateral > half) continue;  // corner sidewalks are handled below
-    double y = edgeY(edge, s, x, z);
-    bool onSidewalk = lateral > half;
-    if (onSidewalk) y += KERB_H;
+    double y = edgeY(*edge, s, x, z);
+    const bool onSidewalk = lateral > half;
+    // (raised tables and humps lift the carriageway: src/world/roadfeatures.h)
+    if (edge->calm && !onSidewalk) y += calmLift(*edge, s);
+    if (onSidewalk) y += off > 0 ? edge->kerbL : edge->kerbR;
     if (y > ceiling) continue;
-    best.consider(out, y, lateral - half + (onSidewalk ? 2 : 0) + (inJunctionZone ? 1 : 0), &edge,
-                  nullptr, s, off, onSidewalk ? 1 : 0, onSidewalk ? SURF_PAVING : edge.surf);
+    consider(out, y, lateral - half + (onSidewalk ? 2 : 0) + (inJunctionZone ? 1 : 0), edge, nullptr, s, off, onSidewalk ? 1 : 0, onSidewalk ? SURF_PAVING : edge->surf);
   }
 
   // 3) sidewalks around junction corners
-  if (!best.found || out.zone != 0) {
-    for (Node* node : nodes) {
-      JunctionShape* sh = node->shape;
-      if (!sh) continue;
+  if (!bestFound_ || out.zone != 0) {
+    for (size_t i = 0; i < nodesHere.size(); i++) {
+      Node* node = nodesHere[i];
+      const JunctionShape& sh = *node->shape;
       const double pad = 3.5;
-      if (x < sh->minX - pad || x > sh->maxX + pad || z < sh->minZ - pad || z > sh->maxZ + pad)
-        continue;
-      for (const auto& corner : sh->corners) {
+      if (x < sh.minX - pad || x > sh.maxX + pad || z < sh.minZ - pad || z > sh.maxZ + pad) continue;
+      for (size_t c = 0; c < sh.corners.size(); c++) {
+        const JunctionCorner& corner = sh.corners[c];
         if (corner.swA <= 0 && corner.swB <= 0) continue;
         if (!pointNearKerb(x, z, corner)) continue;
-        double y = planeY(*node, x, z) + KERB_H;
+        const double y = planeY(*node, x, z) + KERB_H;
         if (y > ceiling) continue;
-        best.consider(out, y, 3, nullptr, node, 0, 0, 1, SURF_PAVING);
+        consider(out, y, 3, nullptr, node, 0, 0, 1, SURF_PAVING);
       }
     }
   }
-  out.found = best.found;
-  return best.found;
+  return bestFound_;
 }
 
-bool World::locate(double x, double z, double yRef, double maxDist, SurfaceHit& out) {
-  double best = 1e300;
+bool World::locate(double x, double z, double yRef, double maxDist, SurfaceHit& out, double maxDy) {
+  double best = JS_INF;
   bool found = false;
-  segGrid_.queryBox(x - maxDist, z - maxDist, x + maxDist, z + maxDist, [&](int code) {
-    Edge& edge = edges_[static_cast<size_t>(code / 4096)];
-    int seg = code % 4096;
-    gTmpProj = projectOnPolyline(edge.pl, x, z, gTmpProj, seg, seg);
-    double d = std::sqrt(gTmpProj.d2) - edge.width / 2;
+  auto visit = [&](int64_t code) {
+    Edge* edge = edges[code / 4096];
+    const int seg = static_cast<int>(code % 4096);
+    projectOnPolyline(edge->pl, x, z, tmpProj, seg, seg);
+    const double d = std::sqrt(tmpProj.d2) - edge->width / 2;
     if (d > maxDist) return;
-    gTmpSample = samplePolyline(edge.pl, gTmpProj.s, gTmpSample, seg);
-    double dy = std::fabs(gTmpSample.y - yRef);
-    if (dy > 4.5) return;
-    double score = d + dy * 0.5;
+    samplePolyline(edge->pl, tmpProj.s, tmpSample, seg);
+    const double dy = std::fabs(tmpSample.y - yRef);
+    if (dy > maxDy) return;
+    const double score = d + dy * 0.5;
     if (score < best) {
       best = score;
       found = true;
-      out.edge = &edge;
-      out.s = gTmpProj.s;
-      out.off = gTmpProj.off;
-      out.y = gTmpSample.y;
-      out.zone = std::fabs(gTmpProj.off) <= edge.width / 2 ? 0 : 2;
-      out.surf = edge.surf;
+      out.edge = edge;
+      out.s = tmpProj.s;
+      out.off = tmpProj.off;
+      out.y = tmpSample.y;
+      out.zone = std::fabs(tmpProj.off) <= edge->width / 2 ? 0 : 2;
+      out.surf = edge->surf;
       out.node = nullptr;
     }
-  });
+  };
+  segGrid_.queryBox(x - maxDist, z - maxDist, x + maxDist, z + maxDist, visit);
   return found;
 }
 
 bool World::nearestRoad(double x, double z, double maxDist, int skipFlags, SurfaceHit& out) {
-  double best = 1e300;
+  double best = JS_INF;
   Edge* bestEdge = nullptr;
   double bestS = 0;
-  double c = segGrid_.cell();
-  long x0 = static_cast<long>(std::floor((x - maxDist) / c));
-  long x1 = static_cast<long>(std::floor((x + maxDist) / c));
-  long z0 = static_cast<long>(std::floor((z - maxDist) / c));
-  long z1 = static_cast<long>(std::floor((z + maxDist) / c));
-  for (long ix = x0; ix <= x1; ix++) {
-    for (long iz = z0; iz <= z1; iz++) {
-      const auto& segs = segGrid_.at(ix * c + 0.5 * c, iz * c + 0.5 * c);
-      for (int code : segs) {
-        Edge& edge = edges_[static_cast<size_t>(code / 4096)];
-        if (edge.flags & skipFlags) continue;
-        int seg = code % 4096;
-        gTmpProj = projectOnPolyline(edge.pl, x, z, gTmpProj, seg, seg);
-        double reach = edge.width / 2 + (gTmpProj.off > 0 ? edge.swL : edge.swR);
-        double d = std::max(0.0, std::sqrt(gTmpProj.d2) - reach);
+  const double c = segGrid_.cell;
+  const double x0 = std::floor((x - maxDist) / c);
+  const double x1 = std::floor((x + maxDist) / c);
+  const double z0 = std::floor((z - maxDist) / c);
+  const double z1 = std::floor((z + maxDist) / c);
+  for (double ix = x0; ix <= x1; ix++) {
+    for (double iz = z0; iz <= z1; iz++) {
+      const std::vector<int64_t>& segs = segGrid_.at(ix * c + 0.5 * c, iz * c + 0.5 * c);
+      for (size_t i = 0; i < segs.size(); i++) {
+        const int64_t code = segs[i];
+        Edge* edge = edges[code / 4096];
+        if (edge->flags & skipFlags) continue;
+        const int seg = static_cast<int>(code % 4096);
+        projectOnPolyline(edge->pl, x, z, tmpProj, seg, seg);
+        const double reach = edge->width / 2 + (tmpProj.off > 0 ? edge->swL : edge->swR);
+        const double d = jsMax(0, std::sqrt(tmpProj.d2) - reach);
         if (d < best) {
           best = d;
-          bestEdge = &edge;
-          bestS = gTmpProj.s;
+          bestEdge = edge;
+          bestS = tmpProj.s;
         }
       }
     }
@@ -642,426 +889,35 @@ bool World::nearestRoad(double x, double z, double maxDist, int skipFlags, Surfa
   return true;
 }
 
-void World::edgesInBox(double minX, double minZ, double maxX, double maxZ,
-                       const std::function<void(Edge&)>& visit) {
-  std::set<int> seen;
-  segGrid_.queryBox(minX, minZ, maxX, maxZ, [&](int code) {
-    int id = code / 4096;
-    if (!seen.insert(id).second) return;
-    visit(edges_[static_cast<size_t>(id)]);
-  });
-}
-
-Edge* World::nearestEdge(double x, double z, double radius) {
-  Edge* best = nullptr;
-  double bestD = radius * radius;
-  segGrid_.queryBox(x - radius, z - radius, x + radius, z + radius, [&](int code) {
-    Edge& e = edges_[static_cast<size_t>(code / 4096)];
-    int seg = code % 4096;
-    gTmpProj = projectOnPolyline(e.pl, x, z, gTmpProj, seg, seg);
-    if (gTmpProj.d2 < bestD) {
-      bestD = gTmpProj.d2;
-      best = &e;
-    }
-  });
-  return best;
-}
-
-/** Is (x,z) on the sidewalk strip behind a junction kerb line? */
-bool pointNearKerb(double x, double z, const JunctionCorner& c) {
-  const auto& k = c.kerb;
-  size_t n = k.size() / 2;
-  double best = 1e300;
-  double bestT = 0;
-  double side = 0;
-  double total = 0;
-  double acc = 0;
-  for (size_t i = 0; i + 1 < n; i++)
-    total += std::hypot(k[(i + 1) * 2] - k[i * 2], k[(i + 1) * 2 + 1] - k[i * 2 + 1]);
-  if (total < 1e-6) return false;
-  for (size_t i = 0; i + 1 < n; i++) {
-    double ax = k[i * 2], az = k[i * 2 + 1];
-    double dx = k[(i + 1) * 2] - ax;
-    double dz = k[(i + 1) * 2 + 1] - az;
-    double l2 = dx * dx + dz * dz;
-    double l = std::sqrt(l2);
-    double t = l2 > 1e-9 ? ((x - ax) * dx + (z - az) * dz) / l2 : 0;
-    t = t < 0 ? 0 : t > 1 ? 1 : t;
-    double ex = x - (ax + dx * t);
-    double ez = z - (az + dz * t);
-    double d2 = ex * ex + ez * ez;
-    if (d2 < best) {
-      best = d2;
-      bestT = (acc + l * t) / total;
-      // The kerb is part of the counter-clockwise junction ring, so the
-      // carriageway is on its left and the block (sidewalk) on its RIGHT.
-      // left-of-(dx,dz) is (dz,-dx): positive = left.
-      side = ex * dz - ez * dx;
-    }
-    acc += l;
+void computeAllCuts(WorldJson& json) {
+  // first pass with zero cuts to get linked structures
+  for (EdgeJson& e : json.edges) {
+    e.ca = 0;
+    e.cb = 0;
   }
-  if (side >= 0) return false;
-  double w = c.swA + (c.swB - c.swA) * bestT;
-  return best <= w * w;
-}
-
-
-// ---------------------------------------------------------------------------
-// A map whose road network comes in pieces (0.8.0): edges, junctions and
-// what changes when a piece arrives or goes (src/world/world.ts @ 3420ad0)
-// ---------------------------------------------------------------------------
-
-namespace {
-/** The centre line of an edge from its packed form (EdgeJson.q): metres. */
-std::vector<double> edgePointsOf(const std::vector<double>& q) {
-  std::vector<double> p(q.size());
-  double x = 0, y = 0, z = 0;
-  for (size_t i = 0; i + 2 < q.size(); i += 3) {
-    x += q[i];
-    y += q[i + 1];
-    z += q[i + 2];
-    p[i] = x / 100;
-    p[i + 1] = y / 100;
-    p[i + 2] = z / 100;
-  }
-  return p;
-}
-}  // namespace
-
-/** The junction `id` with only the road it is the end of (or nothing yet). */
-Node* World::stubNode(int id, const std::vector<double>& p, int at) {
-  Node n;
-  n.id = id;
-  n.x = at >= 0 && static_cast<size_t>(at * 3 + 2) < p.size() ? p[static_cast<size_t>(at * 3)] : 0;
-  n.y = at >= 0 && static_cast<size_t>(at * 3 + 2) < p.size() ? p[static_cast<size_t>(at * 3) + 1] : 0;
-  n.z = at >= 0 && static_cast<size_t>(at * 3 + 2) < p.size() ? p[static_cast<size_t>(at * 3) + 2] : 0;
-  n.gx = 0;
-  n.gz = 0;
-  n.ctrl = CTRL_NONE;
-  n.arms.clear();
-  n.sc = -1;
-  n.fr.clear();
-  n.tc = 0;
-  n.osm = 0;
-  n.shape = nullptr;
-  n.stub = true;
-  if (static_cast<size_t>(id) >= nodes_.size()) nodes_.resize(static_cast<size_t>(id) + 1);
-  nodes_[static_cast<size_t>(id)] = std::move(n);
-  allNodes_.insert(&nodes_[static_cast<size_t>(id)]);
-  return &nodes_[static_cast<size_t>(id)];
-}
-
-/** A road of a chunk: its two ends, its crossings, its place in the index. */
-Edge* World::addEdge(int id, const EdgeJson& ej) {
-  std::vector<double> p = ej.q.empty() ? ej.p : edgePointsOf(ej.q);
-  Polyline3 pl = makePolyline(p);
-  auto nodeAt = [&](int idx) -> Node* {
-    if (idx < 0 || static_cast<size_t>(idx) >= nodes_.size()) return nullptr;
-    Node& n = nodes_[static_cast<size_t>(idx)];
-    return n.id == idx ? &n : nullptr;
-  };
-  Node* a = nodeAt(ej.a);
-  if (!a) a = stubNode(ej.a, p, 0);
-  Node* b = nodeAt(ej.b);
-  if (!b) b = stubNode(ej.b, p, p.empty() ? 0 : static_cast<int>(p.size() / 3) - 1);
-  if (static_cast<size_t>(id) >= edges_.size()) edges_.resize(static_cast<size_t>(id) + 1);
-  Edge& e = edges_[static_cast<size_t>(id)];
-  e.id = id;
-  e.a = a;
-  e.b = b;
-  e.cls = ej.c;
-  e.tier = CLASS_TIER[ej.c];
-  e.name = ej.n;
-  e.ref = ej.r;
-  e.pl = std::move(pl);
-  e.len = e.pl.len;
-  e.lanesF = ej.lf;
-  e.lanesB = ej.lb;
-  e.laneW = ej.lw;
-  e.width = ej.w;
-  e.margin = ej.mg;
-  e.maxF = ej.mf;
-  e.maxB = ej.mb;
-  e.zone = ej.z;
-  e.surf = ej.s;
-  e.swL = ej.sl;
-  e.swR = ej.sr;
-  e.flags = ej.f;
-  e.access = ej.ac;
-  e.cutA = ej.ca;
-  e.cutB = ej.cb;
-  e.layer = ej.ly;
-  e.turnF = ej.tf;
-  e.turnB = ej.tb;
-  e.osm = ej.o;
-  e.blendA = 0;
-  e.blendB = 0;
-  e.minX = e.maxX = e.minZ = e.maxZ = 0;
-  e.xings.clear();
-  for (const auto& x : ej.x) {
-    CrossingJson c = x;
-    c.e = id;
-    e.xings.push_back(c);
-  }
-
-  auto newArm = [&](Node* node, bool out) {
-    Arm arm;
-    arm.node = node;
-    arm.edge = &e;
-    arm.out = out;
-    arm.idx = 0;
-    arm.role = ROLE_NONE;
-    arm.sg = -1;
-    arm.stopS = out ? e.cutA : e.cutB;
-    arm.cut = out ? e.cutA : e.cutB;
-    arm.dx = 1;
-    arm.dz = 0;
-    arm.ang = 0;
-    arm.half = e.width / 2;
-    arm.swL = out ? e.swL : e.swR;
-    arm.swR = out ? e.swR : e.swL;
-    arm.isApproach = out ? e.lanesB > 0 : e.lanesF > 0;
-    arm.isExit = out ? e.lanesF > 0 : e.lanesB > 0;
-    return arm;
-  };
-  // both ends carry their arm: a stub junction keeps it in its list until its
-  // own record arrives (which rebuilds the list from the stored order)
-  Arm armA = newArm(a, true);
-  Arm armB = newArm(b, false);
-  if (a->stub) {
-    a->arms.push_back(armA);
-    e.armA = &a->arms.back();
-  } else {
-    // its own record came first: the edge takes the arm of that list
-    e.armA = nullptr;
-    for (Arm& arm : a->arms)
-      if (arm.edge == &e && arm.out) e.armA = &arm;
-    if (!e.armA) {
-      a->arms.push_back(armA);
-      e.armA = &a->arms.back();
+  World w(json);
+  for (Node* node : w.nodes) {
+    if (!node) continue;
+    computeJunctionCuts(*node);
+    std::vector<double>& fr = json.nodes[static_cast<size_t>(node->id)].fr;
+    fr.clear();
+    for (double r : node->fr) fr.push_back(jsRound(r * 100) / 100);
+    for (const Arm* arm : node->arms) {
+      EdgeJson& ej = json.edges[static_cast<size_t>(arm->edge->id)];
+      const double c = jsRound(arm->cut * 100) / 100;
+      if (arm->out) ej.ca = c;
+      else ej.cb = c;
     }
   }
-  if (b->stub) {
-    b->arms.push_back(armB);
-    e.armB = &b->arms.back();
-  } else {
-    e.armB = nullptr;
-    for (Arm& arm : b->arms)
-      if (arm.edge == &e && !arm.out) e.armB = &arm;
-    if (!e.armB) {
-      b->arms.push_back(armB);
-      e.armB = &b->arms.back();
+  // an edge shorter than the sum of its cuts keeps a sliver of ribbon
+  for (EdgeJson& e : json.edges) {
+    const double len = makePolyline(e.p).len;
+    if (e.ca + e.cb > len - 0.2) {
+      const double k = jsMax(0, len - 0.2) / (e.ca + e.cb);
+      e.ca = std::floor(e.ca * k * 100) / 100;
+      e.cb = std::floor(e.cb * k * 100) / 100;
     }
   }
-  allEdges_.insert(&e);
-  indexEdge(e, true);
-  for (const auto& x : e.xings) crossings_.push_back(x);
-  if (!ej.bn.empty()) {
-    std::vector<int> list;
-    list.reserve(ej.bn.size());
-    for (double v : ej.bn) list.push_back(static_cast<int>(v));
-    banned_[id] = std::move(list);
-  }
-  return &e;
-}
-
-/** The junction `id` really is there: its geometry from the record. */
-Node* World::completeNode(int id, const NodeJson& nj) {
-  Node* node = nullptr;
-  if (id >= 0 && static_cast<size_t>(id) < nodes_.size() && nodes_[static_cast<size_t>(id)].id == id)
-    node = &nodes_[static_cast<size_t>(id)];
-  if (!node) node = stubNode(id, {}, -1);
-  finishNode(*node, nj);
-  allNodes_.insert(node);
-  return node;
-}
-
-/** The junction's arms in stored order, its area, its directions. */
-void World::finishNode(Node& node, const NodeJson& nj) {
-  node.x = nj.x;
-  node.y = nj.y;
-  node.z = nj.z;
-  node.gx = nj.gx;
-  node.gz = nj.gz;
-  node.ctrl = nj.t;
-  node.sc = nj.sc;
-  node.fr = nj.fr;
-  node.tc = nj.tc;
-  node.osm = nj.o;
-  node.stub = false;
-
-  // the arms in their stored (counter-clockwise) order
-  std::vector<Arm> arms;
-  arms.reserve(nj.arms.size());
-  std::set<Edge*> seen;
-  for (size_t k = 0; k < nj.arms.size(); k++) {
-    const ArmJson& aj = nj.arms[k];
-    if (aj.e < 0 || static_cast<size_t>(aj.e) >= edges_.size()) continue;
-    Edge& edge = edges_[static_cast<size_t>(aj.e)];
-    if (edge.id != aj.e) continue;
-    // A loop edge (a === b) appears twice: first occurrence is the "out" end.
-    bool out = edge.a == &node && !(edge.b == &node && seen.count(&edge) > 0);
-    seen.insert(&edge);
-    Arm arm;
-    arm.node = &node;
-    arm.edge = &edge;
-    arm.out = out;
-    arm.idx = static_cast<int>(k);
-    arm.role = aj.r;
-    arm.sg = aj.g;
-    arm.dx = 1;
-    arm.dz = 0;
-    arm.ang = 0;
-    arm.cut = out ? edge.cutA : edge.cutB;
-    arm.stopS = aj.sl;
-    if (arm.stopS < arm.cut) arm.stopS = arm.cut;
-    arm.half = edge.width / 2;
-    arm.swL = out ? edge.swL : edge.swR;
-    arm.swR = out ? edge.swR : edge.swL;
-    arm.isApproach = out ? edge.lanesB > 0 : edge.lanesF > 0;
-    arm.isExit = out ? edge.lanesF > 0 : edge.lanesB > 0;
-    arms.push_back(arm);
-  }
-  node.arms = std::move(arms);
-  // point the edge arms at the stored copies and set their directions
-  for (auto& arm : node.arms) {
-    if (arm.out) arm.edge->armA = &arm;
-    else arm.edge->armB = &arm;
-    computeArmDirection(arm);
-  }
-  // the junction's area, as before (the cut-backs come from the record)
-  std::unique_ptr<JunctionShape> sh = buildJunctionShape(node);
-  if (sh) {
-    nodeGrid_.insertBox(sh->minX, sh->minZ, sh->maxX, sh->maxZ, &node);
-    shapes_.push_back(std::move(*sh));
-    node.shape = &shapes_.back();
-  } else {
-    node.shape = nullptr;
-  }
-}
-
-WorldChange World::add(const WorldChunkJson& chunk) {
-  WorldChange change;
-  for (const auto& rec : chunk.signals) {
-    int id = rec.first;
-    if (id < 0) continue;
-    if (static_cast<size_t>(id) >= signals_.size()) {
-      signals_.resize(static_cast<size_t>(id) + 1);
-      signalsPresent_.resize(static_cast<size_t>(id) + 1, 0);
-    }
-    signals_[static_cast<size_t>(id)] = rec.second;
-    signalsPresent_[static_cast<size_t>(id)] = 1;
-  }
-  for (const auto& rec : chunk.edges) {
-    const int id = rec.first;
-    const bool have = id >= 0 && static_cast<size_t>(id) < edges_.size() &&
-                      edges_[static_cast<size_t>(id)].id == id;
-    if (have) continue;  // TS: `if (!this.edges[id])`
-    change.edges.push_back(addEdge(id, rec.second));
-  }
-  for (const auto& rec : chunk.nodes) {
-    const int id = rec.first;
-    Node* have = (id >= 0 && static_cast<size_t>(id) < nodes_.size() && nodes_[static_cast<size_t>(id)].id == id)
-                     ? &nodes_[static_cast<size_t>(id)]
-                     : nullptr;
-    if (have && !have->stub) continue;
-    change.nodes.push_back(completeNode(id, rec.second));
-  }
-  // (the far ends of the new roads: which way they leave, for whoever looks)
-  for (Edge* e : change.edges) {
-    if (e->a && e->a->stub)
-      for (auto& arm : e->a->arms)
-        if (arm.edge == e) computeArmDirection(arm);
-    if (e->b && e->b->stub)
-      for (auto& arm : e->b->arms)
-        if (arm.edge == e) computeArmDirection(arm);
-  }
-  return change;
-}
-
-WorldChange World::remove(const std::vector<int>& nodeIds) {
-  WorldChange change;
-  std::set<Node*> touched;
-  for (int id : nodeIds) {
-    if (id < 0 || static_cast<size_t>(id) >= nodes_.size()) continue;
-    Node& node = nodes_[static_cast<size_t>(id)];
-    if (node.id != id || node.stub) continue;
-    if (node.shape) nodeGrid_.removeBox(node.shape->minX, node.shape->minZ, node.shape->maxX,
-                                         node.shape->maxZ, &node);
-    node.shape = nullptr;
-    node.stub = true;
-    change.nodes.push_back(&node);
-    touched.insert(&node);
-  }
-  std::set<Edge*> doomed;
-  for (Node* node : touched) {
-    std::vector<Arm> arms = node->arms;
-    for (const Arm& arm : arms) {
-      Edge* e = arm.edge;
-      if (!e || e->id < 0 || static_cast<size_t>(e->id) >= edges_.size()) continue;
-      if (&edges_[static_cast<size_t>(e->id)] != e) continue;
-      if (!e->a->stub || !e->b->stub) continue;
-      if (doomed.count(e)) continue;
-      doomed.insert(e);
-    }
-  }
-  for (Edge* e : doomed) {
-    indexEdge(*e, false);
-    allEdges_.erase(e);
-    banned_.erase(e->id);
-    for (const auto& x : e->xings) {
-      for (size_t i = 0; i < crossings_.size(); i++) {
-        if (crossings_[i].e == x.e && crossings_[i].s == x.s && crossings_[i].k == x.k) {
-          crossings_[i] = crossings_.back();
-          crossings_.pop_back();
-          break;
-        }
-      }
-    }
-    for (Arm* end : {e->armA, e->armB}) {
-      if (!end || !end->node) continue;
-      auto& na = end->node->arms;
-      for (size_t i = 0; i < na.size(); i++) {
-        if (&na[i] == end) {
-          na.erase(na.begin() + static_cast<long>(i));
-          break;
-        }
-      }
-      touched.insert(end->node);
-    }
-    change.edges.push_back(e);
-  }
-  for (Node* node : touched) {
-    if (node->stub && node->arms.empty()) {
-      allNodes_.erase(node);
-      node->id = -1;  // the slot is free again (its number may come back)
-    }
-  }
-  return change;
-}
-
-/** Visit the junctions whose area touches the given box (each once). */
-void World::nodesInBox(double minX, double minZ, double maxX, double maxZ,
-                       const std::function<void(Node&)>& visit) {
-  std::set<int> seen;
-  nodeGrid_.queryBox(minX, minZ, maxX, maxZ, [&](Node* n) {
-    if (!n || !n->shape || seen.count(n->id)) return;
-    seen.insert(n->id);
-    if (n->shape->maxX < minX || n->shape->minX > maxX || n->shape->maxZ < minZ ||
-        n->shape->minZ > maxZ)
-      return;
-    visit(*n);
-  });
-}
-
-/** Visit the road segments whose padded box touches the given box (each segment once). */
-void World::segmentsInBox(double minX, double minZ, double maxX, double maxZ,
-                          const std::function<void(int)>& visit) const {
-  std::set<int> seen;
-  segGrid_.queryBox(minX, minZ, maxX, maxZ, [&](int code) {
-    if (!seen.insert(code).second) return;
-    visit(code);
-  });
 }
 
 }  // namespace fs
