@@ -396,6 +396,8 @@ Vector2 EllipseCurve::getPoint(double t) const {
 Vector2 SplineCurve::getPoint(double t) const {
   const long n = static_cast<long>(points.size());
   const double p = (n - 1) * t;
+  // (no points, or a t that is no place on the curve: JavaScript fails here – not a point)
+  if (n == 0 || !(p >= 0 && p <= static_cast<double>(n - 1))) return Vector2(JS_NAN, JS_NAN);
   const long intPoint = static_cast<long>(std::floor(p));
   const double weight = p - intPoint;
   const Vector2& p0 = points[static_cast<size_t>(intPoint == 0 ? intPoint : intPoint - 1)];
@@ -410,6 +412,8 @@ Vector2 SplineCurve::getPoint(double t) const {
 Vector3 CatmullRomCurve3::getPoint(double t) const {
   const long l = static_cast<long>(points.size());
   const double p = (l - (closed ? 0 : 1)) * t;
+  // (fewer than two points, or a t that is no place on the curve: JavaScript fails here – not a point)
+  if (l < 2 || !(std::fabs(p) < 1e15) || (!closed && p < 0)) return Vector3(JS_NAN, JS_NAN, JS_NAN);
   long intPoint = static_cast<long>(std::floor(p));
   double weight = p - intPoint;
   if (closed) {
@@ -604,7 +608,7 @@ Path& Path::setFromPoints(const std::vector<Vector2>& points) {
 }
 
 Path& Path::moveTo(double x, double y) {
-  currentPoint.set(x, y);   // TODO consider referencing vectors instead of copying?
+  currentPoint.set(x, y);
   return *this;
 }
 
@@ -1228,6 +1232,13 @@ struct EarcutRun {
 }  // namespace
 
 std::vector<int> Earcut::triangulate(const std::vector<double>& data, const std::vector<int>& holeIndices, int dim) {
+  // (what is no polygon – a dimension below 2, half a point at the end, holes that do not begin within the points one after the other – has no triangles)
+  if (dim < 2 || data.size() % static_cast<size_t>(dim) != 0) return {};
+  long last = 0;
+  for (int hole : holeIndices) {
+    if (hole < last || static_cast<long>(hole) * dim > static_cast<long>(data.size())) return {};
+    last = hole;
+  }
   EarcutRun run;
   run.run(data, holeIndices, dim);
   return std::move(run.triangles);
