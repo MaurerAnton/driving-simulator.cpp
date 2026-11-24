@@ -44,7 +44,7 @@ enum class U : uint8_t {
   // once per object
   ModelMatrix, ModelViewMatrix, NormalMatrix, ReceiveShadow, Center,
   // once per material
-  Diffuse, Opacity, Emissive, Map, MapTransform, UvTransform, AlphaTest, Specular, Shininess, Size, Scale, Rotation,
+  Diffuse, Opacity, Emissive, Map, MapTransform, AlphaMap, AlphaMapTransform, UvTransform, AlphaTest, Specular, Shininess, Size, Scale, Rotation,
   // once per frame
   ProjectionMatrix, ViewMatrix, CameraPosition, IsOrthographic, FogColor, FogNear, FogFar, ToneMappingExposure, AmbientLightColor, LightProbe,
   DirDirection, DirColor, HemiDirection, HemiSky, HemiGround,
@@ -75,6 +75,8 @@ struct Program {
   uint32_t materialId = 0;
   uint32_t materialStamp = 0;
   int nextUnit = 2;
+  /** the unit of the material's alpha map (-1: the program has none) */
+  int alphaMapUnit = -1;
 };
 
 /** The programs of one material: one per combination of what the object and the frame add. */
@@ -103,6 +105,8 @@ const NameKind PLAIN[] = {
     {"emissive", U::Emissive, 1},
     {"map", U::Map, 1},
     {"mapTransform", U::MapTransform, 1},
+    {"alphaMap", U::AlphaMap, 1},
+    {"alphaMapTransform", U::AlphaMapTransform, 1},
     {"uvTransform", U::UvTransform, 1},
     {"alphaTest", U::AlphaTest, 1},
     {"specular", U::Specular, 1},
@@ -276,6 +280,7 @@ Program* linkProgram(const std::string& vs, const std::string& fs, const std::st
     if (isSampler(type)) {
       // (the diffuse map is unit 0, the shadow map unit 1, the game's own from 2 on)
       s.unit = s.kind == U::Map ? 0 : s.kind == U::ShadowMap ? 1 : p->nextUnit++;
+      if (s.kind == U::AlphaMap) p->alphaMapUnit = s.unit;
       glUniform1i(s.loc, s.unit);
     }
     if (s.kind == U::Custom && s.name.size() > 3 && s.name.compare(s.name.size() - 3, 3, "[0]") == 0) s.name.resize(s.name.size() - 3);
@@ -757,6 +762,7 @@ struct Renderer::Impl {
     ShaderParams p;
     p.type = m.type;
     p.map = m.map != nullptr;
+    p.alphaMap = m.alphaMap != nullptr;
     p.vertexColors = m.vertexColors;
     p.instancing = instanced;
     p.instancingColor = instColor;
@@ -997,6 +1003,14 @@ struct Renderer::Impl {
         case U::Opacity: glUniform1f(s.loc, static_cast<GLfloat>(m.opacity)); break;
         case U::Emissive: setColor(s.loc, m.emissive, m.emissiveIntensity); break;
         case U::Map: break;   // (bound for every draw: bindMaterialTextures)
+        case U::AlphaMap: break;
+        case U::AlphaMapTransform:
+          if (m.alphaMap) {
+            Matrix3 t;
+            t.setUvTransform(m.alphaMap->offset.x, m.alphaMap->offset.y, m.alphaMap->repeat.x, m.alphaMap->repeat.y, 0, 0, 0);
+            setMat3(s.loc, t);
+          }
+          break;
         case U::MapTransform:
         case U::UvTransform:
           if (m.map) {
@@ -1033,6 +1047,7 @@ struct Renderer::Impl {
    */
   void bindMaterialTextures(Program& p, Material& m) {
     if (m.map) useTexture(0, *m.map);
+    if (m.alphaMap && p.alphaMapUnit >= 0) useTexture(p.alphaMapUnit, *m.alphaMap);
     for (const Slot& s : p.custom) {
       if (s.unit < 0) continue;
       const Uniform* u = nullptr;
@@ -1209,6 +1224,7 @@ struct Renderer::Impl {
       Program& p = *it.program;
       if (!p.ok) continue;
       if (o.onBeforeRender) o.onBeforeRender(r, *scene, camera);
+      if (m.onBeforeRender) m.onBeforeRender(r, *scene, camera);
       useProgram(p);
       if (p.frameStamp != frameStamp) {
         p.frameStamp = frameStamp;
@@ -1424,7 +1440,8 @@ void Renderer::render(Scene& scene, Camera& camera) {
   // (one shadow map is drawn: the sun's)
   if (d.lights.dirShadows > 1) d.lights.dirShadows = 1;
 
-  if (d.lights.dirShadows > 0) d.renderShadow(*d.lights.dir[0], camera);
+  // (shadowMap.autoUpdate false: the map of the last picture is used again – a second view of the same frame)
+  if (d.lights.dirShadows > 0 && (shadowMap.autoUpdate || !d.lights.dir[0]->shadow.map)) d.renderShadow(*d.lights.dir[0], camera);
 
   int w = 0, h = 0;
   d.bindTarget(w, h);

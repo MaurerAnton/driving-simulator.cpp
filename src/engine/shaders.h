@@ -18,6 +18,8 @@ namespace fs {
 struct ShaderParams {
   MaterialType type = MaterialType::Lambert;
   bool map = false;
+  /** an alpha map: its green channel is the opacity (MeshBasic/Lambert/Phong .alphaMap) */
+  bool alphaMap = false;
   bool vertexColors = false;
   bool instancing = false;
   bool instancingColor = false;

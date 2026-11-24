@@ -41,6 +41,11 @@ class Renderer {
   void setPixelRatio(double ratio);
   double getPixelRatio() const { return pixelRatio_; }
   /** the size of the drawing buffer in real pixels */
+  /** `renderer.getSize(v)`: the size of the picture in CSS pixels */
+  Vector2& getSize(Vector2& target) const {
+    target.set(width_, height_);
+    return target;
+  }
   int bufferWidth() const;
   int bufferHeight() const;
 
@@ -63,6 +68,8 @@ class Renderer {
   /** `renderer.shadowMap` */
   struct ShadowMap {
     bool enabled = false;
+    /** false: the shadow map is not drawn anew (the one of the last picture is used) */
+    bool autoUpdate = true;
   } shadowMap;
   /** `renderer.toneMapping = THREE.ACESFilmicToneMapping` (false: none) and its exposure */
   bool toneMapping = false;

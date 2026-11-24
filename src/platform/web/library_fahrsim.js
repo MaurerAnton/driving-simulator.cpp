@@ -64,7 +64,7 @@ addToLibrary({
       f[n + 10] = e.deltaX || 0;
       f[n + 11] = e.deltaY || 0;
       f[n + 12] = e.deltaMode || 0;
-      f[n + 13] = (e.ctrlKey ? 1 : 0) | (e.altKey ? 2 : 0) | (e.shiftKey ? 4 : 0) | (e.metaKey ? 8 : 0) | (e.repeat ? 16 : 0);
+      f[n + 13] = (e.ctrlKey ? 1 : 0) | (e.altKey ? 2 : 0) | (e.shiftKey ? 4 : 0) | (e.metaKey ? 8 : 0) | (e.repeat ? 16 : 0) | (e.isTrusted === false ? 32 : 0);
       const orient = typeof e.gamma === 'number' && e.gamma !== null;
       f[n + 14] = orient ? e.alpha || 0 : 0;
       f[n + 15] = orient ? e.beta || 0 : 0;

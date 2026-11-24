@@ -221,6 +221,7 @@ EMSCRIPTEN_KEEPALIVE int fsd_event(int listener) {
   e.shiftKey = (mods & 4) != 0;
   e.metaKey = (mods & 8) != 0;
   e.repeat = (mods & 16) != 0;
+  e.isTrusted = (mods & 32) == 0;
   e.alpha = n[14];
   e.beta = n[15];
   e.gamma = n[16];

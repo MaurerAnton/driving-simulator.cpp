@@ -7,6 +7,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "core/task.h"
 #include "platform/plat.h"
@@ -57,5 +58,11 @@ T wait(Task<T> task) {
   }
   if constexpr (!std::is_void_v<T>) return task.get();
 }
+
+/** what window.confirm answers on this machine (OK unless a test says otherwise), and the questions asked */
+inline bool confirmAnswer = true;
+inline std::vector<std::string> confirmed;
+/** what downloaded() says (bytes; a test sets it) */
+inline double bytesDownloaded = 0;
 
 }  // namespace fs::plat::native

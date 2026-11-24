@@ -117,6 +117,7 @@ Material::Material(MaterialType t, const MaterialParams& p) : Material(t) {
   // setValues
   if (p.color) color.copy(*p.color);
   map = p.map;
+  alphaMap = p.alphaMap;
   vertexColors = p.vertexColors;
   if (p.transparent) transparent = *p.transparent;
   opacity = p.opacity;

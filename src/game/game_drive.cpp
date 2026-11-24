@@ -106,7 +106,17 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
       spawn = none;
     }
   }
-  // (later: parkedAt, into a vehicle parked on the map – game/spawncar.ts, game.ts:2771)
+  // (into a vehicle parked on the map, or a car of the traffic taken over: where it stands, as it stands)
+  if (parkedAt) {
+    SpawnJson here;
+    here.name = tr("mapPlace", settings.lang);
+    here.x = parkedAt->x;
+    here.z = parkedAt->z;
+    here.yaw = parkedAt->yaw;
+    here.kind = "street";
+    spawn = here;
+    parkedAt.reset();
+  }
   // (later: on foot from the stop Baunatal Stadtmitte; the aeroplane at the end of its runway; the tram at its stop; the test place – game.ts:2775)
   lesson = nullptr;
   for (const LessonDef& l : LESSONS)

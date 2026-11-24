@@ -10,8 +10,7 @@
 #include "core/js.h"
 #include "engine/geometries.h"
 #include "render/carBody.h"
-#include "sim/emergency.h"
-#include "sim/pedestrians.h"
+#include "sim/hooks.h"
 #include "world/types.h"
 
 namespace fs {

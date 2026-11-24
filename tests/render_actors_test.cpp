@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "render/actors.h"
-#include "sim/pedestrians.h"
+#include "sim/hooks.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "tests/render_dump.h"

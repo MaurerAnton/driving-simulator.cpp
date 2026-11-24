@@ -397,6 +397,8 @@ struct MaterialParams {
   // (every member has an initialiser, so that `{.color = 0x808890}` leaves nothing for -Wmissing-field-initializers to name)
   std::optional<Color> color{};
   TexturePtr map{};
+  /** `alphaMap`: the green channel is the opacity */
+  TexturePtr alphaMap{};
   bool vertexColors = false;
   /** not given: the class's own (a SpriteMaterial is transparent, the others are not) */
   std::optional<bool> transparent{};
@@ -421,6 +423,10 @@ struct MaterialParams {
   std::string name{};
 };
 
+class Renderer;
+class Scene;
+class Camera;
+
 class Material {
  public:
   const uint32_t id;
@@ -428,6 +434,10 @@ class Material {
   std::string name;
   Color color{1, 1, 1};
   TexturePtr map;
+  /** `alphaMap`: the green channel is the opacity */
+  TexturePtr alphaMap;
+  /** `material.onBeforeRender`: called before an object with this material is drawn (not for the shadow map) */
+  std::function<void(Renderer&, Scene&, Camera&)> onBeforeRender;
   bool vertexColors = false;
   bool transparent = false;
   double opacity = 1;

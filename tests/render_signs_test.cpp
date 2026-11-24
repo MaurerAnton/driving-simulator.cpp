@@ -454,7 +454,7 @@ static void testAtlasFull() {
 static void testPedLights() {
   PedLightRenderer ped;
   assert(ped.group->name == "pedestrian lights" && ped.group->children.empty());
-  const std::vector<SignalControllerJson> none;
+  const Sparse<SignalControllerJson> none;
   SignalSystem signals(none);
   ped.update(signals);   // (no lights yet: nothing to do)
   const auto pole = [](int controller, int group, double x, double y, double z, double yaw, double boxYaw) {

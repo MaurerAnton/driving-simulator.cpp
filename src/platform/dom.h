@@ -61,6 +61,8 @@ struct Event {
   std::string pointerType;
   int button = 0, buttons = 0;
   bool isPrimary = true;
+  /** event.isTrusted: the user did it (false: a script dispatched it) */
+  bool isTrusted = true;
   double deltaX = 0, deltaY = 0;
   int deltaMode = 0;
   /** touch events: the fingers down now, and those this event is about */

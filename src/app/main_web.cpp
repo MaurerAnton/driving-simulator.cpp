@@ -2,12 +2,14 @@
 /**
  * The entry point in the browser.
  *
- * Origin: src/main.ts @ v1.7.7.  (Bringing the port up: until the game itself is
- * on this foundation, the page shows the map – the site's own, or a region chosen
- * from the list – under a camera that is moved with a finger, the mouse or the
- * keys, and says what a frame costs.)
+ * Origin: src/main.ts @ v1.7.7: the game is made and booted; when nothing works, the
+ * reason is shown in the reader's language.
  *
- *   ?region=<id>   a region of the regions' index in place of the site's map
+ * `?viewer` shows the map alone instead (new in 2.0, for checking maps and speed): the
+ * site's own, or a region chosen from the list, under a camera that is moved with a
+ * finger, the mouse or the keys, and says what a frame costs.
+ *
+ *   ?viewer&region=<id>   a region of the regions' index in place of the site's map
  *   ?at=x,z        where to look (world metres)
  *   ?h=…&pitch=…   the camera's height above the ground and its tilt (degrees, negative: down)
  *   ?radius=…      how far tiles are drawn;  ?shadows=0  none;  ?scale=0.5  fewer pixels
@@ -23,6 +25,9 @@
 #include "core/js.h"
 #include "core/task.h"
 #include "game/app.h"
+#include "game/game.h"
+#include "game/settings.h"
+#include "i18n/index.h"
 #include "platform/dom.h"
 #include "platform/glhost.h"
 #include "platform/plat.h"
@@ -63,6 +68,7 @@ struct View {
 
 std::unique_ptr<App> app;
 View view;
+bool viewerReady = false;
 dom::El stats, note;
 double lastFrame = 0, acc = 0, worst = 0;
 int frames = 0;
@@ -138,7 +144,7 @@ Task<void> regionList(dom::El box, std::string current) {
   pick.value(current);
   pick.on("change", [pick] {
     const std::string id = pick.value();
-    plat::replaceSearch(id.empty() ? "" : "?region=" + encodeURIComponent(id));
+    plat::replaceSearch(id.empty() ? "?viewer" : "?viewer&region=" + encodeURIComponent(id));
     plat::reload();
   });
   box.append(pick);
@@ -197,7 +203,7 @@ void hands(const dom::El& canvas) {
   dom::window().on("blur", [] { view.keys.clear(); });
 }
 
-Task<void> boot() {
+Task<void> viewer() {
   dom::El ui = dom::getElementById("ui");
   ui.replaceChildren();
   dom::El box = dom::el("div");
@@ -210,10 +216,6 @@ Task<void> boot() {
   stats = dom::el("div");
   box.append(note, stats);
 
-  if (!plat::gl::createContext("view", plat::innerWidth(), plat::innerHeight())) {
-    say("This browser has no WebGL 2: the picture cannot be drawn.");
-    co_return;
-  }
   app = std::make_unique<App>(dom::getElementById("view"));
   // (where the map is: the page says – beside it when served locally, the 1.7.7 site's on the test site)
   dom::El meta = dom::querySelector("meta[name='fahrsim-map']");
@@ -266,13 +268,73 @@ Task<void> boot() {
   hands(app->canvas);
   lastFrame = plat::nowMs();
   emscripten_set_main_loop(frame, 0, 0);
-  EM_ASM(window.__fs.ready = true);
+  viewerReady = true;
   co_await regionList(box, app->regionId);
+}
+
+
+/** Nothing works: say why, in the reader's language if its texts can be fetched (English otherwise). */
+Task<void> giveUp(std::string key, TrParams params = {}) {
+  std::string lang = param("lang");
+  if (lang.empty()) lang = loadSettings().lang;
+  dom::El ui = dom::getElementById("ui");
+  ui.textContent(tr(key, lang, params));
+  co_await loadLang(lang);
+  ui.textContent(tr(key, lang, params));
+}
+
+std::unique_ptr<Game> game;
+
+Task<void> bootGame() {
+  std::string why;
+  try {
+    game = std::make_unique<Game>(dom::getElementById("view"), dom::getElementById("ui"));
+  } catch (const std::exception& e) {
+    why = e.what();
+  }
+  if (!why.empty()) {
+    plat::error(why);
+    co_await giveUp("loadError", {{"e", why}});
+    co_return;
+  }
+  try {
+    co_await game->boot(URLSearchParams(plat::locationSearch()));
+  } catch (const std::exception& e) {
+    why = e.what();
+  }
+  if (!why.empty()) {
+    plat::error(why);
+    co_await giveUp("loadError", {{"e", why}});
+  }
 }
 
 }  // namespace
 
+/** window.__fs.info() (tools/dev/shot.mjs): what the game reports about itself, as JSON */
+extern "C" EMSCRIPTEN_KEEPALIVE const char* fs_info() {
+  static std::string json;
+  json = game ? game->debugInfo() : "{}";
+  return json.c_str();
+}
+
+/** window.__fs.ready: the first pictures are drawn (the game's own flag – game.ts sets window.__fs.ready there) */
+extern "C" EMSCRIPTEN_KEEPALIVE int fs_ready() { return viewerReady || (game && game->ready) ? 1 : 0; }
+
+/** window.__fs.info() and window.__fs.ready read from the C++ (index.html makes window.__fs) */
+EM_JS(void, hookPage, (), {
+  window.__fs.info = function () { return JSON.parse(UTF8ToString(_fs_info())); };
+  Object.defineProperty(window.__fs, 'ready', { get: function () { return _fs_ready() !== 0; }, set: function () {}, configurable: true });
+});
+
 int main() {
-  boot().detach();
+  // (does this browser draw the 3D picture at all? – the WebGL 2 context is made on the page's canvas)
+  if (!plat::gl::createContext("view", plat::innerWidth(), plat::innerHeight())) {
+    giveUp("webglMissing").detach();
+    return 0;
+  }
+  hookPage();
+  const std::string q = plat::locationSearch();
+  if (q.find("viewer") != std::string::npos) viewer().detach();
+  else bootGame().detach();
   return 0;
 }

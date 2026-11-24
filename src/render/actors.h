@@ -18,7 +18,7 @@
 
 #include "engine/engine.h"
 #include "render/car.h"
-#include "sim/cyclists.h"
+#include "sim/hooks.h"
 #include "sim/signals.h"
 #include "sim/traffic.h"
 #include "world/world.h"

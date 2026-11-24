@@ -102,6 +102,13 @@ struct Cyclist {
   double y = 0;
   double z = 0;
   double yaw = 0;
+  /** how far the pedals and the wheels have turned (rad), and whether they brake hard (for the picture) */
+  double phase = 0;
+  double roll = 0;
+  bool braking = false;
+  int colour = 0;
+  /** knocked over: lies there for these seconds, then is gone */
+  double down = 0;
 };
 
 inline constexpr double CYCLE_LENGTH = 1.8;
@@ -306,5 +313,16 @@ class TimedRules {
   /** shut now to motor vehicles (or lorries): what the panel says – '' when it is not */
   virtual std::string shut(int edge, int dir, bool heavy) = 0;
 };
+
+// --- what other files use of the parts that are not ported ---------------------------
+
+/** the most people the crowd has at once (src/sim/pedestrians.ts CROWD_MAX) */
+inline constexpr int CROWD_MAX = 180;
+
+/** the first style of the emergency vehicles (src/sim/emergency.ts EM_STYLE) */
+inline constexpr int EM_STYLE = 8;
+
+/** which emergency vehicle a style is (0 …), −1: none (src/sim/emergency.ts emKind) */
+inline int emKind(int style) { return style >= EM_STYLE && style < EM_STYLE + 8 ? (style - EM_STYLE) >> 1 : -1; }
 
 }  // namespace fs

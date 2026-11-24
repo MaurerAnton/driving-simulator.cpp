@@ -70,6 +70,7 @@ class RouteWatch;
 class RuleMonitor;
 class SceneryCollider;
 class SignalRenderer;
+class WorldLayer;
 class SignalSystem;
 class SignRenderer;
 class Traffic;
@@ -337,6 +338,8 @@ class Game {
   /** where the car has been, for the map */
   const std::unique_ptr<DrivenPath> path;
   std::unique_ptr<BigMap> bigMap;
+  /** 2.0: the world behind the big map – every region (made when the map is first opened) */
+  std::shared_ptr<WorldLayer> worldLayer;
   /** the roads the big map draws ways on (ui/pathdraw.h roadSource: made anew each time it asks) */
   std::unique_ptr<RoadSource> mapRoads;
   // (later: transitSrc, watcher, tramLineRef – game.ts:531)
@@ -507,7 +510,9 @@ class Game {
   double lookedBackAt = -100;
   // (later: parkedSteer, walkSince – game.ts:4610)
   void changeVehicle(const VehicleKind& kind);
-  // (later: spawnCars, parkedAt, intoParked, makeSpawnCars, canSpawnCar, canEnterParked, enterParked – game.ts:4865)
+  /** where the next start puts the car: a car of the traffic taken over (takeOverCar) – null: as usual */
+  std::optional<Place> parkedAt;
+  // (later: spawnCars, intoParked, makeSpawnCars, canSpawnCar, canEnterParked, enterParked – game.ts:4865)
   SpawnJson exactSpot(const std::string& name, double x, double z);
   /** the places `exactSpot` made (x, z): a start place is a value here, the mark is kept beside it (the original's WeakSet exactSpots) */
   std::vector<std::array<double, 2>> exactSpots;
