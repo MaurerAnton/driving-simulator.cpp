@@ -271,7 +271,7 @@ std::string shaderKey(const ShaderParams& p) {
   unsigned bits = (p.map ? 1u : 0) | (p.vertexColors ? 2u : 0) | (p.instancing ? 4u : 0) | (p.instancingColor ? 8u : 0) | (p.fog ? 16u : 0) |
                   (p.shadowMap ? 32u : 0) | (p.doubleSided ? 64u : 0) | (p.flipSided ? 128u : 0) | (p.flatShading ? 256u : 0) | (p.alphaTest ? 512u : 0) |
                   (p.opaque ? 1024u : 0) | (p.toneMapping ? 2048u : 0) | (p.srgbOutput ? 4096u : 0) | (p.vertexNormals ? 8192u : 0) |
-                  (p.sizeAttenuation ? 16384u : 0) | (p.alphaMap ? 32768u : 0);
+                  (p.sizeAttenuation ? 16384u : 0) | (p.alphaMap ? 32768u : 0) | (p.emissiveMap ? 65536u : 0);
   std::snprintf(buf, sizeof buf, "%d:%x:%d.%d.%d.%d.%d", static_cast<int>(p.type), bits, p.numDirLights, p.numHemiLights, p.numSpotLights, p.numPointLights,
                 p.numDirLightShadows);
   std::string key = buf;
@@ -307,6 +307,8 @@ void buildShader(const ShaderParams& p, std::string& vertex, std::string& fragme
   line(pv, p.map, "#define MAP_UV uv");
   line(pv, p.alphaMap, "#define USE_ALPHAMAP");
   line(pv, p.alphaMap, "#define ALPHAMAP_UV uv");
+  line(pv, p.emissiveMap, "#define USE_EMISSIVEMAP");
+  line(pv, p.emissiveMap, "#define EMISSIVEMAP_UV uv");
   line(pv, p.vertexNormals, "#define HAS_NORMAL");
   line(pv, p.vertexColors, "#define USE_COLOR");
   line(pv, p.flatShading, "#define FLAT_SHADED");
@@ -359,6 +361,7 @@ void buildShader(const ShaderParams& p, std::string& vertex, std::string& fragme
   line(pf, p.fog, "#define USE_FOG");
   line(pf, p.map, "#define USE_MAP");
   line(pf, p.alphaMap, "#define USE_ALPHAMAP");
+  line(pf, p.emissiveMap, "#define USE_EMISSIVEMAP");
   line(pf, p.alphaTest, "#define USE_ALPHATEST");
   line(pf, p.vertexColors || p.instancingColor, "#define USE_COLOR");
   line(pf, p.flatShading, "#define FLAT_SHADED");

@@ -456,6 +456,8 @@ class Material {
   bool polygonOffset = false;
   double polygonOffsetFactor = 0, polygonOffsetUnits = 0;
   Color emissive{0, 0, 0};
+  /** `emissiveMap`: the emissive colour is multiplied by this picture (MeshLambert/Phong) */
+  TexturePtr emissiveMap;
   double emissiveIntensity = 1;
   // MeshPhongMaterial
   Color specular;   // 0x111111
