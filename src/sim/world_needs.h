@@ -101,6 +101,15 @@ inline constexpr bool HAS_EDGE_NARROW = requires(const E& e) { e.narrow; };
 inline int wayOf(const Lane& lane) { return needs_detail::wayOf_(lane); }
 
 /**
+ * world.allEdges – src/world/world.ts, World.allEdges: "every … road that is really there
+ * (loaded)", filled by the constructor for a map in one piece as by `add` for one in pieces.
+ * The map layer at 0.8.0 fills it only in `add`: a world made of a whole world.json has an
+ * empty set (and the traffic would find no road for its cars to appear on).  Here: the set
+ * where it has anything, else every road of the list that has its two ends.
+ */
+std::vector<Edge*> allEdges(World& world);
+
+/**
  * world.edges[id] where the list has gaps (the map comes in pieces) – src/world/world.ts,
  * World.edges.  Null where no road of that number is loaded.
  */

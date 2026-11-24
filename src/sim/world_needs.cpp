@@ -9,10 +9,24 @@
 
 namespace fs::needs {
 
+std::vector<Edge*> allEdges(World& world) {
+  std::vector<Edge*> out;
+  if (!world.allEdges().empty()) {
+    // (in the order of their numbers: for a map in one piece that is the order the original's set has them in)
+    for (Edge& e : world.edges())
+      if (world.allEdges().count(&e)) out.push_back(&e);
+    return out;
+  }
+  for (Edge& e : world.edges())
+    if (e.a && e.b) out.push_back(&e);
+  return out;
+}
+
 Edge* edgeAt(World& world, int id) {
   std::vector<Edge>& edges = world.edges();
   if (id < 0 || static_cast<size_t>(id) >= edges.size()) return nullptr;
   Edge* e = &edges[static_cast<size_t>(id)];
+  if (world.allEdges().empty()) return e->a && e->b ? e : nullptr;
   return world.allEdges().count(e) ? e : nullptr;
 }
 
@@ -263,6 +277,7 @@ PathFoot* besideLanes(LaneGraph& graph, double x, double z, double y, double nee
 
 std::vector<const char*> missing() {
   std::vector<const char*> out;
+  out.push_back("World.allEdges / allNodes filled by the constructor for a map in one piece (world.ts) – checked when it runs: needs::allEdges");
   if (!HAS_NODE_DARK<Node>) out.push_back("Node.dark (world.ts)");
   if (!HAS_EDGE_MARGINS<Edge>) out.push_back("Edge.marginL, Edge.marginR (world.ts)");
   if (!HAS_EDGE_NARROW<Edge>) out.push_back("Edge.narrow (world.ts)");

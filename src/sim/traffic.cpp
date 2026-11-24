@@ -52,7 +52,7 @@ Traffic::Traffic(World& world_, LaneGraph& graph_, SignalSystem& signals_) : wor
   probe.temper = 1;
   box.length = 4.3;
   box.width = 1.8;
-  addRoads(world.allEdges());
+  addRoads(needs::allEdges(world));
 }
 
 Traffic::~Traffic() {
