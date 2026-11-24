@@ -21,8 +21,10 @@ struct Listener {
   std::vector<int> names;
 };
 std::unordered_map<int, Listener>& table() {
-  static std::unordered_map<int, Listener> t;
-  return t;
+  // (never destroyed: an element held by a static object may let go of its listeners while the program ends,
+  // after a static table would already be gone)
+  static auto* t = new std::unordered_map<int, Listener>();
+  return *t;
 }
 int nextListener = 1;
 }  // namespace
