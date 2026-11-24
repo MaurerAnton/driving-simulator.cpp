@@ -30,7 +30,7 @@ class App {
   const std::shared_ptr<Scene> scene = make<Scene>();
   const std::shared_ptr<Camera> camera = perspectiveCamera(60, 1, 0.08, 4500);
   Sky sky;
-  std::unique_ptr<MapLoader> map;
+  std::shared_ptr<MapLoader> map;
   World* world = nullptr;
   std::unique_ptr<TileManager> tiles;
   /** where the map's files are (ends in "map/") */

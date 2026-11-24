@@ -22,6 +22,8 @@
 #include "platform/native/native.h"
 #include "platform/plat.h"
 
+#include <GLES3/gl3.h>
+
 using namespace fs;
 
 static double now() { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
@@ -67,9 +69,9 @@ int main(int argc, char** argv) {
   for (int i = 0; i < 100000; i++) {
     app.map->update(x, z);
     app.tiles->update(x, z);
-    if (plat::native::pump() == 0 && app.tiles->settled() && app.map->settled()) break;
+    if (plat::native::pump() == 0 && app.tiles->settled() && app.map->ready(x, z)) break;
   }
-  std::printf("%zu tiles, %zu roads, %zu junctions loaded in %.0f ms\n", app.tiles->tiles.size(), app.world->edges().size(), app.world->nodes().size(), now() - t0);
+  std::printf("%zu tiles, %zu roads, %zu junctions loaded in %.0f ms\n", app.tiles->tiles.size(), app.world->allEdges.size(), app.world->allNodes.size(), now() - t0);
 
   double ground = app.tiles->heightAt(x, z);
   if (std::isnan(ground)) ground = 0;
