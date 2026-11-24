@@ -274,7 +274,7 @@ Task<std::shared_ptr<const NetData>> MapLoader::readNet() {
   co_return std::make_shared<const NetData>(unpackNet(std::move(*buf)));
 }
 
-Task<std::shared_ptr<const NetData>> MapLoader::net() {
+const Task<std::shared_ptr<const NetData>>& MapLoader::net() {
   if (!netData_.valid()) netData_ = pieces ? readNet() : resolved(std::shared_ptr<const NetData>());
   return netData_;
 }
@@ -285,7 +285,7 @@ Task<std::shared_ptr<const std::vector<RailJson>>> MapLoader::readRails() {
   co_return std::make_shared<const std::vector<RailJson>>(r ? std::move(r->rails) : std::vector<RailJson>());
 }
 
-Task<std::shared_ptr<const std::vector<RailJson>>> MapLoader::rails() {
+const Task<std::shared_ptr<const std::vector<RailJson>>>& MapLoader::rails() {
   if (!railData_.valid()) railData_ = pieces ? readRails() : resolved(std::make_shared<const std::vector<RailJson>>(world.json.rails));
   return railData_;
 }
@@ -304,7 +304,7 @@ Task<std::shared_ptr<const T>> MapLoader::readOptional(std::string path) {
   co_return out;
 }
 
-Task<std::shared_ptr<const StopsJson>> MapLoader::stops() {
+const Task<std::shared_ptr<const StopsJson>>& MapLoader::stops() {
   if (!stopData_.valid()) stopData_ = pieces ? readOptional<StopsJson>("stops.json.gz") : resolved(std::shared_ptr<const StopsJson>());
   return stopData_;
 }
@@ -321,22 +321,22 @@ Task<std::shared_ptr<const Bytes>> MapLoader::readFar() {
   co_return out;
 }
 
-Task<std::shared_ptr<const Bytes>> MapLoader::far() {
+const Task<std::shared_ptr<const Bytes>>& MapLoader::far() {
   if (!farData_.valid()) farData_ = pieces ? readFar() : resolved(std::shared_ptr<const Bytes>());
   return farData_;
 }
 
-Task<std::shared_ptr<const LinesJson>> MapLoader::lines() {
+const Task<std::shared_ptr<const LinesJson>>& MapLoader::lines() {
   if (!lineData_.valid()) lineData_ = pieces ? readOptional<LinesJson>("lines.json.gz") : resolved(std::shared_ptr<const LinesJson>());
   return lineData_;
 }
 
-Task<std::shared_ptr<const TimetableJson>> MapLoader::timetable() {
+const Task<std::shared_ptr<const TimetableJson>>& MapLoader::timetable() {
   if (!timetableData_.valid()) timetableData_ = pieces ? readOptional<TimetableJson>("timetable.json.gz") : resolved(std::shared_ptr<const TimetableJson>());
   return timetableData_;
 }
 
-Task<std::shared_ptr<const AirJson>> MapLoader::air() {
+const Task<std::shared_ptr<const AirJson>>& MapLoader::air() {
   if (!airData_.valid()) airData_ = pieces ? readOptional<AirJson>("air.json.gz") : resolved(std::shared_ptr<const AirJson>());
   return airData_;
 }

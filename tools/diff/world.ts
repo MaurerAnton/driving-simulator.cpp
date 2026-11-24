@@ -4,7 +4,9 @@
  * tools/dev/world_dump.cpp prints from the port (tools/diff/compare.py).
  *
  *   cd /home/user/driving-simulator
- *   node /path/to/port/tools/diff/world.ts [--map public/map] [--part all|net|tiles] > original.txt
+ *   node /path/to/port/tools/diff/world.ts [--map public/map] [--part all|net|tiles] [--wasm off] > original.txt
+ *
+ * (`--wasm off`: the original's own JavaScript for decoding tiles and searching ways, not its WebAssembly)
  *
  * (run inside the original, whose modules it loads; `--root` names it otherwise)
  *
@@ -126,6 +128,25 @@ const counts = (what: string): void => {
   let signals = 0;
   for (let i = 0; i < world.signals.length; i++) if (world.signals[i]) signals++;
   out('counts', what, world.allNodes.size, stubs, world.allEdges.size, laneCount, lanes.connectors.length, world.crossings.length, signals, world.nodes.length, world.edges.length, lanes.lanes.length);
+  // the order things are kept in (it decides which lane and which path gets which number, and who is asked first)
+  let i = 0;
+  let edgeOrder = 0;
+  for (const e of world.allEdges) edgeOrder += ((i++ % 97) + 1) * e.id;
+  i = 0;
+  let nodeOrder = 0;
+  for (const n of world.allNodes) nodeOrder += ((i++ % 97) + 1) * n.id;
+  let crossingOrder = 0;
+  for (i = 0; i < world.crossings.length; i++) crossingOrder += ((i % 97) + 1) * (world.crossings[i].e + world.crossings[i].s);
+  let pathOrder = 0;
+  for (i = 0; i < lanes.connectors.length; i++) pathOrder += ((i % 97) + 1) * lanes.connectors[i].id;
+  let signalSum = 0;
+  for (i = 0; i < world.signals.length; i++) {
+    const c = world.signals[i];
+    if (!c) continue;
+    signalSum += i + c.x + 2 * c.z + c.groups + c.off + c.phases.length + (c.ped ? 1 : 0);
+    for (const ph of c.phases) signalSum += ph.d + ph.s.length;
+  }
+  out('orders', edgeOrder, nodeOrder, crossingOrder, pathOrder, signalSum);
 };
 
 const tmp = newPolySample();
@@ -214,7 +235,9 @@ function dumpNetwork(name: string, px: number, pz: number): void {
       const n = world.nodes[id];
       if (!n) continue;
       const sh = n.shape;
-      out('node', id, n.x, n.y, n.z, n.gx, n.gz, n.ctrl, n.sc, n.dark, n.stub, n.tc, n.osm, n.arms.length, n.fr.length, sumOf(n.fr), sh ? sh.ring.length : -1, sh ? ringArea(sh.ring) : 0, sh ? sh.corners.length : 0, sh ? sh.minX : 0, sh ? sh.maxX : 0, sh ? sh.minZ : 0, sh ? sh.maxZ : 0);
+      // (the area of the junction is taken around the junction: around the map's origin the big numbers would swallow the small ones)
+      const local = sh ? sh.ring.map((v: number, i: number) => v - (i % 2 === 0 ? n.x : n.z)) : [];
+      out('node', id, n.x, n.y, n.z, n.gx, n.gz, n.ctrl, n.sc, n.dark, n.stub, n.tc, n.osm, n.arms.length, n.fr.length, sumOf(n.fr), sh ? sh.ring.length : -1, sh ? ringArea(local) : 0, sh ? sh.corners.length : 0, sh ? sh.minX : 0, sh ? sh.maxX : 0, sh ? sh.minZ : 0, sh ? sh.maxZ : 0);
       if (sh) {
         const r = sh.ring;
         let s = 0;
@@ -318,6 +341,15 @@ if (part === 'all' || part === 'net') {
     for (let i = 0; i < 60; i++) map.update(x + 6000, z, Infinity);
     counts('moved');
     out('ready', map.ready(x + 6000, z), map.ready(x, z), map.progress(x, z, 9000));
+    // the lanes of what is loaded now made anew, all at once: in the order the world keeps its roads and junctions
+    {
+      const again = new LaneGraph(world);
+      let laneSum = 0;
+      for (const l of again.lanes) laneSum += l.id * 7 + l.edge.id;
+      let pathSum = 0;
+      for (const c of again.connectors) pathSum += c.id * 3 + c.from.id + 2 * c.to.id + c.node.id;
+      out('regraph', again.lanes.length, again.connectors.length, laneSum, pathSum);
+    }
     flush();
   }
 }

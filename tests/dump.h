@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "core/js.h"
+#include "platform/json.h"
 
 namespace fs::dump {
 
@@ -29,8 +30,8 @@ inline void put(std::string& line, const std::string& text) {
   line += ' ';
   line += text;
 }
-inline void fmt(std::string& line, double v) { put(line, jsStr(v)); }
-inline void fmt(std::string& line, float v) { put(line, jsStr(static_cast<double>(v))); }
+inline void fmt(std::string& line, double v) { put(line, jsNumberText(v)); }
+inline void fmt(std::string& line, float v) { put(line, jsNumberText(static_cast<double>(v))); }
 inline void fmt(std::string& line, int v) { put(line, std::to_string(v)); }
 inline void fmt(std::string& line, long v) { put(line, std::to_string(v)); }
 inline void fmt(std::string& line, long long v) { put(line, std::to_string(v)); }
@@ -38,7 +39,18 @@ inline void fmt(std::string& line, unsigned v) { put(line, std::to_string(v)); }
 inline void fmt(std::string& line, unsigned long v) { put(line, std::to_string(v)); }
 inline void fmt(std::string& line, unsigned long long v) { put(line, std::to_string(v)); }
 inline void fmt(std::string& line, bool v) { put(line, v ? "1" : "0"); }
-inline void fmt(std::string& line, const std::string& v) { put(line, v.empty() ? "\"\"" : v); }
+inline void fmt(std::string& line, const std::string& v) {
+  // (a text is one value: what is white in it becomes one underscore)
+  std::string s;
+  bool space = false;
+  for (char c : v) {
+    const bool white = c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+    if (!white) s += c;
+    else if (!space) s += '_';
+    space = white;
+  }
+  put(line, s.empty() ? "\"\"" : s);
+}
 inline void fmt(std::string& line, const char* v) { fmt(line, std::string(v)); }
 template <class T>
 void fmt(std::string& line, const std::vector<T>& list) {

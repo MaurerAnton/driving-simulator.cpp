@@ -20,6 +20,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "core/geom.h"
+
 namespace fs {
 
 /** One cell: its codes, and four numbers per code – minX, minZ, maxX, maxZ of that segment's box. */
@@ -37,10 +39,8 @@ class SegGrid {
   /** Put a code into the cells the box (x0..x1, z0..z1) covers, with the box (bx0, bz0, bx1, bz1) to test it by. */
   void insertBox(double x0, double z0, double x1, double z1, int64_t code, double bx0, double bz0, double bx1, double bz1) {
     const double c = cell;
-    const int64_t ix0 = static_cast<int64_t>(std::floor(x0 / c));
-    const int64_t ix1 = static_cast<int64_t>(std::floor(x1 / c));
-    const int64_t iz0 = static_cast<int64_t>(std::floor(z0 / c));
-    const int64_t iz1 = static_cast<int64_t>(std::floor(z1 / c));
+    int64_t ix0, ix1, iz0, iz1;
+    if (!gridCell(x0, c, ix0) || !gridCell(x1, c, ix1) || !gridCell(z0, c, iz0) || !gridCell(z1, c, iz1)) return;
     for (int64_t ix = ix0; ix <= ix1; ix++) {
       for (int64_t iz = iz0; iz <= iz1; iz++) {
         SegCell& cell_ = map_[key(ix, iz)];
@@ -56,10 +56,8 @@ class SegGrid {
   /** Take a code out again – with the box it was put in with. */
   void removeBox(double x0, double z0, double x1, double z1, int64_t code) {
     const double c = cell;
-    const int64_t ix0 = static_cast<int64_t>(std::floor(x0 / c));
-    const int64_t ix1 = static_cast<int64_t>(std::floor(x1 / c));
-    const int64_t iz0 = static_cast<int64_t>(std::floor(z0 / c));
-    const int64_t iz1 = static_cast<int64_t>(std::floor(z1 / c));
+    int64_t ix0, ix1, iz0, iz1;
+    if (!gridCell(x0, c, ix0) || !gridCell(x1, c, ix1) || !gridCell(z0, c, iz0) || !gridCell(z1, c, iz1)) return;
     for (int64_t ix = ix0; ix <= ix1; ix++) {
       for (int64_t iz = iz0; iz <= iz1; iz++) {
         auto it = map_.find(key(ix, iz));
@@ -81,8 +79,9 @@ class SegGrid {
 
   /** The cell containing (x,z), or null when nothing is in it. */
   const SegCell* cellAt(double x, double z) const {
-    const double c = cell;
-    auto it = map_.find(key(static_cast<int64_t>(std::floor(x / c)), static_cast<int64_t>(std::floor(z / c))));
+    int64_t ix, iz;
+    if (!gridCell(x, cell, ix) || !gridCell(z, cell, iz)) return nullptr;
+    auto it = map_.find(key(ix, iz));
     return it == map_.end() ? nullptr : &it->second;
   }
 
@@ -97,10 +96,8 @@ class SegGrid {
   template <class Visit>
   void queryBox(double minX, double minZ, double maxX, double maxZ, Visit&& visit) const {
     const double c = cell;
-    const int64_t x0 = static_cast<int64_t>(std::floor(minX / c));
-    const int64_t x1 = static_cast<int64_t>(std::floor(maxX / c));
-    const int64_t z0 = static_cast<int64_t>(std::floor(minZ / c));
-    const int64_t z1 = static_cast<int64_t>(std::floor(maxZ / c));
+    int64_t x0, x1, z0, z1;
+    if (!gridCell(minX, c, x0) || !gridCell(maxX, c, x1) || !gridCell(minZ, c, z0) || !gridCell(maxZ, c, z1)) return;
     for (int64_t ix = x0; ix <= x1; ix++) {
       for (int64_t iz = z0; iz <= z1; iz++) {
         auto it = map_.find(key(ix, iz));

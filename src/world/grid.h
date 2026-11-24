@@ -13,6 +13,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,7 +25,12 @@ constexpr double TILE = 500;
 constexpr double CHUNK = 4000;
 
 /** Index of the grid square of side `size` a coordinate (x or z, world metres) lies in. */
-inline int gridIndex(double v, double size) { return static_cast<int>(std::floor((v + GRID_OFFSET) / size)); }
+inline int gridIndex(double v, double size) {
+  const double i = std::floor((v + GRID_OFFSET) / size);
+  // (a place that is no number lies in no square: an index no grid has)
+  if (!(i > -2e9 && i < 2e9)) return std::numeric_limits<int>::min();
+  return static_cast<int>(i);
+}
 
 /** The lower corner (west, or north) of grid square `i`. */
 inline double gridStart(int i, double size) { return i * size - GRID_OFFSET; }

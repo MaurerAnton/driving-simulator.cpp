@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: three.js r187 src/core/Raycaster.js, and the raycast() of src/objects/{Mesh,InstancedMesh,LOD}.js
 #include "engine/engine.h"
+#include "engine/internal.h"
 
 namespace fs {
 
@@ -82,13 +83,13 @@ void raycastMesh(Object3D& object, Mesh& mesh, const Matrix4& matrixWorld, const
   const double drawEnd = geometry.drawRange.count == INT_MAX ? JS_INF : drawStart + geometry.drawRange.count;
   Intersection intersection;
   const double vertexCount = static_cast<double>(index ? index->count() : position->count());
-  const auto corner = [&](size_t i) { return index ? static_cast<size_t>(index->getX(i)) : i; };
+  const auto corner = [&](size_t i) { return index ? enginedetail::vertexAt(*index, i) : i; };
   if (materialArray) {
     for (const BufferGeometry::Group& group : groups) {
       if (group.materialIndex < 0 || static_cast<size_t>(group.materialIndex) >= mesh.materials.size()) continue;
       const MaterialPtr& groupMaterial = mesh.materials[static_cast<size_t>(group.materialIndex)];
       if (!groupMaterial) continue;
-      const double start = jsMax(group.start, drawStart);
+      const double start = jsMax(0, jsMax(group.start, drawStart));
       const double end = jsMin(vertexCount, jsMin(static_cast<double>(group.start) + group.count, drawEnd));
       for (double j = start; j < end; j += 3) {
         const size_t i = static_cast<size_t>(j);
