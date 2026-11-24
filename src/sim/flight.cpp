@@ -796,7 +796,7 @@ void Aircraft::substep(double h, Ground& ground, bool near) {
       dy -= ny * dn;
       dz -= nz * dn;
       double dl = std::sqrt(dx * dx + dy * dy + dz * dz);
-      if (!(dl != 0)) dl = 1;
+      if (dl == 0 || std::isnan(dl)) dl = 1;
       dx /= dl;
       dy /= dl;
       dz /= dl;
@@ -1000,7 +1000,7 @@ void Aircraft::substep(double h, Ground& ground, bool near) {
   q[2] = qz + 0.5 * h * (qw * noz + qx * noy - qy * nox);
   q[3] = qw - 0.5 * h * (qx * nox + qy * noy + qz * noz);
   double ql = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-  if (!(ql != 0)) ql = 1;
+  if (ql == 0 || std::isnan(ql)) ql = 1;
   q[0] /= ql;
   q[1] /= ql;
   q[2] /= ql;
