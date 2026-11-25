@@ -28,33 +28,14 @@
 #include "platform/dom.h"
 // (the aerial photographs are translated: reality/aerial.h – the maps take them from here as before)
 #include "reality/aerial.h"
+#include "sim/roadevents.h"
 #include "ui/transitmap.h"
 
 namespace fs {
 
 // ---- src/ui/transitmap.ts: translated (ui/transitmap.h) ------------------------------------------
 
-// ---- src/sim/roadevents.ts ----------------------------------------------------------------------
-
-/** Roadworks or a demonstration of the day, for the map (interface RoadEventInfo). */
-struct RoadEventInfo {
-  /** 'works' | 'demo' */
-  std::string kind;
-  /** where it is (world) */
-  double x = 0;
-  double z = 0;
-  /** the street it is in */
-  std::string street;
-  /** when it holds: from and until (ms since 1970, by the game's clock) */
-  double from = 0;
-  double until = 0;
-  /** happening now (a demonstration of the day may still lie ahead, or be over) */
-  bool active = false;
-  /** roadworks: how the traffic passes ('lane', 'light', 'signs'); a demonstration: the place it gathers at */
-  std::string detail;
-  /** a demonstration: the course of its march (x, z, …; empty while its roads are not loaded) */
-  std::vector<double> line;
-};
+// ---- src/sim/roadevents.ts: translated (RoadEventInfo: sim/roadevents.h) ----------------------
 
 // ---- src/world/services.ts ----------------------------------------------------------------------
 

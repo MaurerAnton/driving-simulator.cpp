@@ -34,6 +34,10 @@
 #include "world/stops.h"
 #include "world/types.h"
 #include "world/world.h"
+#include "world/extrasigns.h"
+#include "sim/narrowings.h"
+#include "sim/roadevents.h"
+#include "sim/levelcrossing.h"
 
 namespace fs {
 
@@ -124,85 +128,6 @@ class Emergencies {
   virtual const std::vector<EmergencyFault>& judge(double dt, const PlayerSnapshot& p) = 0;
 };
 
-// ---- src/sim/roadevents.ts ----------------------------------------------------------------
-
-/** What roadworks ask of a vehicle (interface Gate). */
-struct Gate {
-  /** stop this far ahead of the front (m; Infinity: no need) */
-  double stop = JS_INF;
-  /** at most this fast (m/s; Infinity: as the road allows) */
-  double cap = JS_INF;
-  /** the lane ends ahead (closed): the one to move over to */
-  Lane* move = nullptr;
-  /** the road the vehicle meant to turn into next is closed: choose another way */
-  bool reroute = false;
-  /** why it stops: '' | 'light' | 'oncoming' | 'lane' | 'closed' */
-  std::string why;
-};
-
-/** The roadworks and closures of the day (class RoadEvents). */
-class RoadEvents {
- public:
-  virtual ~RoadEvents() = default;
-  virtual void step(double dt, const std::vector<TrafficCar*>& cars, const PlayerState& player) = 0;
-  virtual Gate gate(const Lane& lane, double front, double v, const Connector* next) = 0;
-  /** null: nothing ahead of this car */
-  virtual const Gate* gateCar(TrafficCar& car) = 0;
-  virtual Lane* openLane(const Lane& lane) = 0;
-  virtual bool laneOpen(const Lane& lane, double front) = 0;
-  /** how far left (+) of its lane a vehicle passes a closed side there (m) */
-  virtual double shift(const Lane& lane, double mid) = 0;
-  virtual void offset(const Lane& lane, double d, PolySample& p) = 0;
-  virtual bool closed(const Lane& lane) = 0;
-  virtual bool blocked(const Lane& lane, double s) = 0;
-  /** the obstacles with the fences, barriers and crowds of the zones near the player added */
-  virtual const std::vector<PlayerState*>& withBlocks(const std::vector<PlayerState*>& obstacles, const PlayerState& player) = 0;
-  virtual double limitAt(const Edge& edge, double s, int dir, double limit) = 0;
-  virtual bool passing(const Edge& edge, double s, int dir) = 0;
-  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, double off, int dir, double dt) = 0;
-};
-
-// ---- src/sim/narrowings.ts ----------------------------------------------------------------
-
-struct NarrowGate {
-  double stop = JS_INF;
-  double cap = JS_INF;
-  /** '' | 'oncoming' */
-  std::string why;
-};
-
-/** The narrowings kerb build-outs make (class Narrowings). */
-class Narrowings {
- public:
-  virtual ~Narrowings() = default;
-  const PlayerState* player = nullptr;
-  virtual double shift(const Lane& lane, double mid, double hw = 0.95, double hl = 2.3) = 0;
-  virtual void offset(const Lane& lane, double d, PolySample& p, double hw = 0.95, double hl = 2.3) = 0;
-  virtual bool passing(const Edge& edge, double s, int dir) = 0;
-  virtual NarrowGate gate(const Lane& lane, double front, double v, double length, const TrafficCar* self) = 0;
-  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, int dir) = 0;
-};
-
-// ---- src/sim/levelcrossing.ts -------------------------------------------------------------
-
-struct LxGate {
-  double stop = JS_INF;
-  double cap = JS_INF;
-  /** '' | 'light' | 'barrier' | 'train' | 'queue' */
-  std::string why;
-};
-
-/** The level crossings (class LevelCrossings). */
-class LevelCrossings {
- public:
-  virtual ~LevelCrossings() = default;
-  const PlayerState* player = nullptr;
-  virtual void update(double dt, double x, double z) = 0;
-  /** `self`: the car of the traffic that asks – or, with `isPlayer`, the player's vehicle (the original's 'player') */
-  virtual LxGate gate(const Lane& lane, double front, double v, double length, const Connector* next, const TrafficCar* self, bool isPlayer = false) = 0;
-  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, int dir, double dt) = 0;
-};
-
 // ---- src/sim/wildlife.ts ------------------------------------------------------------------
 
 /** Deer and wild boar crossing the country roads at dusk (class Wildlife). */
@@ -217,24 +142,6 @@ class Wildlife {
 
 // ---- src/world/buslines.ts: translated (world/buslines.h) --------------------------------
 
-// ---- src/world/extrasigns.ts --------------------------------------------------------------
-
-/** The signs with a time on them: which hold now, by the game's clock (class TimedRules). */
-class TimedRules {
- public:
-  virtual ~TimedRules() = default;
-  struct Limit {
-    /** km/h */
-    double v = 0;
-    /** what the sign's panel says ("22–6 h") */
-    std::string when;
-  };
-  /** the limit of a timed sign on a road in a direction that holds now – none: the road's own */
-  virtual std::optional<Limit> limit(int edge, int dir, bool heavy) = 0;
-  /** shut now to motor vehicles (or lorries): what the panel says – '' when it is not */
-  virtual std::string shut(int edge, int dir, bool heavy) = 0;
-};
-
 // --- what other files use of the parts that are not ported ---------------------------
 
 /** the first style of the emergency vehicles (src/sim/emergency.ts EM_STYLE) */
@@ -243,29 +150,6 @@ inline constexpr int EM_STYLE = 8;
 /** which emergency vehicle a style is (0 …), −1: none (src/sim/emergency.ts emKind) */
 inline int emKind(int style) { return style >= EM_STYLE && style < EM_STYLE + 8 ? (style - EM_STYLE) >> 1 : -1; }
 
-// ---- src/game/weather.ts ------------------------------------------------------------------
-// (what the cranes ask of the weather: its wind.  Until game/weather is translated the weather shown is
-//  always CLEAR_WEATHER – what 1.7.7 shows with the weather switched off – so these give its wind.)
-
-/** the part of a WeatherState the cranes read: mean wind 10 m above the ground (m/s), the strongest gusts (m/s), where it comes from (degrees) */
-struct WeatherState {
-  double wind = 2.5;
-  double gust = 5;
-  double windFrom = 250;
-};
-
-/** the weather shown now (game/weather.ts weatherNow: CLEAR_WEATHER until it is translated) */
-inline WeatherState weatherNow() { return WeatherState{}; }
-
-/** Where the wind blows to, and how hard (m/s): x east, z south (game/weather.ts windVector). */
-template <typename Out>
-Out& windVector(const WeatherState& s, Out& out) {
-  const double a = (s.windFrom * 3.14159265358979323846) / 180;
-  const double v = s.wind > 0 ? s.wind : 0;
-  // from the north (0°) it blows to the south, +z
-  out.x = -std::sin(a) * v;
-  out.z = std::cos(a) * v;
-  return out;
-}
+// ---- src/game/weather.ts: translated (game/weather.h) ----------------------------------------
 
 }  // namespace fs

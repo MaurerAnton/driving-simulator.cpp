@@ -12,7 +12,6 @@
  * "Later") is left out here, and so are the public functions that serve only those
  * parts:
  *
- *   setWipers                                  (wipers)
  *   showReplay, updateReplay, hideReplay,
  *   ReplayBar, ReplayState                     (replays; `onReplay` stays, as the hook it is)
  *   showAssetProgress, setAssetProgress,
@@ -309,6 +308,11 @@ class Hud {
 
   /** The world's moment in the HUD (null: the real one – nothing shown). */
   void setClock(const std::optional<std::string>& text);
+  /**
+   * The wiper stalk's place as a lamp beside the speed (off: none) – "int",
+   * "1", "2" under a wiper sign.  Without a dashboard (null) it is hidden.
+   */
+  void setWipers(const std::optional<std::string>& mode);
 
   /** The vehicle went up in flames (true) – the button for a new one – or there is one again (false). */
   void setWrecked(bool on);
@@ -370,8 +374,6 @@ class Hud {
   std::function<bool(const VehicleKind& kind, Settings::LastStart& last, const SpawnJson& spot, const std::vector<TramStopChoice>* tramStops, const std::vector<RunwayChoice>* runways,
                      const std::string& unnamed)>
       startFromSpot = nullptr;
-  /** ui/learn.ts openLearn: a learning mode ('exam' | 'signs' | 'danger' | 'log'); `show` puts its panel in the place of the menus */
-  std::function<void(const std::string& screen, std::function<void(const dom::El& panel)> show, std::function<void()> back)> openLearn = nullptr;
   /** ui/arcade.ts arcadePanel: the panel for `arcade` */
   std::function<dom::El(ArcadeHost& host)> arcadePanel = nullptr;
   /** ui/versionpicker.ts playVersionButton (an empty El: the site has not that version) and versionSettings (`when`: a moment given as ISO text, written for the reader) */
@@ -413,6 +415,8 @@ class Hud {
   dom::El dashV;
   dom::El lampBrake;
   dom::El lampBelt;
+  /** the wiper stalk's place (setWipers): made the first time it is asked for */
+  dom::El lampWipers;
   /** the fuel gauge of the dashboard strip (ui/fuelgauge.ts) */
   std::unique_ptr<FuelGauge> fuelGauge;
   dom::El dashG;
@@ -482,7 +486,7 @@ class Hud {
   T tFn() const;
   double fitRoundel(const std::string& text);
   void setOverlay(const dom::El& node);
-  /** A learning mode (ui/learn.ts): the theory exam, the sign trainer, spotting dangers, the lesson log. */
+  /** A learning mode (ui/learn.ts): the theory exam, the sign trainer, spotting dangers, the lesson log, or their overview ('hub' | 'exam' | 'signs' | 'danger' | 'log'). */
   void showLearn(const std::string& screen, std::function<void()> back);
   struct LearnMode {
     std::string id;

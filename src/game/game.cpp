@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
+#include "game/weather.h"
 
 #include <algorithm>
 #include <cmath>
@@ -32,14 +33,19 @@
 #include "render/actors.h"
 #include "render/crane.h"
 #include "render/far.h"
+#include "render/grass.h"
 #include "render/pedlights.h"
 #include "render/plane.h"
 #include "render/props.h"
+#include "render/levelcrossings.h"
+#include "render/roadworks.h"
 #include "render/airfield.h"
 #include "render/trams.h"
 #include "render/semitruck.h"
 #include "render/signs.h"
 #include "render/truck.h"
+#include "render/weather.h"
+#include "render/windscreen.h"
 #include "render/yard.h"
 #include "sim/airfield.h"
 #include "sim/arrows.h"
@@ -49,6 +55,9 @@
 #include "sim/clearlanes.h"
 #include "sim/collision.h"
 #include "sim/follow.h"
+#include "sim/levelcrossing.h"
+#include "sim/narrowings.h"
+#include "sim/roadevents.h"
 #include "sim/ground.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
@@ -56,6 +65,7 @@
 #include "sim/trailer.h"
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
+#include "game/outdoors.h"
 #include "game/startat.h"   // 2.0
 #include "ui/stage.h"   // 2.0: startFromSpot
 #include "ui/bigmap.h"
@@ -66,6 +76,7 @@
 #include "ui/tiltsteer.h"
 #include "ui/touchstick.h"
 #include "ui/worldtap.h"
+#include "world/extrasigns.h"
 #include "world/far.h"
 #include "world/netindex.h"
 #include "world/pedlights.h"
@@ -175,6 +186,8 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       railActors(std::make_unique<RailActors>()) {
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
   flightControls->engineOn = true;
+  grass = std::make_unique<GrassRenderer>();
+  windscreen = std::make_unique<WindscreenView>();
   driver.steer = 0;
   driver.throttle = 0;
   driver.brake = 0;
@@ -295,7 +308,24 @@ Task<void> Game::boot(URLSearchParams q) {
   }
   progress->step(0.45, 0.75);
   World& world = *app.world;
-  // (later: outdoors, the weather and the season: setMaterialHook, props.setSeason, far.setSeason – game.ts:622)
+  // the weather and the season: the tiles', the trees' and the far hills' materials learn them before the first tile is drawn
+  {
+    const SkyParts sky = skyParts(app.sky);
+    outdoors = std::make_unique<Outdoors>(*app.scene, &sky, WEATHER_PARTICLES(settings.quality == "custom" ? "medium" : settings.quality));
+  }
+  outdoors->view.roadWater = settings.graphics.weatherFx;
+  app.tiles->setMaterialHook([this](Material& m, TileMaterialKind k) {
+    if (!outdoors) return;
+    outdoors->patch(m, k == TileMaterialKind::Terrain ? "terrain" : k == TileMaterialKind::Ground ? "ground" : k == TileMaterialKind::Paint ? "paint"
+                       : k == TileMaterialKind::Struct  ? "struct"
+                                                        : "building");
+  });
+  props->setSeason([this](Material& m, TreeMaterialKind k) {
+    if (outdoors) outdoors->patch(m, k == TreeMaterialKind::Deciduous ? "deciduous" : k == TreeMaterialKind::Evergreen ? "evergreen" : "orchard");
+  });
+  far->setSeason([this](Material& m) {
+    if (outdoors) outdoors->patch(m, "far");
+  });
   co_await plat::sleep(0);
   lanes = std::make_unique<LaneGraph>(world);
   signals = std::make_unique<SignalSystem>(world.signals, world.lightsOut);
@@ -319,8 +349,15 @@ Task<void> Game::boot(URLSearchParams q) {
   ground = std::make_unique<WorldGround>(world, *terrain);
   // (later: wading, ground.waterDepth – game.ts:640)
   signs = std::make_unique<SignRenderer>(plat::locationBase() + "signs/", app.renderer.getMaxAnisotropy());
-  // (later: extraSigns, rules.timed: the signs the map was built without – game.ts:645)
+  // (and the signs the map was built without – with the rules of those with a time on them, by the game's clock)
   co_await signs->init();
+  extraSigns = co_await loadExtraSigns(app.map);
+  if (extraSigns) {
+    timedRules = std::make_unique<TimedRules>(extraSigns->rules, [] { return gameNow(); });
+    rules->timed = timedRules.get();
+    // ("bei Nässe": while the road is wet – the weather of game/weather, real or chosen)
+    timedRules->wet = [] { return weatherNow().wet > 0.3; };
+  }
   progress->step(0.75, 0.98);
   signalHeads = std::make_unique<SignalRenderer>(world, signals.get());
   collider->add({.key = "signals", .rings = nullptr, .ringCounts = nullptr, .segments = nullptr, .discs = signalHeads->poles});
@@ -353,7 +390,25 @@ Task<void> Game::boot(URLSearchParams q) {
   followers->signals = signals.get();
   followers->changed = [this] { signalsDirty = true; };
   followMap(*app.map, *followers);
-  // (later: roadEvents, traffic.wild, lanes.wayCost, narrowCollide, levelCrossings, crossingView, roadworks – game.ts:679)
+  // the roadworks and demonstrations of the day: the traffic, the rules and the way planners know them; the map's pieces bring their zones
+  roadEvents = std::make_unique<RoadEvents>(world, *lanes, *signals);
+  // (later: traffic.wild – game.ts:686)
+  roadEvents->ready = [this](double x, double z, double r) { return !this->app.map->pieces || this->app.map->ready(x, z, r); };
+  roadEvents->collider = collider.get();
+  traffic->roadEvents = roadEvents.get();
+  lanes->wayCost = routeFor.wayCost = [this](int w) { return roadEvents->wayCost(w); };
+  app.map->listen(MapListener{[this](const WorldChange& c) { roadEvents->added(c); }, [this](const WorldChange& c) { roadEvents->removed(c); }});
+  // the kerb build-outs narrowing the roads: their beds and beacons are solid (src/sim/narrowings)
+  narrowCollide(*collider, world.allEdges, true);
+  app.map->listen(MapListener{[this](const WorldChange& c) { narrowCollide(*collider, c.edges, true); }, [this](const WorldChange& c) { narrowCollide(*collider, c.edges, false); }});
+  // (later: roadEvents.setTracks(rail.net), levelCrossings.setRail(rail): the trams and trains – game.ts:698)
+  levelCrossings = std::make_unique<LevelCrossings>(world, *traffic);
+  traffic->levelCrossings = levelCrossings.get();
+  signs->editPost = [this](const SignPost& p) { return levelCrossings->editPost(p); };
+  crossingView = std::make_unique<LevelCrossingRenderer>(audio.get());
+  app.scene->add(crossingView->group);
+  roadworks = std::make_unique<RoadworksRenderer>(audio.get());
+  app.scene->add(roadworks->group);
   if (app.map->pieces) {
     // … then the roads of the whole map (some megabytes: on a connection that asks to save data only
     // once they are needed) and the railway tracks are read while the menu is up
@@ -468,7 +523,12 @@ Task<void> Game::boot(URLSearchParams q) {
     };
     host.menu = [this] { return mapFrom == "menu"; };
     host.stops = [this]() -> const std::vector<StopSource>* { return &stopSources; };
-    // (later: events, services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:923)
+    host.events = [this]() -> const std::vector<RoadEventInfo>* {
+      if (!roadEvents) return nullptr;
+      eventList = roadEvents->list();
+      return &eventList;
+    };
+    // (later: services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:924)
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
@@ -687,7 +747,8 @@ void Game::onTile(LoadedTile& tile, bool loaded) {
     // What stands in a lane (a fault of the map) is taken out of the way: sign posts are moved
     // beside the lane, lamps dropped, walls lose the pieces that reach in.  Maps built since do
     // this themselves and mark their tiles.
-    // (later: extraSigns.mergeInto, the signs the map was built without – game.ts:1187)
+    // the signs the map was built without (signs.json.gz), on the ground where they stand
+    if (extraSigns) extraSigns->mergeInto(tile.key, tile.header.signs, [this](double x, double z, double y) { return footGround(x, z, y); });
     const bool clear = !(tile.header.clr && *tile.header.clr);
     if (clear) {
       clearSigns(*lanes, tile.header.signs);
@@ -695,7 +756,7 @@ void Game::onTile(LoadedTile& tile, bool loaded) {
     }
     signsBesideRoad(tile.header.signs);
     props->add(tile);
-    // (later: grass.add – game.ts:1195)
+    grass->add(tile);
     signs->add(tile);
     std::vector<double> discs;
     for (const SignPost& s : tile.header.signs) discs.insert(discs.end(), {s.x, s.y, s.z, 0.06});
@@ -732,7 +793,7 @@ void Game::onTile(LoadedTile& tile, bool loaded) {
     } else collider->add({.key = tile.key, .rings = rings, .ringCounts = ringCounts, .ringSkip = u8("collSkip"), .segments = segments, .discs = discs});
   } else {
     props->remove(tile);
-    // (later: grass.remove – game.ts:1217)
+    grass->remove(tile.key);
     signs->remove(tile);
     collider->remove(tile.key);
   }
@@ -770,7 +831,15 @@ void Game::applySettings() {
   app.camera->updateProjectionMatrix();
   props->density = gx.propDensity;
   props->setShadows(gx.propShadows);
-  // (later: grass, outdoors, services.dirtShown – game.ts:1256)
+  // (vertical grass on the ground: the "No mercy" graphics only – many blades, only that pays for them)
+  grass->setEnabled(gx.weatherFx);
+  grass->density = gx.propDensity;
+  // as many raindrops and snowflakes as the graphics allow
+  if (outdoors) outdoors->view.quality(WEATHER_PARTICLES(s.quality == "custom" ? "medium" : s.quality));
+  // (later: outdoors.water.enabled – render/water.ts)
+  // the weather on the vehicle and the roads ("No mercy"): water on the roads (the windscreen: in the frame)
+  if (outdoors) outdoors->view.roadWater = gx.weatherFx;
+  // (later: services.dirtShown – game.ts:1263)
   railActors->detail(s.quality != "low");
   ui.style("zoom", jsStr(s.uiScale));
   app.resize();
