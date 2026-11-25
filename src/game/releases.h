@@ -81,6 +81,7 @@ inline const std::vector<Release> RELEASES = {
         .intro = "news.2_1_0.intro",
         .items = {"news.2_1_0.walk", "news.2_1_0.weather", "news.2_1_0.transit", "news.2_1_0.roads", "news.2_1_0.traffic",
                   "news.2_1_0.fuel", "news.2_1_0.learn", "news.2_1_0.watch", "news.2_1_0.regions", "news.2_1_0.sdl"},
+        .size = ReleaseSize{.lines = 408200, .code = 186695, .tests = 40575, .i18n = 85832, .bytes = 46111036},
     },
     {
         .version = "2.0.0",
