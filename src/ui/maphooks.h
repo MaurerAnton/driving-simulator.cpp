@@ -30,6 +30,7 @@
 #include "reality/aerial.h"
 #include "sim/roadevents.h"
 #include "ui/transitmap.h"
+#include "world/services.h"
 
 namespace fs {
 
@@ -37,16 +38,6 @@ namespace fs {
 
 // ---- src/sim/roadevents.ts: translated (RoadEventInfo: sim/roadevents.h) ----------------------
 
-// ---- src/world/services.ts ----------------------------------------------------------------------
-
-/** A fuel as the stations sell it (an entry of FUELS). */
-struct FuelKind {
-  std::string label;
-  bool diesel = false;
-  double price = 0;
-};
-
-/** `FUELS`: the fuels by their key ('e10', 'diesel' …) – null until world/services.ts is translated */
-inline const std::map<std::string, FuelKind>* FUELS = nullptr;
+// ---- src/world/services.ts: translated (FUELS: world/services.h) ---------------------------------
 
 }  // namespace fs
