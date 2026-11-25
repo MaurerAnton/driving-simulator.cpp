@@ -10,6 +10,7 @@
 #include "core/js.h"
 #include "engine/geometries.h"
 #include "render/carBody.h"
+#include "render/cyclist.h"
 #include "sim/hooks.h"
 #include "world/types.h"
 
@@ -84,7 +85,7 @@ CarVisualState busStateAtRest() {
 
 TrafficRenderer::TrafficRenderer()
     : people(std::make_unique<PeopleRenderer>(CROWD_MAX)),
-      emergency_(EmergencyFleet::create ? EmergencyFleet::create() : nullptr),
+      emergency_(std::make_unique<EmergencyFleet>()),
       busState_(busStateAtRest()) {
   group->name = "traffic";
   if (emergency_) group->add(emergency_->group);
@@ -187,9 +188,7 @@ void TrafficRenderer::update(const std::vector<TrafficCar*>& cars, const std::ve
       if (!cyclistPool_.empty()) {
         made = std::move(cyclistPool_.back());
         cyclistPool_.pop_back();
-      } else if (CyclistModel::create) made = CyclistModel::create(c->colour);
-      // (render/cyclist is not translated yet: no cyclist is drawn)
-      if (!made) continue;
+      } else made = CyclistModel::create ? CyclistModel::create(c->colour) : makeCyclistModel(c->colour);
       made->setColour(c->colour);
       m = cyclists_.set(c->id, std::move(made));
       group->add(m->group);

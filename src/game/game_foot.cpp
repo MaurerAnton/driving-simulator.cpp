@@ -367,15 +367,14 @@ std::unique_ptr<SpawnCars> Game::makeSpawnCars() {
 }
 
 bool Game::canSpawnCar(bool fromMap) {
-  // (later: watcher, showOn – game.ts:4922)
-  if (!(fromMap ? state == "map" && mapFrom != "menu" : state == "drive") || lesson || task || (demo && demo->active) || forklift) return false;
+  if (!(fromMap ? state == "map" && mapFrom != "menu" : state == "drive") || lesson || task || (demo && demo->active) || watcher || forklift || showOn) return false;
   // (later: riding, busRide – game.ts:4923)
   return walker != nullptr || (crane && crane->operating);
 }
 
 bool Game::canEnterParked() {
-  // (later: watcher, riding, busRide – game.ts:4928)
-  if (state != "drive" || lesson || task || (demo && demo->active) || doorT >= 0 || opens.busy()) return false;
+  // (later: riding, busRide – game.ts:4928)
+  if (state != "drive" || lesson || task || (demo && demo->active) || watcher || doorT >= 0 || opens.busy()) return false;
   if (walker || (crane && crane->operating)) return true;
   return !aircraft && !tram && !forklift && std::abs(vehicle->speed) < 0.5;
 }
@@ -401,7 +400,7 @@ void Game::enterParked(const Parked& p_) {
     from.root = d.model == "car" ? nullptr : ObjectPtr(model().root);
     spawnCars->swap(&p_, &from);
   } else spawnCars->swap(&p_, nullptr);
-  // (later: endWatch – game.ts:4946)
+  endWatch(false);
   if (demo) endDemo("ended");
   settings.vehicle = p.kind;
   saveSettings(settings);

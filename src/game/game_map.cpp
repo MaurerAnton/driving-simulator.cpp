@@ -143,7 +143,7 @@ void Game::teleportSpot(const SpawnJson& spot_) {
   // (the spot may be the map's own, which closing the map clears: held here)
   const SpawnJson spot = spot_;
   bigMap->close();
-  // (later: endWatch – game.ts:2171)
+  endWatch(false);
   if (demo) {
     demo = nullptr;
     nav->clear();
@@ -193,7 +193,8 @@ void Game::openMap(bool closeUp) {
   // (later: reality – from the photographs to the map – game.ts:2221)
   if (state != "drive" && state != "pause" && state != "menu") return;
   // (from the main menu: the map round the place the drive would begin – the vehicle shown there is put away meanwhile)
-  // (later: menuPreview, clearPreview – game.ts:2228)
+  const std::optional<MenuPreview> from = state == "menu" ? menuPreview : std::nullopt;
+  if (state == "menu") clearPreview();
   mapFrom = state;
   state = "map";
   input->enabled = false;
@@ -201,8 +202,8 @@ void Game::openMap(bool closeUp) {
   hud->hideOverlay();
   hud->setHudVisible(false);
   if (mapFrom == "menu") {
-    mpos[0] = menuFocus.x;
-    mpos[2] = menuFocus.z;
+    mpos[0] = from ? from->x : menuFocus.x;
+    mpos[2] = from ? from->z : menuFocus.z;
   } else vehicle->getModelPosition(mpos.data());
   // 2.0: one map for all regions – the layer of every region (the countries' outlines, regions.json), made
   //  once and handed to the map; its "Open this map" (BigMapHost::onOpenRegion: settings.region kept, the
@@ -238,8 +239,7 @@ void Game::closeMap() {
 
 /** The free camera flies, apart from the vehicle (not from the aeroplane, the tram or the forklift, nor on foot or watching: there it goes with them as before). */
 bool Game::flyFree() {
-  // (later: watcher, tram – game.ts:5183)
-  return cameraMode == "free" && state == "drive" && !walker && !aircraft && !forklift && !(crane && crane->operating) && doorT < 0;
+  return cameraMode == "free" && state == "drive" && !walker && !watcher && !aircraft && !tram && !forklift && !(crane && crane->operating) && doorT < 0;
 }
 
 /** The flying camera (game/flycam.ts): from where the camera was – or from behind the vehicle – wherever it is flown. */
@@ -281,8 +281,7 @@ bool Game::flyHold() {
 
 /** May the player be teleported now (ui/worldtap.ts)?  In a drive of one's own, in a vehicle on the road or on foot. */
 bool Game::canTeleport() {
-  // (later: watcher, showOn – game.ts:5285)
-  if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
+  if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active) || watcher || showOn) return false;
   // (later: riding, busRide, wrecked – game.ts:5286)
   if (doorT >= 0 || opens.busy()) return false;
   if (walker) return true;
@@ -296,8 +295,7 @@ bool Game::canTeleport() {
  * back into the seat first.
  */
 bool Game::canDrive() {
-  // (later: watcher, showOn – game.ts:5298)
-  if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
+  if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active) || watcher || showOn) return false;
   // (later: riding, busRide, wrecked – game.ts:5299)
   if (doorT >= 0 || opens.busy()) return false;
   if (walker) return true;
@@ -376,8 +374,7 @@ void Game::turnAround() {
 
 /** May the vehicle be turned round now (input action 'turn', F3)?  A road vehicle while driving. */
 bool Game::canTurnAround() {
-  // (later: watcher, showOn – game.ts:5373)
-  if (state != "drive" || lesson || task || (demo && demo->active)) return false;
+  if (state != "drive" || lesson || task || (demo && demo->active) || watcher || showOn) return false;
   // (later: riding, busRide – game.ts:5374)
   if (doorT >= 0 || opens.busy()) return false;
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane

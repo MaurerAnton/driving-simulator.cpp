@@ -473,8 +473,15 @@ void RailActors::placeLeaves(Shown& s, double open) {
 }
 
 void RailActors::update(const std::vector<std::unique_ptr<RailVehicle>>& vehicles, const std::vector<RailLine>& lines) {
+  std::vector<const RailVehicle*> list;
+  list.reserve(vehicles.size());
+  for (const auto& vp : vehicles) list.push_back(vp.get());
+  update(list, lines);
+}
+
+void RailActors::update(const std::vector<const RailVehicle*>& vehicles, const std::vector<RailLine>& lines) {
   std::unordered_set<int> seen;
-  for (const auto& vp : vehicles) {
+  for (const RailVehicle* vp : vehicles) {
     const RailVehicle& v = *vp;
     seen.insert(v.id);
     auto found = shown_.find(v.id);

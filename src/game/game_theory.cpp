@@ -15,7 +15,8 @@ namespace fs {
 
 void Game::openTheory() {
   if (!yardFrame) return;
-  // (later: clearPreview, menuPreview – game.ts:2700)
+  clearPreview();
+  menuPreview.reset();
   traffic->clear();
   // (later: rail.clear – game.ts:2703)
   hud->hideOverlay();

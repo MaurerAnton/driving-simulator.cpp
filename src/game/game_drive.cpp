@@ -54,6 +54,7 @@
 #include "sim/ground.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
+#include "sim/emergency.h"
 #include "sim/traffic.h"
 #include "sim/semitrailer.h"
 #include "sim/trailer.h"
@@ -196,7 +197,20 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
       tramStopName = stop->name;
     }
   }
-  // (later: the test place – game.ts:2803)
+  // (the test place: on the practice yard, at the west end of the aisle between the models)
+  showOn = mode == "show" && yardFrame.has_value();
+  if (showOn && yardFrame) {
+    const YardFrame& f = *yardFrame;
+    const std::array<double, 2> w = f.toWorld(-f.yard.len / 2 + 4, -2);
+    // (or, got into one of the models: where it stood – game/showdrive.ts)
+    const ShowSpot* at = showSpots.start();
+    spawn = at ? SpawnJson{.name = tr("showTitle", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street", .rough = false, .g = ""}
+               : SpawnJson{.name = tr("showTitle", settings.lang), .x = w[0], .z = w[1], .yaw = f.yawToWorld(-M_PI / 2), .kind = "street", .rough = false, .g = ""};
+    if (!at) {
+      tipText = tr("showEnter", settings.lang);
+      tipUntil = time + 10;
+    }
+  }
   lesson = nullptr;
   for (const LessonDef& l : LESSONS)
     if (l.id == mode) {
@@ -208,7 +222,15 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   // (later: wrecked, explosion – game.ts:2815)
   if (walker) leaveWalk();
   footAfterJump = false;
-  // (later: clearPreview, menuPreview, recorder.clear, riding, busRide – game.ts:2820)
+  // (what stood behind the menu goes: the drive places its own vehicle)
+  clearPreview();
+  menuPreview.reset();
+  // (a new drive: a new recording for its replay)
+  {
+    const VehicleDef* vk = VEHICLES.find(settings.vehicle);
+    recorder.clear(vk ? vk->kind : "car");
+  }
+  // (later: riding, busRide – game.ts:2829)
   // (the bus on a line: its stops from here on)
   busService = lesson && lesson->kind == "bus" ? std::make_unique<BusService>() : nullptr;
   busNav = "";
@@ -256,11 +278,11 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   lanes->longVehicle = def->long_;
   lanes->noMotorway = def->noMotorway;
   routeFor.noMotorway = def->noMotorway;
-  // (later: services.begin, the fuel in the tank – game/serviceworld.ts, game.ts:2862)
-  const VehicleSpec spec = def->spec(arcadeTransmission(settings.arcadeDrive, settings.transmission), powerOf(*def, settings.powers));
+  // (the fuel in the tank, the dirt – and a truck's goods in its physics: game/serviceworld.ts)
+  const VehicleSpec spec = services->begin(*def, def->spec(arcadeTransmission(settings.arcadeDrive, settings.transmission), powerOf(*def, settings.powers)), !lesson && mode == "free");
   arcadeDrive->reset();
   vehicle = std::make_unique<Vehicle>(spec, *ground);
-  // (later: wading.reset – game.ts:2865)
+  wading->reset();
   // the sound of this kind of vehicle (its engine's revs – the tram and the aeroplane have their own)
   audio->setVehicle(soundKindOf(def->kind), spec);
   // (the aeroplane's model is kept beside the road vehicles': planeAdapter)
@@ -299,7 +321,7 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     crane = makeCraneWork(*def->crane);
     const std::optional<CranePlace> at = craneStart(*def->crane, yardFrame ? &*yardFrame : nullptr);
     if (at) spawn = SpawnJson{.name = tr("craneSite", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street"};
-    // (later: showOn – game.ts:2907)
+    showOn = false;
     rules->yard = true;
     hud->canTeleport = false;
   }
@@ -312,7 +334,7 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     const std::optional<ForkPlace> at = work ? forkliftStart(yardFrame ? &*yardFrame : nullptr) : std::nullopt;
     if (at) spawn = SpawnJson{.name = tr("forkPlace", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street", .rough = false, .g = ""};
     if (work) {
-      // (later: showOn – game.ts:2920)
+      showOn = false;
       rules->yard = true;
     }
     hud->canTeleport = false;
@@ -511,7 +533,7 @@ void Game::tryPlace() {
     pendingIntro = std::nullopt;
     hud->showIntro(intro.title, intro.text, [this] { resume(); });
   }
-  // (later: services.startScene – game.ts:3089)
+  else if (services->startScene(*vehicle, model(), [this] { resume(); })) state = "intro";
   else resume();
   if (planDemo && state == "drive") {
     planDemo = false;
@@ -549,7 +571,7 @@ void Game::resume() {
 
 /** Where the world loads round: the vehicle – or somebody who walked away from it. */
 std::array<double, 2> Game::focus() {
-  // (later: watcher.focus – game.ts:3133)
+  if (watcher) return watcher->focus();
   // (the developer's view: the world loads round the camera)
   if (cameraMode == "dev") return {free.pos.x, free.pos.z};
   // (the flying camera: the world loads round it – game/flycam.ts)
@@ -564,7 +586,7 @@ void Game::pause() {
   input->enabled = false;
   audio->suspend();
   path->save();
-  // (later: offerReplay – game.ts:3491)
+  offerReplay();
   hud->showPause();
 }
 
@@ -627,7 +649,7 @@ void Game::finish() {
   lastResult->distanceKm = (vehicle->odometer - startOdo) / 1000;
   lastResult->minutes = (time - startTime) / 60;
   // how the lesson ended, for the lesson log (game/exam/learnstore.ts – ui/learn.ts)
-  // (later: offerReplay)
+  offerReplay();
   if (l) {
     std::vector<DrillTry> tries;
     if (drill)
@@ -643,13 +665,15 @@ void Game::onAction(const std::string& a) {
     if (hud->view) hud->view->toggleHud();
     return;
   }
-  // (later: watching a tram or bus: nothing is done to the player's own vehicle meanwhile – game.ts:3837)
+  // (watching a tram or bus: nothing is done to the player's own vehicle meanwhile)
+  if (watcher && a != "map" && a != "pause" && a != "help") return;
   // (later: 'reality' – game.ts:3838)
   if (a == "pause") {
     if (state == "drive") pause();
     else if (state == "pause") resume();
     else if (state == "map") closeMap();
-    // (later: the reality view, the replay – game.ts:3841)
+    // (later: the reality view – game.ts:3843)
+    else if (state == "replay") endReplay();
     else if (state == "theory" && theory) theory->back();
   }
   else if (a == "open" && state == "drive") {
@@ -680,8 +704,10 @@ void Game::onAction(const std::string& a) {
     // the crane: from driving to working it, and back
     craneToggle();
   }
-  // (later: 'door': on the test place beside one of the models, into it – showBeside, enterShow, game.ts:3873)
-  else if (a == "door" && state == "drive") {
+  else if (a == "door" && state == "drive" && showBeside() >= 0) {
+    // on the test place on foot beside one of its models: into it (game/showdrive.ts)
+    enterShow(showBeside());
+  } else if (a == "door" && state == "drive") {
     // (later: out of the tram's cab: the door key gets one in again at its door – after a vehicle went up in flames, a new one – game.ts:3877)
     Parked* parked = walker ? spawnCars->near(walker->x, walker->z) : nullptr;
     if (parked && canEnterParked()) enterParked(*parked);
@@ -701,8 +727,12 @@ void Game::onAction(const std::string& a) {
       noteTram(ev);
     } else getOut();
   }
-  // (later: 'view' in the replay – game.ts:3893)
-  else if (a == "panto" && state == "drive" && tram && !tramAuto) {
+  else if (a == "view" && state == "replay") {
+    ReplayCam& c = replayCam;
+    c.mode = c.mode == "behind" ? "driver" : c.mode == "driver" ? "free" : "behind";
+    c.yaw = 0;
+    c.pitch = c.mode == "driver" ? 0 : -0.25;
+  } else if (a == "panto" && state == "drive" && tram && !tramAuto) {
     // the tram's pantograph: up to the wire, or down
     std::vector<TramEvent> ev;
     tram->togglePanto(ev);
@@ -748,8 +778,9 @@ void Game::onAction(const std::string& a) {
     audio->click("tick");
     hud->message(tr("wipers.title", settings.lang), tr("wipers." + m, settings.lang));
   }
-  // (later: 'service' – game.ts:3943)
-  else if (a == "help") {
+  else if (a == "service") {
+    services->act(state);
+  } else if (a == "help") {
     if (state == "drive") {
       state = "pause";
       input->enabled = false;
@@ -888,8 +919,8 @@ void Game::toAutomatic() {
 
 /** Arcade driving for the road vehicle driven now (not the tram, the aeroplane, the forklift, a crane at work, nor on foot or watching). */
 bool Game::arcadeNow() {
-  // (later: … !watcher, !wrecked – game.ts:4068)
-  return settings.arcadeDrive && !tram && !aircraft && !forklift && !(crane && crane->operating) && def->kind != "pedestrian" && !walker;
+  // (later: … !wrecked – game.ts:4068)
+  return settings.arcadeDrive && !watcher && !tram && !aircraft && !forklift && !(crane && crane->operating) && def->kind != "pedestrian" && !walker;
 }
 
 void Game::stepOpen(double dt) {
@@ -918,7 +949,10 @@ void Game::stepDrive(double dt) {
     c.lookYaw = (*debugLook)[0];
     c.lookPitch = (*debugLook)[1];
   }
-  // (later: stepWatch – game.ts:4080)
+  if (watcher) {
+    stepWatch(dt);
+    return;
+  }
   if (tram) {
     stepTram(dt);
     return;
@@ -1052,7 +1086,17 @@ void Game::stepDrive(double dt) {
     c.ignition = true;
   }
 
-  // (later: services.drive; wading.step: through water, the brakes wet (brakeFactor) – game.ts:4232)
+  services->drive(dt, v, d, *def, walker != nullptr, task != nullptr, (demo && demo->active) || autoDrive > 0);
+  // through water: washed, the brakes wet (weaker while the physics steps), the engine drowned, the spray (game/wading.ts)
+  const WadingTip wadeTip =
+      wading->step(dt, walker || tram || aircraft ? nullptr : &v, def->model, services->dirt, d.brake, settings.quality != "low", app.sky.hemi->intensity / 1.2);
+  if (!wadeTip.empty()) {
+    tipText = tr(wadeTip, settings.lang);
+    tipUntil = time + 6;
+  }
+  const double pedal = d.brake;
+  // (wet brakes are road physics too: not when it is switched off)
+  if (!settings.evenRoads) d.brake *= wading->brakeFactor();
   acc = std::min(acc + dt, 0.1);
   bool stalled = false;
   bool grind = false;
@@ -1070,6 +1114,7 @@ void Game::stepDrive(double dt) {
     if (hitSpeed > impact) impact = hitSpeed;
     // (later: collider.lastBuilding, into the wall of a building at 70 km/h: explode – game.ts:4259)
   }
+  d.brake = pedal;
   path->add(v.pos[0], v.pos[2]);
   // a refused gear change: crunch, then the lever springs back
   if (grind) {
@@ -1234,7 +1279,13 @@ void Game::stepDrive(double dt) {
   // (a passenger does not drive: nothing to judge)
   if (!opens.passenger()) rules->update(dt, snap, traffic->events);
   signalTips(dt);
-  // (later: traffic.emergency.judging, its tip – game.ts:4374)
+  // blue lights and siren near by: what to do (src/sim/emergency) – not judged on a demonstration drive
+  if (traffic->emergency) traffic->emergency->judging = !(demo && demo->active);
+  const std::string emTip = traffic->emergency ? traffic->emergency->tip() : "";
+  if (!emTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {
+    tipText = tr(emTip, settings.lang);
+    tipUntil = time + 6;
+  }
   // (what the roadworks or a closure ahead ask: said once as they come up)
   const std::string roadTip = roadEvents ? roadEvents->takeTip() : "";
   if (!roadTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {
@@ -1279,7 +1330,7 @@ void Game::changeVehicle(const VehicleKind& kind) {
   const OnFoot* w = walker.get();
   const double x = w ? w->x : mpos[0];
   const double z = w ? w->z : mpos[2];
-  // (later: endWatch – game.ts:4850)
+  endWatch(false);
   if (demo) endDemo("ended");
   settings.vehicle = kind;
   saveSettings(settings);

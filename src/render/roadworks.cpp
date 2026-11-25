@@ -751,8 +751,7 @@ RoadworksRenderer::Site RoadworksRenderer::buildClosure(const ClosureLayout& L, 
     if (!policePool.empty()) {
       m = policePool.back();
       policePool.pop_back();
-    } else if (buildPoliceCar) m = buildPoliceCar();
-    if (!m) continue;
+    } else m = buildPoliceCar();
     m->group->position.set(c.x, c.y, c.z);
     m->group->rotation.set(0, c.yaw, 0);
     m->setSign(true);

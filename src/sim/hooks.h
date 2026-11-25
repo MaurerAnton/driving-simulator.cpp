@@ -38,6 +38,9 @@
 #include "sim/narrowings.h"
 #include "sim/roadevents.h"
 #include "sim/levelcrossing.h"
+#include "sim/cyclists.h"
+#include "sim/emergency.h"
+#include "sim/wildlife.h"
 
 namespace fs {
 
@@ -50,105 +53,13 @@ class RuleMonitor;
 
 // ---- src/world/stops.ts: translated (world/stops.h) ------------------------------------
 
-// ---- src/sim/cyclists.ts ------------------------------------------------------------------
+// ---- src/sim/cyclists.ts: translated (sim/cyclists.h) -------------------------------------
 
-/** Somebody on a bicycle (interface Cyclist: what the traffic reads of them). */
-struct Cyclist {
-  int id = 0;
-  /** the lane they ride beside, or the path through a junction they are on */
-  Lane* lane = nullptr;
-  Connector* conn = nullptr;
-  /** how far along it (m) */
-  double s = 0;
-  double v = 0;
-  double x = 0;
-  double y = 0;
-  double z = 0;
-  double yaw = 0;
-  /** how far the pedals and the wheels have turned (rad), and whether they brake hard (for the picture) */
-  double phase = 0;
-  double roll = 0;
-  bool braking = false;
-  int colour = 0;
-  /** knocked over: lies there for these seconds, then is gone */
-  double down = 0;
-};
+// ---- src/sim/emergency.ts: translated (sim/emergency.h) -----------------------------------
 
-inline constexpr double CYCLE_LENGTH = 1.8;
-inline constexpr double CYCLE_WIDTH = 0.64;
-
-/** People on bicycles (class Cyclists). */
-class Cyclists {
- public:
-  virtual ~Cyclists() = default;
-  std::vector<Cyclist*> list;
-  /** how many ride around near the player by themselves (those sent along for a turn come on top) */
-  int target = 0;
-  /** the lanes cars may appear on near a place (the traffic's spawn grid: Traffic::lanesAt) */
-  std::function<const std::vector<Lane*>*(double x, double z)> lanesAt = nullptr;
-  virtual void clear() = 0;
-  virtual void update(double dt, const PlayerState& player, const std::vector<PlayerState*>& obstacles, const std::vector<TrafficCar*>& cars,
-                      std::vector<TrafficEvent>& events) = 0;
-  /** is a cyclist beside or coming up behind a vehicle that is about to turn right off `lane`, its middle at `s`? */
-  virtual bool blocksRightTurn(const Lane& lane, double s, double half) = 0;
-};
-
-// ---- src/sim/emergency.ts -----------------------------------------------------------------
-
-/** An emergency vehicle and its call (interface EmergencyCar: what the traffic reads of it). */
-struct EmergencyCar {
-  /** on a call: blue lights and siren on (false: a police car on patrol) */
-  bool call = false;
-  /** the connectors of its way after the one it takes next, in order (Traffic.nextFor hands them out) */
-  std::vector<Connector*> route;
-};
-
-struct EmergencyFault {
-  std::string id;
-  /** 'hint' | 'minor' | 'major' | 'fail' */
-  std::string severity;
-};
-
-/** Emergency vehicles on their calls, and how the others make way for them (class Emergencies). */
-class Emergencies {
- public:
-  virtual ~Emergencies() = default;
-  struct Lead {
-    double gap = JS_INF;
-    double v = 0;
-  };
-  virtual void update(double dt, const PlayerState& player) = 0;
-  /** the speed a car wants: faster on a call, slower while making way */
-  virtual double desired(TrafficCar& car, double v0, double limit) = 0;
-  /** how far ahead a car that makes way is to stop (Infinity: not at all) */
-  virtual double stopFor(TrafficCar& car) = 0;
-  virtual Lead lead(TrafficCar& car) = 0;
-  /** through a junction on a call: the speed to go at most, or < 0: stop */
-  virtual double through(TrafficCar& car, const Connector& next, double distToLine, bool mustStop) = 0;
-  virtual const std::vector<EmergencyFault>& judge(double dt, const PlayerSnapshot& p) = 0;
-};
-
-// ---- src/sim/wildlife.ts ------------------------------------------------------------------
-
-/** Deer and wild boar crossing the country roads at dusk (class Wildlife). */
-class Wildlife {
- public:
-  virtual ~Wildlife() = default;
-  /** the animals on the road, as the cars see them */
-  std::vector<PlayerState*> boxes;
-  virtual void clear() = 0;
-  virtual void update(double dt, const PlayerState& player) = 0;
-};
+// ---- src/sim/wildlife.ts: translated (sim/wildlife.h) -------------------------------------
 
 // ---- src/world/buslines.ts: translated (world/buslines.h) --------------------------------
-
-// --- what other files use of the parts that are not ported ---------------------------
-
-/** the first style of the emergency vehicles (src/sim/emergency.ts EM_STYLE) */
-inline constexpr int EM_STYLE = 8;
-
-/** which emergency vehicle a style is (0 …), −1: none (src/sim/emergency.ts emKind) */
-inline int emKind(int style) { return style >= EM_STYLE && style < EM_STYLE + 8 ? (style - EM_STYLE) >> 1 : -1; }
 
 // ---- src/game/weather.ts: translated (game/weather.h) ----------------------------------------
 

@@ -1652,6 +1652,627 @@ void main() {
 	#include <dithering_fragment>
 })GLSL",
 "uInner uCam uFsLeaves uFsSpring uFsBlossom uFsAutumn uFsDormant uFsSnow uFsRoadSnow"},
+{"fs-terrain|fs-season-terrain|fs-water-terrain", "fs-terrain|fs-season-terrain|fs-water-terrain",
+R"GLSL(#define LAMBERT
+varying vec3 vViewPosition;
+#include <common>
+#define FS_WATER_DROP
+
+varying vec3 vFsWtrW;
+#ifdef FS_WATER_DROP
+uniform sampler2D map;
+
+float fsWtrMask(vec3 c) {
+  return smoothstep(0.02, 0.07, c.b - c.g) * step(c.r + 0.05, c.b);
+}
+#endif
+
+
+varying vec2 vFsSeasonXZ;
+uniform float uFsLeaves;
+uniform float uFsSpring;
+uniform float uFsBlossom;
+uniform float uFsAutumn;
+
+varying vec3 vFsWorld;
+
+#include <batching_pars_vertex>
+#include <uv_pars_vertex>
+#include <displacementmap_pars_vertex>
+#include <envmap_pars_vertex>
+#include <color_pars_vertex>
+#include <fog_pars_vertex>
+#include <normal_pars_vertex>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
+#include <shadowmap_pars_vertex>
+#include <logdepthbuf_pars_vertex>
+#include <clipping_planes_pars_vertex>
+void main() {
+	#include <uv_vertex>
+	#include <color_vertex>
+	#include <morphinstance_vertex>
+	#include <morphcolor_vertex>
+	#include <batching_vertex>
+	#include <beginnormal_vertex>
+	#include <morphnormal_vertex>
+	#include <skinbase_vertex>
+	#include <skinnormal_vertex>
+	#include <defaultnormal_vertex>
+	#include <normal_vertex>
+	#include <begin_vertex>
+
+#ifdef FS_WATER_DROP
+transformed.y -= 0.150 * fsWtrMask(textureLod(map, vMapUv, 0.0).rgb);
+#endif
+
+vFsWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+
+	#include <morphtarget_vertex>
+	#include <skinning_vertex>
+	#include <displacementmap_vertex>
+	#include <project_vertex>
+
+vFsWtrW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+
+
+{
+  vec4 fsW = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+  fsW = instanceMatrix * fsW;
+#endif
+  vFsSeasonXZ = (modelMatrix * fsW).xz;
+}
+
+	#include <logdepthbuf_vertex>
+	#include <clipping_planes_vertex>
+	vViewPosition = - mvPosition.xyz;
+	#include <worldpos_vertex>
+	#include <envmap_vertex>
+	#include <shadowmap_vertex>
+	#include <fog_vertex>
+})GLSL",
+R"GLSL(#define LAMBERT
+uniform vec3 diffuse;
+uniform vec3 emissive;
+uniform float opacity;
+#include <common>
+
+uniform float uFsWtrTime;
+uniform vec3 uFsWtrZenith;
+uniform vec3 uFsWtrHorizon;
+uniform vec3 uFsWtrSunDir;
+uniform vec3 uFsWtrSunColor;
+varying vec3 vFsWtrW;
+// how much this pixel is water (0 … 1), and how deep (0 at the edge … 1 in the middle)
+float fsWtrK = 0.0;
+float fsWtrDeep = 0.0;
+
+float fsWtrMask(vec3 c) {
+  return smoothstep(0.02, 0.07, c.b - c.g) * step(c.r + 0.05, c.b);
+}
+// a hash of a lattice point, repeating every 'per' points (the noise repeats every 256 m: no precision trouble far from the origin)
+float fsWtrHash(vec2 i, float per) {
+  i = mod(i, per);
+  vec3 p = fract(vec3(i.xyx) * 0.1031);
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}
+// value noise with its gradient: (value, d/dx, d/dy)
+vec3 fsWtrNoise(vec2 p, float per) {
+  vec2 i = floor(p);
+  vec2 f = p - i;
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  vec2 du = 6.0 * f * (1.0 - f);
+  float a = fsWtrHash(i, per);
+  float b = fsWtrHash(i + vec2(1.0, 0.0), per);
+  float c = fsWtrHash(i + vec2(0.0, 1.0), per);
+  float d = fsWtrHash(i + vec2(1.0, 1.0), per);
+  float k = a - b - c + d;
+  return vec3(a + (b - a) * u.x + (c - a) * u.y + k * u.x * u.y, du * vec2(b - a + k * u.y, c - a + k * u.x));
+}
+// the sky mirrored in direction r (as the dome draws it, without the sun)
+vec3 fsWtrSky(vec3 r) {
+  return mix(uFsWtrZenith, uFsWtrHorizon, pow(1.0 - clamp(r.y, 0.0, 1.0), 3.2));
+}
+
+
+varying vec2 vFsSeasonXZ;
+uniform float uFsLeaves;
+uniform float uFsSpring;
+uniform float uFsAutumn;
+uniform float uFsDormant;
+uniform float uFsSnow;
+uniform float uFsRoadSnow;
+float fsSeasonHash(vec2 p) {
+  p = fract(p * vec2(127.13, 311.71));
+  p += dot(p, p + 19.19);
+  return fract(p.x * p.y);
+}
+float fsSeasonNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fsSeasonHash(i), fsSeasonHash(i + vec2(1.0, 0.0)), f.x), mix(fsSeasonHash(i + vec2(0.0, 1.0)), fsSeasonHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+// how much of a surface the snow covers: on what faces the sky, in patches where it is thin
+float fsSnowCover(float amount, float up, float lo, float hi, vec2 xz) {
+  if (amount <= 0.001) return 0.0;
+  float n = fsSeasonNoise(xz * 0.31) * 0.65 + fsSeasonNoise(xz * 2.3) * 0.35;
+  float e = 1.15 - 1.3 * amount;
+  return smoothstep(lo, hi, up) * smoothstep(e - 0.15, e + 0.15, n);
+}
+// what the season does to a ground colour: green plants, fields, the forest floor
+vec3 fsSeasonGround(vec3 c) {
+  float mx = max(max(c.r, c.g), max(c.b, 1e-4));
+  float veg = smoothstep(0.08, 0.3, (c.g - max(c.r, c.b)) / mx);
+  float field = smoothstep(0.3, 0.45, (min(c.r, c.g) - c.b) / mx) * (1.0 - smoothstep(0.08, 0.2, abs(c.r - c.g) / mx));
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float dark = 1.0 - smoothstep(0.06, 0.14, l);
+  float fl = l / 0.35402;
+  float litter = max(uFsAutumn * (1.0 - uFsLeaves), uFsDormant);
+  vec3 o = c;
+  o = mix(o, o * vec3(1.10000, 1.15000, 0.90000), uFsSpring * veg);
+  o = mix(o, vec3(0.20156, 0.32314, 0.06848) * fl, uFsSpring * field * 0.7);
+  o = mix(o, o * vec3(1.15000, 0.92000, 0.80000), uFsAutumn * veg * (1.0 - dark) * 0.6);
+  o = mix(o, o * vec3(2.20000, 0.85000, 0.70000), veg * dark * litter * 0.8);
+  o = mix(o, vec3(0.23840, 0.16203, 0.07819) * fl, uFsAutumn * field * 0.7);
+  float dl = dot(o, vec3(0.2126, 0.7152, 0.0722));
+  o = mix(o, dl * vec3(1.10000, 1.00000, 0.78000), uFsDormant * veg * (1.0 - dark) * 0.55);
+  o = mix(o, vec3(0.18116, 0.13014, 0.07421) * fl, uFsDormant * field * 0.75);
+  return o;
+}
+
+varying vec3 vFsWorld;
+
+
+float fsHash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float fsNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fsHash(i), fsHash(i + vec2(1.0, 0.0)), f.x),
+             mix(fsHash(i + vec2(0.0, 1.0)), fsHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+vec3 fsLin(vec3 c) { return pow(c, vec3(2.2)); }
+
+
+#include <dithering_pars_fragment>
+#include <color_pars_fragment>
+#include <uv_pars_fragment>
+#include <map_pars_fragment>
+#include <alphamap_pars_fragment>
+#include <alphatest_pars_fragment>
+#include <alphahash_pars_fragment>
+#include <aomap_pars_fragment>
+#include <lightmap_pars_fragment>
+#include <emissivemap_pars_fragment>
+#include <envmap_common_pars_fragment>
+#include <envmap_pars_fragment>
+#include <envmap_physical_pars_fragment>
+#include <fog_pars_fragment>
+#include <bsdfs>
+#include <lights_pars_begin>
+#include <normal_pars_fragment>
+#include <lights_lambert_pars_fragment>
+#include <shadowmap_pars_fragment>
+#include <bumpmap_pars_fragment>
+#include <normalmap_pars_fragment>
+#include <specularmap_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <clipping_planes_pars_fragment>
+void main() {
+	vec4 diffuseColor = vec4( diffuse, opacity );
+	#include <clipping_planes_fragment>
+	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+	vec3 totalEmissiveRadiance = emissive;
+	#include <logdepthbuf_fragment>
+	
+#ifdef USE_MAP
+#define FS_COVER_EDGE
+vec3 fsCoverRGB;
+{
+  vec4 fsLin = texture2D(map, vMapUv);
+  fsCoverRGB = fsLin.rgb;
+  ivec2 fsN = textureSize(map, 0);
+  vec2 fsP = vMapUv * vec2(fsN) - 0.5;
+  vec2 fsDp = fwidth(fsP);
+  float fsPx = max(fsDp.x, fsDp.y);
+  vec2 fsDw = fwidth(vFsWorld.xz);
+  float fsMpp = max(max(fsDw.x, fsDw.y), 1e-4);
+  if (fsPx < 1.0) {
+    vec2 fsI = floor(fsP);
+    vec2 fsF = fsP - fsI;
+    ivec2 fsI0 = ivec2(fsI);
+    ivec2 fsHi = fsN - 1;
+    vec4 fsT[4];
+    fsT[0] = texelFetch(map, clamp(fsI0, ivec2(0), fsHi), 0);
+    fsT[1] = texelFetch(map, clamp(fsI0 + ivec2(1, 0), ivec2(0), fsHi), 0);
+    fsT[2] = texelFetch(map, clamp(fsI0 + ivec2(0, 1), ivec2(0), fsHi), 0);
+    fsT[3] = texelFetch(map, clamp(fsI0 + ivec2(1, 1), ivec2(0), fsHi), 0);
+    if (min(min(fsT[0].a, fsT[1].a), min(fsT[2].a, fsT[3].a)) > 0.01) {
+)GLSL"
+R"GLSL(      vec4 fsW = vec4((1.0 - fsF.x) * (1.0 - fsF.y), fsF.x * (1.0 - fsF.y), (1.0 - fsF.x) * fsF.y, fsF.x * fsF.y);
+      vec4 fsD = vec4(fsT[0].a, fsT[1].a, fsT[2].a, fsT[3].a) * (255.0 / 80.0) - 0.1;
+      // each texel's class: its signed distance interpolated here
+      float fsPhi[4];
+      for (int k = 0; k < 4; k++) {
+        float p = 0.0;
+        for (int i = 0; i < 4; i++) {
+          vec3 e = fsT[i].rgb - fsT[k].rgb;
+          p += fsW[i] * (dot(e, e) < 1e-7 ? fsD[i] : -fsD[i]);
+        }
+        fsPhi[k] = p;
+      }
+      int fsB = 0;
+      for (int k = 1; k < 4; k++) if (fsPhi[k] > fsPhi[fsB]) fsB = k;
+      vec3 fsCb = fsT[fsB].rgb;
+      float fsSecond = -1e9;
+      vec3 fsCs = fsCb;
+      for (int k = 0; k < 4; k++) {
+        vec3 e = fsT[k].rgb - fsCb;
+        if (dot(e, e) >= 1e-7 && fsPhi[k] > fsSecond) {
+          fsSecond = fsPhi[k];
+          fsCs = fsT[k].rgb;
+        }
+      }
+      vec3 fsSharp = fsCb;
+      if (fsSecond > -1e8) {
+        // (half the difference: the distance to the edge, m; smoothed over a pixel)
+        float fsE = 0.5 * (fsPhi[fsB] - fsSecond);
+        fsSharp = mix(fsCs, fsCb, clamp(fsE / fsMpp + 0.5, 0.5, 1.0));
+      }
+      fsCoverRGB = mix(fsSharp, fsLin.rgb, smoothstep(0.5, 1.0, fsPx));
+    }
+  }
+  diffuseColor *= vec4(fsCoverRGB, 1.0);
+}
+#endif
+
+      {
+        float d = distance(vFsWorld, cameraPosition);
+        float fine = 1.0 - smoothstep(8.0, 50.0, d);
+        float mid = 1.0 - smoothstep(60.0, 400.0, d);
+        float n = (fsNoise(vFsWorld.xz * 0.11) - 0.5) * 0.30 * (0.35 + 0.65 * mid)
+                + (fsNoise(vFsWorld.xz * 1.3) - 0.5) * 0.22 * mid
+                + (fsNoise(vFsWorld.xz * 19.0) - 0.5) * 0.30 * fine;
+        diffuseColor.rgb *= 1.0 + n;
+      }
+	#include <color_fragment>
+	#include <alphamap_fragment>
+	#include <alphatest_fragment>
+	#include <alphahash_fragment>
+	#include <specularmap_fragment>
+	#include <normal_fragment_begin>
+	#include <normal_fragment_maps>
+	{
+  vec3 fsUpV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+  float fsUp = dot(normal, fsUpV);
+  diffuseColor.rgb = fsSeasonGround(diffuseColor.rgb);
+  // (no snow on the water)
+  float fsWater = step(diffuseColor.r + 0.05, diffuseColor.b) * step(diffuseColor.g, diffuseColor.b);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.77582, 0.81485, 0.87137), fsSnowCover(uFsSnow, fsUp, 0.55, 0.8, vFsSeasonXZ) * (1.0 - fsWater));
+}
+
+{
+#ifdef FS_COVER_EDGE
+  // (the cover with its smooth edges – render/coveredge.ts)
+  fsWtrK = fsWtrMask(fsCoverRGB);
+#else
+  fsWtrK = fsWtrMask(texture2D(map, vMapUv).rgb);
+#endif
+  if (fsWtrK > 0.001) {
+    // (the coarse mipmap: how much of the surroundings is water – the middle of a river or a lake is deep)
+    fsWtrDeep = smoothstep(0.0, 0.07, dot(textureLod(map, vMapUv, 3.0).rgb, vec3(0.0, -1.0, 1.0)));
+    vec3 fsBed = diffuseColor.rgb * vec3(0.55, 0.58, 0.5);
+    vec3 fsBody = mix(fsBed, vec3(0.012, 0.035, 0.04), 0.45 + 0.55 * fsWtrDeep);
+    diffuseColor.rgb = mix(diffuseColor.rgb, fsBody, fsWtrK);
+  }
+}
+
+#include <emissivemap_fragment>
+	#include <lights_lambert_fragment>
+	#include <lights_fragment_begin>
+	#include <lights_fragment_maps>
+	#include <lights_fragment_end>
+	#include <aomap_fragment>
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;
+	#include <envmap_fragment>
+	
+if (fsWtrK > 0.001) {
+  vec3 fsV = vFsWtrW - cameraPosition;
+  float fsDist = length(fsV);
+  fsV /= max(fsDist, 1e-3);
+  
+    vec2 fsQ = mod(vFsWtrW.xz, 256.0);
+    float fsT = uFsWtrTime;
+    vec3 fsA = fsWtrNoise(fsQ * 0.5 + fsT * vec2(0.23, 0.13), 128.0);
+    vec3 fsB = fsWtrNoise(fsQ * 1.75 + fsT * vec2(-0.12, 0.41), 448.0);
+    float fsAmp = 1.0 - smoothstep(25.0, 260.0, fsDist);
+    vec2 fsG = (fsA.yz * 0.5 * 0.16 + fsB.yz * 1.75 * 0.05) * fsAmp;
+    vec3 fsN = normalize(vec3(-fsG.x, 1.0, -fsG.y));
+  vec3 fsR = reflect(fsV, fsN);
+  fsR.y = abs(fsR.y);
+  float fsCos = clamp(-dot(fsV, fsN), 0.0, 1.0);
+  float fsF = 0.02 + 0.98 * pow(1.0 - fsCos, 5.0);
+  // (shallow water at the edge lets more of the bed through)
+  fsF *= 0.75 + 0.25 * fsWtrDeep;
+  vec3 fsWater = mix(outgoingLight, fsWtrSky(fsR), fsF);
+  float fsS = max(dot(fsR, uFsWtrSunDir), 0.0);
+  float fsSunUp = smoothstep(-0.03, 0.08, uFsWtrSunDir.y);
+  fsWater += uFsWtrSunColor * fsSunUp * (pow(fsS, 350.0) * 5.0 + pow(fsS, 40.0) * 0.18);
+  outgoingLight = mix(outgoingLight, fsWater, fsWtrK);
+}
+
+#include <opaque_fragment>
+	#include <tonemapping_fragment>
+	#include <colorspace_fragment>
+	#include <fog_fragment>
+	#include <premultiplied_alpha_fragment>
+	#include <dithering_fragment>
+})GLSL",
+"uFsLeaves uFsSpring uFsBlossom uFsAutumn uFsDormant uFsSnow uFsRoadSnow uFsWtrTime uFsWtrZenith uFsWtrHorizon uFsWtrSunDir uFsWtrSunColor"},
+{"fs-far|fs-season-far|fs-water-far", "fs-far|fs-season-far|fs-water-far",
+R"GLSL(#define LAMBERT
+varying vec3 vViewPosition;
+#include <common>
+
+varying vec3 vFsWtrW;
+#ifdef FS_WATER_DROP
+uniform sampler2D map;
+
+float fsWtrMask(vec3 c) {
+  return smoothstep(0.02, 0.07, c.b - c.g) * step(c.r + 0.05, c.b);
+}
+#endif
+
+
+varying vec2 vFsSeasonXZ;
+uniform float uFsLeaves;
+uniform float uFsSpring;
+uniform float uFsBlossom;
+uniform float uFsAutumn;
+
+varying vec2 vFarXZ;
+#include <batching_pars_vertex>
+#include <uv_pars_vertex>
+#include <displacementmap_pars_vertex>
+#include <envmap_pars_vertex>
+#include <color_pars_vertex>
+#include <fog_pars_vertex>
+#include <normal_pars_vertex>
+#include <morphtarget_pars_vertex>
+#include <skinning_pars_vertex>
+#include <shadowmap_pars_vertex>
+#include <logdepthbuf_pars_vertex>
+#include <clipping_planes_pars_vertex>
+void main() {
+	#include <uv_vertex>
+	#include <color_vertex>
+	#include <morphinstance_vertex>
+	#include <morphcolor_vertex>
+	#include <batching_vertex>
+	#include <beginnormal_vertex>
+	#include <morphnormal_vertex>
+	#include <skinbase_vertex>
+	#include <skinnormal_vertex>
+	#include <defaultnormal_vertex>
+	#include <normal_vertex>
+	#include <begin_vertex>
+
+	#include <morphtarget_vertex>
+	#include <skinning_vertex>
+	#include <displacementmap_vertex>
+	#include <project_vertex>
+
+vFsWtrW = (modelMatrix * vec4(transformed, 1.0)).xyz;
+
+
+{
+  vec4 fsW = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+  fsW = instanceMatrix * fsW;
+#endif
+  vFsSeasonXZ = (modelMatrix * fsW).xz;
+}
+
+	#include <logdepthbuf_vertex>
+	#include <clipping_planes_vertex>
+	vViewPosition = - mvPosition.xyz;
+	#include <worldpos_vertex>
+vFarXZ = (modelMatrix * vec4(transformed, 1.0)).xz;
+	#include <envmap_vertex>
+	#include <shadowmap_vertex>
+	#include <fog_vertex>
+})GLSL",
+R"GLSL(#define LAMBERT
+uniform vec3 diffuse;
+uniform vec3 emissive;
+uniform float opacity;
+#include <common>
+
+uniform float uFsWtrTime;
+uniform vec3 uFsWtrZenith;
+uniform vec3 uFsWtrHorizon;
+uniform vec3 uFsWtrSunDir;
+uniform vec3 uFsWtrSunColor;
+varying vec3 vFsWtrW;
+// how much this pixel is water (0 … 1), and how deep (0 at the edge … 1 in the middle)
+float fsWtrK = 0.0;
+float fsWtrDeep = 0.0;
+
+float fsWtrMask(vec3 c) {
+  return smoothstep(0.02, 0.07, c.b - c.g) * step(c.r + 0.05, c.b);
+}
+// a hash of a lattice point, repeating every 'per' points (the noise repeats every 256 m: no precision trouble far from the origin)
+float fsWtrHash(vec2 i, float per) {
+  i = mod(i, per);
+  vec3 p = fract(vec3(i.xyx) * 0.1031);
+  p += dot(p, p.yzx + 33.33);
+  return fract((p.x + p.y) * p.z);
+}
+// value noise with its gradient: (value, d/dx, d/dy)
+vec3 fsWtrNoise(vec2 p, float per) {
+  vec2 i = floor(p);
+  vec2 f = p - i;
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  vec2 du = 6.0 * f * (1.0 - f);
+  float a = fsWtrHash(i, per);
+  float b = fsWtrHash(i + vec2(1.0, 0.0), per);
+  float c = fsWtrHash(i + vec2(0.0, 1.0), per);
+  float d = fsWtrHash(i + vec2(1.0, 1.0), per);
+  float k = a - b - c + d;
+  return vec3(a + (b - a) * u.x + (c - a) * u.y + k * u.x * u.y, du * vec2(b - a + k * u.y, c - a + k * u.x));
+}
+// the sky mirrored in direction r (as the dome draws it, without the sun)
+vec3 fsWtrSky(vec3 r) {
+  return mix(uFsWtrZenith, uFsWtrHorizon, pow(1.0 - clamp(r.y, 0.0, 1.0), 3.2));
+}
+
+
+varying vec2 vFsSeasonXZ;
+uniform float uFsLeaves;
+uniform float uFsSpring;
+uniform float uFsAutumn;
+uniform float uFsDormant;
+uniform float uFsSnow;
+uniform float uFsRoadSnow;
+float fsSeasonHash(vec2 p) {
+  p = fract(p * vec2(127.13, 311.71));
+  p += dot(p, p + 19.19);
+  return fract(p.x * p.y);
+}
+float fsSeasonNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fsSeasonHash(i), fsSeasonHash(i + vec2(1.0, 0.0)), f.x), mix(fsSeasonHash(i + vec2(0.0, 1.0)), fsSeasonHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+// how much of a surface the snow covers: on what faces the sky, in patches where it is thin
+float fsSnowCover(float amount, float up, float lo, float hi, vec2 xz) {
+  if (amount <= 0.001) return 0.0;
+  float n = fsSeasonNoise(xz * 0.31) * 0.65 + fsSeasonNoise(xz * 2.3) * 0.35;
+  float e = 1.15 - 1.3 * amount;
+  return smoothstep(lo, hi, up) * smoothstep(e - 0.15, e + 0.15, n);
+}
+// what the season does to a ground colour: green plants, fields, the forest floor
+vec3 fsSeasonGround(vec3 c) {
+  float mx = max(max(c.r, c.g), max(c.b, 1e-4));
+  float veg = smoothstep(0.08, 0.3, (c.g - max(c.r, c.b)) / mx);
+  float field = smoothstep(0.3, 0.45, (min(c.r, c.g) - c.b) / mx) * (1.0 - smoothstep(0.08, 0.2, abs(c.r - c.g) / mx));
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  float dark = 1.0 - smoothstep(0.06, 0.14, l);
+  float fl = l / 0.35402;
+  float litter = max(uFsAutumn * (1.0 - uFsLeaves), uFsDormant);
+  vec3 o = c;
+  o = mix(o, o * vec3(1.10000, 1.15000, 0.90000), uFsSpring * veg);
+  o = mix(o, vec3(0.20156, 0.32314, 0.06848) * fl, uFsSpring * field * 0.7);
+  o = mix(o, o * vec3(1.15000, 0.92000, 0.80000), uFsAutumn * veg * (1.0 - dark) * 0.6);
+  o = mix(o, o * vec3(2.20000, 0.85000, 0.70000), veg * dark * litter * 0.8);
+  o = mix(o, vec3(0.23840, 0.16203, 0.07819) * fl, uFsAutumn * field * 0.7);
+  float dl = dot(o, vec3(0.2126, 0.7152, 0.0722));
+  o = mix(o, dl * vec3(1.10000, 1.00000, 0.78000), uFsDormant * veg * (1.0 - dark) * 0.55);
+  o = mix(o, vec3(0.18116, 0.13014, 0.07421) * fl, uFsDormant * field * 0.75);
+  return o;
+}
+
+varying vec2 vFarXZ;
+uniform float uInner;
+uniform vec2 uCam;
+#include <dithering_pars_fragment>
+#include <color_pars_fragment>
+#include <uv_pars_fragment>
+#include <map_pars_fragment>
+#include <alphamap_pars_fragment>
+#include <alphatest_pars_fragment>
+#include <alphahash_pars_fragment>
+#include <aomap_pars_fragment>
+#include <lightmap_pars_fragment>
+#include <emissivemap_pars_fragment>
+#include <envmap_common_pars_fragment>
+#include <envmap_pars_fragment>
+#include <envmap_physical_pars_fragment>
+#include <fog_pars_fragment>
+#include <bsdfs>
+#include <lights_pars_begin>
+#include <normal_pars_fragment>
+#include <lights_lambert_pars_fragment>
+#include <shadowmap_pars_fragment>
+#include <bumpmap_pars_fragment>
+#include <normalmap_pars_fragment>
+#include <specularmap_pars_fragment>
+#include <logdepthbuf_pars_fragment>
+#include <clipping_planes_pars_fragment>
+void main() {
+  if (distance(vFarXZ, uCam) < uInner) discard;
+	vec4 diffuseColor = vec4( diffuse, opacity );
+	#include <clipping_planes_fragment>
+	ReflectedLight reflectedLight = ReflectedLight( vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ), vec3( 0.0 ) );
+	vec3 totalEmissiveRadiance = emissive;
+	#include <logdepthbuf_fragment>
+	#include <map_fragment>
+	#include <color_fragment>
+	#include <alphamap_fragment>
+	#include <alphatest_fragment>
+	#include <alphahash_fragment>
+	#include <specularmap_fragment>
+	#include <normal_fragment_begin>
+	#include <normal_fragment_maps>
+	{
+  vec3 fsUpV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+  float fsUp = dot(normal, fsUpV);
+  diffuseColor.rgb = fsSeasonGround(diffuseColor.rgb);
+  // (no snow on the water)
+  float fsWater = step(diffuseColor.r + 0.05, diffuseColor.b) * step(diffuseColor.g, diffuseColor.b);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.77582, 0.81485, 0.87137), fsSnowCover(uFsSnow, fsUp, 0.55, 0.8, vFsSeasonXZ) * (1.0 - fsWater));
+}
+
+{
+  fsWtrK = fsWtrMask(vColor.rgb);
+  fsWtrDeep = 1.0;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.02, 0.05, 0.06), fsWtrK);
+}
+
+#include <emissivemap_fragment>
+	#include <lights_lambert_fragment>
+	#include <lights_fragment_begin>
+	#include <lights_fragment_maps>
+	#include <lights_fragment_end>
+	#include <aomap_fragment>
+	vec3 outgoingLight = reflectedLight.directDiffuse + reflectedLight.indirectDiffuse + totalEmissiveRadiance;
+	#include <envmap_fragment>
+	
+if (fsWtrK > 0.001) {
+)GLSL"
+R"GLSL(  vec3 fsV = vFsWtrW - cameraPosition;
+  float fsDist = length(fsV);
+  fsV /= max(fsDist, 1e-3);
+  vec3 fsN = vec3(0.0, 1.0, 0.0);
+  vec3 fsR = reflect(fsV, fsN);
+  fsR.y = abs(fsR.y);
+  float fsCos = clamp(-dot(fsV, fsN), 0.0, 1.0);
+  float fsF = 0.02 + 0.98 * pow(1.0 - fsCos, 5.0);
+  // (shallow water at the edge lets more of the bed through)
+  fsF *= 0.75 + 0.25 * fsWtrDeep;
+  vec3 fsWater = mix(outgoingLight, fsWtrSky(fsR), fsF);
+  float fsS = max(dot(fsR, uFsWtrSunDir), 0.0);
+  float fsSunUp = smoothstep(-0.03, 0.08, uFsWtrSunDir.y);
+  fsWater += uFsWtrSunColor * fsSunUp * (pow(fsS, 60.0) * 0.6);
+  outgoingLight = mix(outgoingLight, fsWater, fsWtrK);
+}
+
+#include <opaque_fragment>
+	#include <tonemapping_fragment>
+	#include <colorspace_fragment>
+	#include <fog_fragment>
+	#include <premultiplied_alpha_fragment>
+	#include <dithering_fragment>
+})GLSL",
+"uInner uCam uFsLeaves uFsSpring uFsBlossom uFsAutumn uFsDormant uFsSnow uFsRoadSnow uFsWtrTime uFsWtrZenith uFsWtrHorizon uFsWtrSunDir uFsWtrSunColor"},
 {"fs-ground|fs-season-ground", "fs-ground|fs-season-ground",
 R"GLSL(#define LAMBERT
 varying vec3 vViewPosition;
@@ -4671,7 +5292,7 @@ specularStrength *= 1.0 - 0.85 * dirtMask;
 })GLSL",
 "uDirt uDirtFrame uDirtHeight uDirtColour uDirtNoise"},
 };
-const int GAME_SHADER_COUNT = 24;
+const int GAME_SHADER_COUNT = 26;
 
 const GameShader* gameShader(const char* name) {
   for (int i = 0; i < GAME_SHADER_COUNT; i++)

@@ -127,7 +127,7 @@ struct TrafficCar {
   /** a bus that has lost its line's way: the connectors back onto it, the next first ([]: none found; no value: not looked for) */
   std::optional<std::vector<Connector*>> detour = std::nullopt;
   /** an emergency vehicle – police, ambulance, fire engine, the emergency doctor – and its call (src/sim/emergency) */
-  EmergencyCar* em = nullptr;
+  std::shared_ptr<EmergencyCar> em;
   /** how far it keeps left (+) or right (−) of the middle of its lane (m): making way for one of those, or passing the others */
   double side = 0;
   /** going round something that blocks its lane – waiting behind it, out, beside it, back (src/sim/pastblock) */
@@ -248,8 +248,8 @@ class Traffic {
   std::vector<TrafficCar*> cars;
   /** the people on foot in the town (src/sim/pedestrians; `crowd.target` says how many) */
   std::unique_ptr<Crowd> crowd;
-  /** people on bicycles (src/sim/cyclists) – a hook: null until that is translated (give it `lanesAt` of this traffic) */
-  Cyclists* cyclists = nullptr;
+  /** people on bicycles (src/sim/cyclists) */
+  std::unique_ptr<Cyclists> cyclists;
   /**
    * The bus stops along a lane (set by the game from the stops of the map) –
    * with them, now and then a city bus is among the traffic.

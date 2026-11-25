@@ -17,6 +17,7 @@
 #include "ui/hud.h"
 #include "ui/hud_parts.h"
 #include "ui/learn.h"
+#include "ui/stage.h"
 
 namespace fs {
 
@@ -68,20 +69,21 @@ double dateOf(const std::string& text) {
 
 using hudParts::dateOf;
 
-/** `load: () => this.loadAddresses()` as the address field takes it: the search of the list, once it is there */
-static Task<AddressSearchOf<AddressHit>> searchOf(std::function<Task<AddressIndex*>()> load) {
+using hudParts::searchOf;
+
+Task<AddressSearchOf<AddressHit>> hudParts::searchOf(std::function<Task<AddressIndex*>()> load) {
   AddressIndex* index = co_await load();
   if (!index) co_return nullptr;
   co_return [index](const std::string& query, size_t limit, const std::optional<AddressIndex::Near>& near) { return index->search(query, limit, near); };
 }
 
 void Hud::showMenu(const std::vector<SpawnJson>& spawnList) {
-  if (settings.menuStyle == "stage" && showStage) {
-    run(showStage, spawnList);
+  if (settings.menuStyle == "stage") {
+    showStage(spawnList);
     return;
   }
-  if (settings.menuStyle == "carousel" && showCarousel) {
-    run(showCarousel, spawnList);
+  if (settings.menuStyle == "carousel") {
+    showCarousel(spawnList);
     return;
   }
   run(onMenuPreview, nullptr);
@@ -453,7 +455,6 @@ void Hud::redrawMenu() {
 }
 
 void Hud::menuStartAt(const SpawnJson& spot) {
-  if (!startFromSpot) return;
   const VehicleDef* chosen = VEHICLES.find(settings.vehicle);
   const VehicleKind kind = chosen ? chosen->kind : VEHICLES.at("car").kind;
   if (startFromSpot(kind, settings.lastStart, spot, tramStops ? &*tramStops : nullptr, runways ? &*runways : nullptr, t("mapPlace"))) saveSettings(settings);

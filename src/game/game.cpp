@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
+
+#include "world/fuelprices.h"
 #include "game/drillplay.h"
 #include "game/beamplay.h"
 #include "ui/learn.h"
@@ -14,6 +16,7 @@
 #include <exception>
 
 #include "audio/audio.h"
+#include "audio/siren.h"
 #include "core/js.h"
 #include "game/address.h"
 #include "game/arcadedrive.h"
@@ -42,6 +45,7 @@
 #include "render/far.h"
 #include "render/grass.h"
 #include "render/pedlights.h"
+#include "render/people.h"
 #include "render/plane.h"
 #include "render/props.h"
 #include "render/levelcrossings.h"
@@ -52,6 +56,7 @@
 #include "render/signs.h"
 #include "render/truck.h"
 #include "render/weather.h"
+#include "render/wildlife.h"
 #include "render/windscreen.h"
 #include "render/yard.h"
 #include "sim/airfield.h"
@@ -61,6 +66,7 @@
 #include "sim/autodriver.h"
 #include "sim/clearlanes.h"
 #include "sim/collision.h"
+#include "sim/emergency.h"
 #include "sim/follow.h"
 #include "sim/levelcrossing.h"
 #include "sim/narrowings.h"
@@ -72,10 +78,12 @@
 #include "sim/trailer.h"
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
+#include "sim/wildlife.h"
 #include "game/outdoors.h"
 #include "game/startat.h"   // 2.0
 #include "ui/stage.h"   // 2.0: startFromSpot
 #include "ui/bigmap.h"
+#include "game/takeover.h"
 #include "ui/geoip.h"
 #include "ui/hud.h"
 #include "ui/pathdraw.h"
@@ -192,7 +200,9 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       yardScene(std::make_unique<YardScene>()),
       drillScene(std::make_unique<DrillScene>()),
       beams(std::make_unique<BeamPlay>()),
-      railActors(std::make_unique<RailActors>()) {
+      railActors(std::make_unique<RailActors>()),
+      showRail(std::make_unique<RailActors>()),
+      showPeople(std::make_unique<PeopleRenderer>(12)) {
   // (the learning modes' lesson log lists the basic tasks of class B: ui/learn.ts reads game/drills.ts DRILL_IDS)
   learnHooks.DRILL_IDS = [] { return DRILL_IDS; };
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
@@ -353,12 +363,22 @@ Task<void> Game::boot(URLSearchParams q) {
     busTimes = busSchedule(std::move(h));
     traffic->busSchedule = busTimes.get();
   }
-  // (later: traffic.emergency – game.ts:636)
+  // now and then an emergency vehicle on a call, police on patrol (src/sim/emergency; ?emergency=<s>: a call every <s> seconds)
+  {
+    const double every = jsNumber(q.get("emergency").value_or(""));
+    emergencies = std::make_unique<Emergencies>(*traffic, std::isnan(every) ? 0 : every);
+    traffic->emergency = emergencies.get();
+  }
+  sirens = std::make_unique<Sirens>();
+  wildView = std::make_unique<WildView>();
   rules = std::make_unique<RuleMonitor>(world, *lanes, *signals, *traffic);
   nav = std::make_unique<Navigator>(*lanes);
   terrain = std::make_unique<TilesTerrain>(app);
   ground = std::make_unique<WorldGround>(world, *terrain);
-  // (later: wading, ground.waterDepth – game.ts:640)
+  // driving through water: its depth for the wheels (game/wading.ts)
+  wading = std::make_unique<Wading>(CoverSource{[this](double x, double z) { return this->app.tiles->coverAt(x, z); }, [this](double x, double z) { return this->app.tiles->heightAt(x, z); }});
+  ground->waterDepth = [this](double x, double z) { return wading->depth.at(x, z); };
+  app.scene->add(wading->group);
   signs = std::make_unique<SignRenderer>(plat::locationBase() + "signs/", app.renderer.getMaxAnisotropy());
   // (and the signs the map was built without – with the rules of those with a time on them, by the game's clock)
   co_await signs->init();
@@ -381,13 +401,35 @@ Task<void> Game::boot(URLSearchParams q) {
   actors->highOf = [this](int64_t id) { return beams->traffic.high(id); };
   airfieldView = std::make_unique<AirfieldRenderer>([this](double x, double z) { return groundHeight(x, z); },
                                                     [this](double x, double z) { return !std::isnan(this->app.tiles->heightAt(x, z)); });
-  // (later: services – game.ts:668)
+  // fuel stations, car washes, the fuel in the tank, the loading of a truck (game/serviceworld.ts)
+  {
+    ServiceHost sh;
+    sh.scene = app.scene.get();
+    sh.collider = collider.get();
+    sh.ui = ui;
+    sh.map = app.map;
+    sh.ground = [this](double x, double z) { return this->app.tiles->heightAt(x, z); };
+    sh.onRoad = [this](double x, double z) { return this->app.world->surfaceAt(x, z, this->app.tiles->heightAt(x, z) + 1, hit); };
+    sh.blocked = [this](double x, double z, double yaw) { return collider->blocked(x, this->app.tiles->heightAt(x, z), z, yaw, 0.2); };
+    sh.lang = [this] { return settings.lang; };
+    sh.message = [this](const std::string& t, const std::string& sub) { hud->message(t, sub); };
+    sh.click = [this](const std::string& k) { audio->click(k); };
+    sh.hideOverlay = [this] { hud->hideOverlay(); };
+    sh.yard = &rules->yard;
+    sh.shadows = [this] { return settings.graphics.shadows != "off"; };
+    services = std::make_unique<ServiceWorld>(std::move(sh));
+  }
+  services->dirtShown = settings.graphics.weatherFx;
+  co_await services->load();
   spawnCars = makeSpawnCars();
-  // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
+  // (a tap on a vehicle: watch it, or get into a model of the test place – game/takeover.ts)
+  tapPicker = std::make_unique<TapPicker>(app.canvas, app.camera, [this] { return pickBoxes(); }, [this](const PickTarget& t) { picked(t); });
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
   app.scene->add(car.root, actors->group, railActors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
   app.scene->add(markers->group, figure->group, drillScene->group);
-  // (later: passengerView, transit, showGroup, showRail, showPeople, explosion in the scene – game.ts:671)
+  // (later: passengerView, transit – game.ts:671)
+  app.scene->add(showGroup, showRail->group, showPeople->group);
+  // (later: explosion in the scene – game.ts:671)
   fadeEl = dom::el("div");
   fadeEl.className("fade");
   ui.append(fadeEl);
@@ -403,7 +445,17 @@ Task<void> Game::boot(URLSearchParams q) {
   followMap(*app.map, *followers);
   // the roadworks and demonstrations of the day: the traffic, the rules and the way planners know them; the map's pieces bring their zones
   roadEvents = std::make_unique<RoadEvents>(world, *lanes, *signals);
-  // (later: traffic.wild – game.ts:686)
+  // deer and wild boar at dusk where forests meet the country roads: the traffic brakes for them
+  wildlife = std::make_unique<Wildlife>(WildHost{
+      .sun = [this] { return beams->sunElevation; },
+      .coverAt = [this](double x, double z) { return this->app.tiles->coverAt(x, z); },
+      .heightAt = [this](double x, double z) { return this->app.tiles->heightAt(x, z); },
+      .road = worldRoads(world),
+  });
+  traffic->wild = wildlife.get();
+  // (?wildlife: at every forest by the road, to try it out)
+  if (q.has("wildlife")) wildlife->chance = 1;
+  app.scene->add(wildView->group);
   roadEvents->ready = [this](double x, double z, double r) { return !this->app.map->pieces || this->app.map->ready(x, z, r); };
   roadEvents->collider = collider.get();
   traffic->roadEvents = roadEvents.get();
@@ -445,7 +497,6 @@ Task<void> Game::boot(URLSearchParams q) {
 
   hud = std::make_unique<Hud>(ui, settings, world);
   // (a place tapped on the menu's map becomes the next start: ui/stage.ts, which hud.ts calls directly)
-  hud->startFromSpot = startFromSpot;
   if (app.map->pieces) {
     // the airfields: drawn on the ground, firm under an aeroplane's wheels, and the ends of their runways to take off from
     // (2.0: asked for once the display is there, which is given the ends of the runways – game.ts:721 asks with the tracks)
@@ -460,7 +511,8 @@ Task<void> Game::boot(URLSearchParams q) {
   hud->onStart = [this](const StartRequest& req) {
     begin(req.mode, req.spawn, false, req.address ? &*req.address : nullptr, req.stop ? &*req.stop : nullptr, req.runway ? &*req.runway : nullptr);
   };
-  // (later: hud.onMenuPreview, transit.departuresFor – game.ts:788)
+  hud->onMenuPreview = [this](const MenuPreview* p) { setMenuPreview(p); };
+  // (later: transit.departuresFor – game.ts:789)
   hud->onResume = [this] { resume(); };
   // (later: hud.onReality – game.ts:798)
   // (later: hud.arcade, the arcade mode's panel: the world at another moment, the time faster – ui/arcade.ts, game.ts:800)
@@ -514,8 +566,7 @@ Task<void> Game::boot(URLSearchParams q) {
     BigMapHost host;
     host.world = &world;
     host.lang = [this] { return settings.lang; };
-    // (later: the menu preview's yaw while the map is opened from the menu – game.ts:906)
-    host.car = [this] { return BigMapHost::Car{mpos[0], mpos[2], mapFrom == "menu" ? 0 : vehicle->yaw}; };
+    host.car = [this] { return BigMapHost::Car{mpos[0], mpos[2], mapFrom == "menu" ? (menuPreview ? menuPreview->yaw : 0) : vehicle->yaw}; };
     host.path = path.get();
     host.net = [this] { return netIndex.get(); };
     host.spotAt = [this](double x, double z) -> std::optional<SpawnJson> {
@@ -541,7 +592,25 @@ Task<void> Game::boot(URLSearchParams q) {
       eventList = roadEvents->list();
       return &eventList;
     };
-    // (later: services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:924)
+    host.emergencies = [this]() -> const std::vector<MapEmergency>* {
+      emergencyList.clear();
+      if (traffic)
+        for (const TrafficCar* c : traffic->cars)
+          if (c->em) emergencyList.push_back(MapEmergency{static_cast<int>(c->id), c->em->kind, c->em->call, c->x, c->z});
+      return &emergencyList;
+    };
+    host.services = [this]() -> const std::vector<MapService>* {
+      serviceList.clear();
+      if (!services) return &serviceList;
+      for (const svc::ServiceSite& sv : services->sites()) serviceList.push_back({.k = sv.k, .name = sv.name, .brand = sv.brand, .x = sv.x, .z = sv.z, .osm = sv.osm, .fuels = sv.fuels});
+      return &serviceList;
+    };
+    host.fuelPrice = [](const MapService& sv, const std::string& fuel) -> BigMapHost::FuelPrice {
+      const std::optional<double> live = fuelPrices().priceAt(sv.x, sv.z, fuel);
+      return live ? BigMapHost::FuelPrice{*live, true} : BigMapHost::FuelPrice{svc::priceAt(sv.osm, sv.x, sv.z, fuel), false};
+    };
+    host.priceSource = [] { return std::string(FUEL_PRICE_SOURCE.name) + ", " + FUEL_PRICE_SOURCE.licence; };
+    host.watchPoint = [this](const BigMapHost::WatchPoint& what) { startPointWatch(WatchWhat{.kind = what.kind, .id = what.id, .ev = what.ev}); };
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
@@ -563,7 +632,7 @@ Task<void> Game::boot(URLSearchParams q) {
       saveSettings(settings);
     };
     host.transit = [this] { return transitData(); };
-    // (later: watch – game/spectate.ts, game.ts:953)
+    host.watch = [this](const WatchRequest& v) { startWatch(v); };
     host.roads = [this, &world]() -> const RoadSource* {
       RouteGraph* g = routeGraphNow();
       if (!g) return nullptr;
@@ -611,7 +680,8 @@ Task<void> Game::boot(URLSearchParams q) {
   rules->onViolation = [this](const Violation& v) {
     hud->toast(v);
     faultLog->add({.t = plat::dateMs(), .id = v.id, .severity = v.severity, .data = v.data, .street = rules->context.roadName, .mode = lesson ? lesson->id : "free", .x = jsRound(v.x), .z = jsRound(v.z)});
-    // (later: recorder.note, on the timeline of the replay too – game.ts:976)
+    // (on the timeline of the replay too)
+    recorder.note({.t = time, .id = v.id, .severity = v.severity, .data = v.data});
     audio->click("chime");
     if (v.severity == "fail" && lesson && lesson->kind == "exam" && failT < 0) failT = time + 2.5;
   };
@@ -749,7 +819,7 @@ double Game::devView(double x, double h, double z, double heading, double pitch,
 }
 
 void Game::onTile(LoadedTile& tile, bool loaded) {
-  // (later: services.tile – game.ts:1179)
+  if (services) services->tile(tile, loaded);
   // (where a car may be put down: the loaded area, the footprints of its buildings – game/spawncar.ts)
   {
     const SectionArray* pts = tile.data.get("collPts");
@@ -849,10 +919,10 @@ void Game::applySettings() {
   grass->density = gx.propDensity;
   // as many raindrops and snowflakes as the graphics allow
   if (outdoors) outdoors->view.quality(WEATHER_PARTICLES(s.quality == "custom" ? "medium" : s.quality));
-  // (later: outdoors.water.enabled – render/water.ts)
+  if (outdoors) outdoors->water.enabled(gx.water);
   // the weather on the vehicle and the roads ("No mercy"): water on the roads (the windscreen: in the frame)
   if (outdoors) outdoors->view.roadWater = gx.weatherFx;
-  // (later: services.dirtShown – game.ts:1263)
+  if (services) services->dirtShown = gx.weatherFx;
   railActors->detail(s.quality != "low");
   ui.style("zoom", jsStr(s.uiScale));
   app.resize();
@@ -959,21 +1029,23 @@ Task<void> Game::setTiltSteer(bool on) {
 
 void Game::toMenu() {
   if (theory) theory->close();
-  // (later: endWatch – game.ts:1458)
+  endWatch(false);
   afterPlace = nullptr;
   // (a tour that is left for the menu is kept as far as it was driven)
   if (demo && demo->tour) endDemo("ended");
   state = "menu";
   demo = nullptr;
   endTasks();
-  // (later: services.end – game.ts:1464)
+  if (services) services->end();
   if (crane) crane->dispose();
   crane = nullptr;
   endForklift();
   figure->hide();
   if (spawnCars) spawnCars->clear();
   intoParked = false;
-  // (later: previewKey, showOn – game.ts:1472)
+  // (the menu of rows places the vehicle chosen anew; the test place is left)
+  previewKey = "";
+  showOn = false;
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
   if (planeModel) planeModel->root->visible = false;
