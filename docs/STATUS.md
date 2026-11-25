@@ -36,7 +36,9 @@ the forklift and the practice-yard drills (sim/forklift, game/forklift*, drills,
 (game/replay, spectate, showdrive, pointwatch), the stage and carousel menus, cyclists, emergency vehicles and
 wildlife, water, wading, fuel and services, riding trams and buses as a passenger (render/passenger), the finer
 trucks (fleetdetail), rear openings, multiplayer, the reality view, map packs, the version picker; people's shadows (needs a custom depth
-material in the engine).  For 2.1.0 (on main): the theory exam, sign trainer, "spot the danger" and lesson log (game/exam, ui/learn; the 3D
+material in the engine).  For 2.1.0 (on main): the weather and seasons, trams and buses by timetable, roadworks, narrowings, level crossings and
+signs with times, the forklift, the class B drills and the headlights, the 3D theory lessons (game/theory*, render/theory*,
+ui/learnplan), an experimental SDL3 build with a native canvas painter and HUD (docs/SDL.md); the theory exam, sign trainer, "spot the danger" and lesson log (game/exam, ui/learn; the 3D
 theory scenes are hooks in ui/learnplan.h), getting out and walking, the doors, bonnet and boot in play, cars put down on the map
 and getting into them (game_foot.cpp, spawncar; game_onfoot_test).  Known-failing tests at 2.0.0: `render_actors_test` (its reference dump of the original was
 made without the people renderer; to be made anew), `game_bike_test` (the motorcycle starts in a car park and stands

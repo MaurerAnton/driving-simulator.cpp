@@ -1,4 +1,4 @@
-// LINK: game i18n core platform
+// LINK: game sim world i18n core platform
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: tests/game/exam.test.ts @ v1.7.7
 /**
@@ -7,10 +7,6 @@
  * – an exam is 20 + 10 questions worth 110 points, it is scored as the real
  * one (more than 10 error points, or two wrong 5-point questions: failed),
  * typed numbers are read as people type them, and the clock runs down.
- *
- * (What the original checks against the theory scenes – that a picture's scene and question
- * exist, that every scene has its "spot the danger" item and the moment lies in the scene –
- * waits for game/theory.ts, which is not in this version: here only that the items are whole.)
  */
 #include <algorithm>
 #include <cassert>
@@ -26,6 +22,7 @@
 #include "game/exam/danger.h"
 #include "game/exam/exam.h"
 #include "game/exam/questions.h"
+#include "game/theory.h"
 #include "i18n/exam/index.h"
 
 using namespace fs;
@@ -65,9 +62,16 @@ static void questionBank() {
   // every topic has questions, the class part enough for two exams
   for (const ExamTopic& t : EXAM_TOPICS) assert(std::count_if(QUESTIONS.begin(), QUESTIONS.end(), [&t](const ExamQuestion& q) { return q.topic == t; }) >= 8);
   assert(std::count_if(QUESTIONS.begin(), QUESTIONS.end(), [](const ExamQuestion& q) { return has(CLASS_TOPICS, q.topic); }) >= 2 * EXAM_CLASS);
-  // pictures: signs the trainer knows (the scenes: see above)
-  for (const ExamQuestion& q : QUESTIONS)
-    if (q.picture && q.picture->sign) assert(EXAM_EN.signs.find(*q.picture->sign));
+  // pictures: signs the trainer knows, scenes and questions that exist
+  for (const ExamQuestion& q : QUESTIONS) {
+    if (!q.picture) continue;
+    const ExamPicture& p = *q.picture;
+    if (p.sign) assert(EXAM_EN.signs.find(*p.sign));
+    else {
+      const theory::LessonDef* l = theory::theoryLesson(p.scene);
+      assert(l && p.step >= 0 && p.step < static_cast<int>(l->steps.size()));
+    }
+  }
 }
 
 static void ownWords() {
@@ -187,6 +191,11 @@ static void danger() {
   for (const DangerItem& d : DANGER_ITEMS) ids.insert(d.id);
   assert(ids.size() == DANGER_ITEMS.size());
   for (const DangerItem& d : DANGER_ITEMS) {
+    const theory::LessonDef* l = theory::theoryLesson(d.scene);
+    assert(l);
+    assert(d.step >= 0 && d.step < static_cast<int>(l->steps.size()));
+    const double t = l->steps[static_cast<size_t>(d.step)].at + d.off;
+    assert(t >= 0 && t <= l->end);
     assert(d.answers >= 2 && d.answers <= 4);
     assert(!d.correct.empty());
     for (int i : d.correct) assert(i >= 0 && i < d.answers);
@@ -195,6 +204,12 @@ static void danger() {
     assert(w && !w->q.empty() && !w->why.empty() && static_cast<int>(w->a.size()) == d.answers);
     assert(std::set<std::string>(w->a.begin(), w->a.end()).size() == w->a.size());
   }
+  // (a scene added later needs an item: listed, so that it is not forgotten)
+  std::vector<std::string> missing;
+  for (const theory::LessonDef& l : theory::THEORY())
+    if (std::none_of(DANGER_ITEMS.begin(), DANGER_ITEMS.end(), [&l](const DangerItem& d) { return d.scene == l.id; })) missing.push_back(l.id);
+  for (const std::string& id : missing) std::printf("theory scene without a \"spot the danger\" item – add one to game/exam/danger.h: %s\n", id.c_str());
+  assert(missing.empty());
 }
 
 static void fallback() {

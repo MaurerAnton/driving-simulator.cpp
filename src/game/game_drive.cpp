@@ -29,6 +29,8 @@
 #include "game/routepresets.h"
 #include "game/spawncar.h"
 #include "game/spawnplace.h"
+#include "game/theory.h"
+#include "game/theorymode.h"
 #include "game/track.h"
 #include "game/vehicles.h"
 #include "i18n/index.h"
@@ -79,7 +81,11 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   std::string mode = modeAsked;
   std::optional<AddressHit> address = addressAsked ? std::optional<AddressHit>(*addressAsked) : std::nullopt;
   const std::optional<RunwayChoice> runway = runwayAsked ? std::optional<RunwayChoice>(*runwayAsked) : std::nullopt;
-  // (later: the theory lessons, THEORY_MODE – game.ts:2732)
+  // (the theory lessons are no drive: a mode of their own on the practice yard)
+  if (mode == theory::THEORY_MODE) {
+    openTheory();
+    return;
+  }
   // a set route from the menu (game/routepresets.ts): a drive of one's own from its first place – the route begins once there
   const RoutePreset* preset = presetOfMode(mode);
   if (preset) {
@@ -643,7 +649,8 @@ void Game::onAction(const std::string& a) {
     if (state == "drive") pause();
     else if (state == "pause") resume();
     else if (state == "map") closeMap();
-    // (later: the reality view, the replay, the theory – game.ts:3844)
+    // (later: the reality view, the replay – game.ts:3841)
+    else if (state == "theory" && theory) theory->back();
   }
   else if (a == "open" && state == "drive") {
     // on foot beside the vehicle: open or shut what is there (game/openplay.ts)

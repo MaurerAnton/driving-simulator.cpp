@@ -49,13 +49,11 @@ struct LearnContext {
 };
 
 /**
- * What the learning modes read of parts that are not in this version yet: the theory
- * scenes (game/theory.ts THEORY – their ids, in their order) and the basic tasks of
- * class B (game/drills.ts DRILL_IDS).  Empty: the lesson log has no rows for them, and
- * "spot the danger" names no scene.  Set where those parts are brought.
+ * What the learning modes read of parts that are not in this version yet: the basic tasks
+ * of class B (game/drills.ts DRILL_IDS).  Empty: the lesson log has no rows for them.  Set
+ * where that part is brought.
  */
 struct LearnHooks {
-  std::function<std::vector<std::string>()> THEORY = nullptr;
   std::function<std::vector<std::string>()> DRILL_IDS = nullptr;
 };
 inline LearnHooks learnHooks;

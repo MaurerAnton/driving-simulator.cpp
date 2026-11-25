@@ -7,6 +7,7 @@
 #include <map>
 #include <unordered_map>
 
+#include "core/date.h"
 #include "game/clock.h"
 #include "geo/utm.h"
 #include "sim/collision.h"

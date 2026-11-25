@@ -370,7 +370,9 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawnList) {
     card(t("demo"), t("demoDesc"), "demo");
     card(t("tourTitle"), t("tourDesc"), "tour");
   }
-  // (the theory lessons and the test place are not in this version: no cards for them)
+  // the theory lessons: difficult situations shown on the practice yard (game/theorymode.ts)
+  if (def.kind != "plane" && world.json.yard) card(t("theory.title"), t("theory.desc"), "theory");
+  // (the test place is not in this version: no card for it)
   // the lessons of the chosen vehicle: the practice yard first, the test last
   auto rank = [](const std::string& kind) { return kind == "yard" ? 0 : kind == "exam" ? 2 : 1; };
   const VehicleKind& kind = def.kind;

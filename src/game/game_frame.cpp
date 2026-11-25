@@ -24,6 +24,7 @@
 #include "render/trams.h"
 #include "game/nav.h"
 #include "game/routepresets.h"
+#include "game/theorymode.h"
 #include "game/track.h"
 #include "game/yardtask.h"
 #include "i18n/index.h"
@@ -472,9 +473,12 @@ void Game::frame(double now) {
     app.camera->near = 0.5;
     app.camera->updateProjectionMatrix();
     signals->update(dt);
+  } else if (state == "theory" && theory) {
+    // a theory lesson on the practice yard: its own scene and camera (game/theorymode.ts)
+    theory->frame(dt, time);
+    if (!ready && theory->ready()) ready = true;
   }
   lap(frameTimes.visuals);
-  // (later: a theory lesson on the practice yard – game.ts:6650)
   signs->flush();
   // (later: the test place, buildShowroom; the replay's lights, traffic and trains – game.ts:6656)
   signalHeads->update(*signals);
@@ -565,7 +569,7 @@ void Game::frame(double now) {
       if (ws.blindFor > 4 && state == "drive") rules->note("noView", "minor", {}, 60);
     }
   } else {
-    app.render(menuFocus);
+    app.render(state == "theory" && theory ? theory->focus : menuFocus);
   }
   // (later: signalTimers, queueLabels, hudMirror, mirrorZoom – game.ts:6759)
   // (later: the reality view counted ready – game.ts:6788)

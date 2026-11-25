@@ -29,6 +29,7 @@
 #include "game/releases.h"
 #include "game/routepresets.h"
 #include "game/spawncar.h"
+#include "game/theorymode.h"
 #include "game/track.h"
 #include "geo/utm.h"
 #include "i18n/index.h"
@@ -957,7 +958,8 @@ Task<void> Game::setTiltSteer(bool on) {
 }
 
 void Game::toMenu() {
-  // (later: theory.close, endWatch – game.ts:1457)
+  if (theory) theory->close();
+  // (later: endWatch – game.ts:1458)
   afterPlace = nullptr;
   // (a tour that is left for the menu is kept as far as it was driven)
   if (demo && demo->tour) endDemo("ended");
