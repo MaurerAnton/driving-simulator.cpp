@@ -102,7 +102,7 @@ An APK of the same program: `src/app/main_android.cpp` is the entry
 `libmain.so` by `cmake/android.cmake` with the SDL3 fork **j4niwzis/SDL** (commit `91c08de8`,
 NativeActivity profile: `SDL_ANDROID_NATIVE_ACTIVITY`, static, no Vulkan, no camera, the NDK's
 `native_app_glue`) – the setup progressive-chat uses, without its self-made NDK: the game is
-C++20, so the runner's NDK builds it.  No Java is compiled: the activity's classes
+C++26 without modules, so the runner's NDK builds it.  No Java is compiled: the activity's classes
 (`org.libsdl.nativeapp.NativeActivity`) are written as a `classes.dex` by the fork's own dex
 writer (`build-scripts/native-activity/dex`, C++23 with `import std` – built in CI with clang 23
 and CMake 4).  `tools/android/apk.sh` links `android/AndroidManifest.xml` and the icon

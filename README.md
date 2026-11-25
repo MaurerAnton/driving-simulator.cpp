@@ -42,7 +42,7 @@ node tools/dev/serve.mjs             # serves it on http://127.0.0.1:5180/ with 
 node tools/dev/shot.mjs "" shot.png  # a picture of it from a headless browser
 ```
 
-Needs: a C++20 compiler, CMake ≥ 3.24, Ninja, zlib, libpng and OpenGL ES 3 with EGL for the native side;
+Needs: a C++26 compiler (GCC ≥ 14, Clang ≥ 17, Emscripten ≥ 3.1.74), CMake ≥ 3.25, Ninja, zlib, libpng and OpenGL ES 3 with EGL for the native side;
 Emscripten 3.1.74 for the browser build; Node ≥ 24 for the tools.
 
 ## Progress

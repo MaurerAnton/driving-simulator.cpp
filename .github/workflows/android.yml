@@ -6,7 +6,7 @@
 # After progressive-chat's .github/workflows/android.yml and .github/actions/android-setup (the
 # same author): the same fork at the same commit, its dex writer built with clang 23 and CMake 4
 # (it is C++23 with `import std`) as progressive-chat's desktop-setup installs them.  Unlike
-# progressive-chat, the game itself needs no NDK of its own making (it is C++20): the runner's
+# progressive-chat, the game itself needs no NDK of its own making (it is C++26 without modules: no `import std`): the runner's
 # NDK builds it, and the runner's SDK (aapt2, zipalign, apksigner, android.jar) packages it.
 name: android
 

@@ -6,7 +6,7 @@
 # of SDL3 at the same commit, with the same options.  progressive-chat asks for it through
 # cmake-everywhere; here plain FetchContent does (the workflow hands it the checkout it has
 # already made: -DFETCHCONTENT_SOURCE_DIR_SDL3=…).  And where progressive-chat builds an NDK of
-# its own (it needs clang 23 for `import std`), this C++20 game is built with the NDK the
+# its own (it needs clang 23 for `import std`), this C++26 game (no modules yet) is built with the NDK the
 # runner has.
 #
 #   cmake -S . -B build-android -G Ninja \
