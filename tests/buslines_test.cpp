@@ -9,7 +9,7 @@
  * Origin: tests/game/buslines.test.ts @ v1.7.7 (not here: loadBusLines through a stand-in loader, and the cases
  * of the build's matching of OpenStreetMap's ways – tools/build-buslines.ts is a build tool, not ported)
  */
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 #include <algorithm>
 #include <cassert>
 #include <cmath>
