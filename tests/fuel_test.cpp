@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: sim core
+// LINK: sim game core
 // Origin: tests/sim/fuel.test.ts @ v1.7.7
 /**
  * The fuel model: what the engines burn, driven with the real vehicle
