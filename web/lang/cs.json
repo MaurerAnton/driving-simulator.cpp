@@ -2464,5 +2464,16 @@
 "news.2_0_0.map":"Velká mapa se čte jako mapová aplikace: světlý styl vedle tmavého, celá silniční síť a název každé obce při každém přiblížení a hledání, které najde každou obec a ulici mapy – a díky hledání online i jakékoli místo (Photon, OpenStreetMap; lze vypnout ve vrstvách).",
 "news.2_0_0.aerial":"Letecké snímky celého Německa z otevřených dat 14 spolkových zemí a satelitní snímky Sentinel-2 celé Evropy – zapněte je ve vrstvách mapy (ve výchozím stavu vypnuté: servery snímků se dozvědí, kterou oblast si prohlížíte).",
 "news.2_0_0.later":"Zatím ne ve 2.0: lekce teorie a teoretická zkouška, počasí a roční období, tramvaje a autobusy podle jízdního řádu, stavby a železniční přejezdy, vysokozdvižný vozík a cvičení na cvičišti, záznamy jízd, cyklisté a vozidla záchranných složek, voda a tankování, vystoupení a chůze. Vrátí se ve 2.1 – do té doby je verze 1.7.7 má všechny na své vlastní adrese.",
-"news.2_0_0.intro":"Fahrsim 2.0 je od základu přepsán v C++ (v prohlížeči běží jako WebAssembly): stejné silnice, pravidla, provoz, lekce, autopilot, vozidla a jazyky na novém enginu, který na každý snímek potřebuje zhruba polovinu práce verze 1.7.7. Novinky ve 2.0:"
+"news.2_0_0.intro":"Fahrsim 2.0 je od základu přepsán v C++ (v prohlížeči běží jako WebAssembly): stejné silnice, pravidla, provoz, lekce, autopilot, vozidla a jazyky na novém enginu, který na každý snímek potřebuje zhruba polovinu práce verze 1.7.7. Novinky ve 2.0:",
+"news.2_1_0.walk":"Vystoupení a chůze: pěšky kolem auta a městem, otevírání dveří, kapoty a kufru; postavit auto kamkoli na mapu a nastoupit do něj. „Pěšky“ je také samostatné vozidlo v provozu, s pravidly pro chodce.",
+"news.2_1_0.weather":"Počasí a roční období: skutečné počasí nebo zvolené – déšť, sníh a mlha, mokré silnice s menší přilnavostí, stěrače a ostřikovač, roční období na krajině a stromech, stopy kol ve sněhu a značky platící „za mokra“.",
+"news.2_1_0.transit":"Tramvaje a autobusy jezdí podle jízdních řádů a zastavují na svých zastávkách; velká mapa ukazuje jejich odjezdy. Tramvaj k vlastnímu řízení (dveře, pantograf, výhybky) a lekce na autobusové lince.",
+"news.2_1_0.roads":"Stavby a demonstrace, zúžení, železniční přejezdy se závorami, světly, zvonky a vlaky a značky platné jen v určitou dobu (22–6 h, po–pá).",
+"news.2_1_0.traffic":"Cyklisté v provozu; vozidla záchranných složek s modrými majáky a sirénami – uhnout a vytvořit záchrannou uličku; srnky a divočáci za soumraku.",
+"news.2_1_0.fuel":"Nádrž s ukazatelem – a dojet do sucha; čerpací stanice se stojany a dnešními cenami (s klíčem Tankerkönig); myčka a špína na autě. Jízda vodou namočí brzdy a může zhasnout motor.",
+"news.2_1_0.learn":"Lekce a teorie: vysokozdvižný vozík a cviky skupiny B na cvičišti, potkávací a dálková světla podle pravidel § 17; teoretická zkouška (30 otázek, 45 minut), trenažér značek, „Najdi nebezpečí“, deník výuky a lekce teorie ve 3D.",
+"news.2_1_0.watch":"Záznamy po jízdě; sledování libovolného vozidla a převzetí tramvaje nebo autobusu; zkušební plocha se všemi modely; a nové hlavní menu s vozidlem na scéně.",
+"news.2_1_0.regions":"Mnohem víc německých měst jako regiony: Paderborn a stovky dalších – stavba celého Německa pokračuje.",
+"news.2_1_0.sdl":"Experimentálně: desktopová verze s SDL3 a aplikace pro Android – obě startují rovnou do jízdy, zatím bez menu.",
+"news.2_1_0.intro":"Fahrsim 2.1 přináší na nový engine vše, co verzi 2.0 ještě chybělo – a ještě víc. Novinky ve 2.1:"
 }
