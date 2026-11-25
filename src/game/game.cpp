@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
+
+#include "world/fuelprices.h"
 #include "game/drillplay.h"
 #include "game/beamplay.h"
 #include "ui/learn.h"
@@ -358,7 +360,10 @@ Task<void> Game::boot(URLSearchParams q) {
   nav = std::make_unique<Navigator>(*lanes);
   terrain = std::make_unique<TilesTerrain>(app);
   ground = std::make_unique<WorldGround>(world, *terrain);
-  // (later: wading, ground.waterDepth – game.ts:640)
+  // driving through water: its depth for the wheels (game/wading.ts)
+  wading = std::make_unique<Wading>(CoverSource{[this](double x, double z) { return this->app.tiles->coverAt(x, z); }, [this](double x, double z) { return this->app.tiles->heightAt(x, z); }});
+  ground->waterDepth = [this](double x, double z) { return wading->depth.at(x, z); };
+  app.scene->add(wading->group);
   signs = std::make_unique<SignRenderer>(plat::locationBase() + "signs/", app.renderer.getMaxAnisotropy());
   // (and the signs the map was built without – with the rules of those with a time on them, by the game's clock)
   co_await signs->init();
@@ -381,7 +386,26 @@ Task<void> Game::boot(URLSearchParams q) {
   actors->highOf = [this](int64_t id) { return beams->traffic.high(id); };
   airfieldView = std::make_unique<AirfieldRenderer>([this](double x, double z) { return groundHeight(x, z); },
                                                     [this](double x, double z) { return !std::isnan(this->app.tiles->heightAt(x, z)); });
-  // (later: services – game.ts:668)
+  // fuel stations, car washes, the fuel in the tank, the loading of a truck (game/serviceworld.ts)
+  {
+    ServiceHost sh;
+    sh.scene = app.scene.get();
+    sh.collider = collider.get();
+    sh.ui = ui;
+    sh.map = app.map;
+    sh.ground = [this](double x, double z) { return this->app.tiles->heightAt(x, z); };
+    sh.onRoad = [this](double x, double z) { return this->app.world->surfaceAt(x, z, this->app.tiles->heightAt(x, z) + 1, hit); };
+    sh.blocked = [this](double x, double z, double yaw) { return collider->blocked(x, this->app.tiles->heightAt(x, z), z, yaw, 0.2); };
+    sh.lang = [this] { return settings.lang; };
+    sh.message = [this](const std::string& t, const std::string& sub) { hud->message(t, sub); };
+    sh.click = [this](const std::string& k) { audio->click(k); };
+    sh.hideOverlay = [this] { hud->hideOverlay(); };
+    sh.yard = &rules->yard;
+    sh.shadows = [this] { return settings.graphics.shadows != "off"; };
+    services = std::make_unique<ServiceWorld>(std::move(sh));
+  }
+  services->dirtShown = settings.graphics.weatherFx;
+  co_await services->load();
   spawnCars = makeSpawnCars();
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
@@ -541,7 +565,18 @@ Task<void> Game::boot(URLSearchParams q) {
       eventList = roadEvents->list();
       return &eventList;
     };
-    // (later: services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:924)
+    host.services = [this]() -> const std::vector<MapService>* {
+      serviceList.clear();
+      if (!services) return &serviceList;
+      for (const svc::ServiceSite& sv : services->sites()) serviceList.push_back({.k = sv.k, .name = sv.name, .brand = sv.brand, .x = sv.x, .z = sv.z, .osm = sv.osm, .fuels = sv.fuels});
+      return &serviceList;
+    };
+    host.fuelPrice = [](const MapService& sv, const std::string& fuel) -> BigMapHost::FuelPrice {
+      const std::optional<double> live = fuelPrices().priceAt(sv.x, sv.z, fuel);
+      return live ? BigMapHost::FuelPrice{*live, true} : BigMapHost::FuelPrice{svc::priceAt(sv.osm, sv.x, sv.z, fuel), false};
+    };
+    host.priceSource = [] { return std::string(FUEL_PRICE_SOURCE.name) + ", " + FUEL_PRICE_SOURCE.licence; };
+    // (later: emergencies, watchPoint – game.ts:924)
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
@@ -749,7 +784,7 @@ double Game::devView(double x, double h, double z, double heading, double pitch,
 }
 
 void Game::onTile(LoadedTile& tile, bool loaded) {
-  // (later: services.tile – game.ts:1179)
+  if (services) services->tile(tile, loaded);
   // (where a car may be put down: the loaded area, the footprints of its buildings – game/spawncar.ts)
   {
     const SectionArray* pts = tile.data.get("collPts");
@@ -849,10 +884,10 @@ void Game::applySettings() {
   grass->density = gx.propDensity;
   // as many raindrops and snowflakes as the graphics allow
   if (outdoors) outdoors->view.quality(WEATHER_PARTICLES(s.quality == "custom" ? "medium" : s.quality));
-  // (later: outdoors.water.enabled – render/water.ts)
+  if (outdoors) outdoors->water.enabled(gx.water);
   // the weather on the vehicle and the roads ("No mercy"): water on the roads (the windscreen: in the frame)
   if (outdoors) outdoors->view.roadWater = gx.weatherFx;
-  // (later: services.dirtShown – game.ts:1263)
+  if (services) services->dirtShown = gx.weatherFx;
   railActors->detail(s.quality != "low");
   ui.style("zoom", jsStr(s.uiScale));
   app.resize();
@@ -966,7 +1001,7 @@ void Game::toMenu() {
   state = "menu";
   demo = nullptr;
   endTasks();
-  // (later: services.end – game.ts:1464)
+  if (services) services->end();
   if (crane) crane->dispose();
   crane = nullptr;
   endForklift();

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The weather and the seasons in the materials (src/render/season.ts SeasonLook.patch, src/render/weather.ts
-// WeatherRenderer.addWetness, src/render/dirt.ts DirtLook.apply): each material the game teaches them, as the
+// WeatherRenderer.addWetness, src/render/dirt.ts DirtLook.apply, src/render/water.ts WaterLook.patch): each material the game teaches them, as the
 // original's patches leave it.  The name of each is the program key the C++ puts together – the material's own key
 // (its patch's; '' for one without), then the season's, then the wet's – so that render/season.cpp,
 // render/weather.cpp and render/dirt.cpp find them.  (A material without a key of its own is given '' before it is
@@ -11,6 +11,7 @@ export async function captures({ load, THREE }) {
   const { WeatherRenderer } = await load('src/render/weather.ts');
   const { FarTerrain } = await load('src/render/far.ts');
   const { DirtLook } = await load('src/render/dirt.ts');
+  const { WaterLook } = await load('src/render/water.ts');
   const tex = new THREE.DataTexture(new Uint8Array(4), 1, 1);
   const look = new SeasonLook();
   // (the bare crowns' see-through variant: what a look in winter compiles)
@@ -36,6 +37,18 @@ export async function captures({ load, THREE }) {
   season(mats.makeTerrainMaterial(tex), 'terrain');
   // (`material` is private in the TypeScript, an ordinary field when it runs)
   season(new FarTerrain().material, 'far');
+  // real water in the terrain and the far view (render/water.ts WaterLook, chained after the season as game/outdoors.ts
+  // does it): the shader with the water switched on – render/water.cpp puts it on while `enabled`, the season's alone else
+  const water = new WaterLook();
+  water.enabled = true;
+  for (const [m, target] of [
+    [mats.makeTerrainMaterial(tex), 'terrain'],
+    [new FarTerrain().material, 'far'],
+  ]) {
+    look.patch(m, target);
+    water.patch(m, target);
+    out.push([m.customProgramCacheKey(), m]);
+  }
   season(mats.makeGroundMaterial(false), 'ground');
   wetted(mats.makeGroundMaterial(false), 'ground');
   season(mats.makeGroundMaterial(true), 'paint');

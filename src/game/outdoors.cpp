@@ -24,13 +24,13 @@ Outdoors::Outdoors(Object3D& scene, const SkyParts* sky, double quality, std::un
     : real(realIn ? std::move(realIn) : std::make_unique<RealWeather>()), view(quality), season(look.state) {
   scene.add(view.group, tracks.mesh);
   view.attachSky(sky);
-  // (later: water.attachSky(sky?.dome) – render/water.ts)
+  water.attachSky(sky ? sky->dome.get() : nullptr);
 }
 
 void Outdoors::patch(Material& material, const SeasonTarget& target) {
   look.patch(material, target);
   if (target == "ground" || target == "paint") view.addWetness(material);
-  // (later: water.patch for 'terrain' and 'far' – render/water.ts)
+  if (target == "terrain" || target == "far") water.patch(material, target);
 }
 
 void Outdoors::update(double dt, const Vector3& camera, const Vector3& place, const OutdoorsSettings& settings, const LaneGraph* lanes, const OutdoorsClock* clockIn) {
@@ -62,7 +62,7 @@ void Outdoors::update(double dt, const Vector3& camera, const Vector3& place, co
     if (switched) view.jump();
   }
   view.update(camera, dt, *w);
-  // (later: water.update(dt) – render/water.ts)
+  water.update(dt);
   if (lanes) tracks.update(camera.x, camera.z, lanes->lanes, &lanes->connectors);
 }
 
