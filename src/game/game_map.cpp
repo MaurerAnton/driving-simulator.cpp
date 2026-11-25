@@ -152,8 +152,16 @@ void Game::teleportSpot(const SpawnJson& spot_) {
   }
   spawn = spot;
   traffic->clear();
-  // (later: rail.clear – game.ts:2180)
-  // (later: tram – the tram put on the tracks anew at the stop nearest to the place chosen – game.ts:2181)
+  rail->clear();
+  if (def->kind == "tram") {
+    // The tram is one of the rail vehicles that were just cleared away: it is put on the tracks anew, at the
+    // stop nearest to the place chosen – as when a drive begins (tryPlace).  (Before, its driver kept running
+    // a tram that was no longer drawn: only the cab was to be seen.)
+    tram = nullptr;
+    tramAt = std::nullopt;
+    tramStopName = "";
+    tramWait = time;
+  }
   // on foot: on the pavement there (and nobody rides a tram or a bus any more) – somebody who got out of the
   // vehicle gets out again beside it there (before, they stayed behind, tied to a vehicle far away)
   if (walker && def->kind != "pedestrian") {
@@ -278,8 +286,7 @@ bool Game::canTeleport() {
   // (later: riding, busRide, wrecked – game.ts:5286)
   if (doorT >= 0 || opens.busy()) return false;
   if (walker) return true;
-  // (later: tram – game.ts:5288)
-  return !aircraft && !forklift && !(crane && crane->operating);
+  return !aircraft && !tram && !forklift && !(crane && crane->operating);
 }
 
 /**
@@ -294,8 +301,7 @@ bool Game::canDrive() {
   // (later: riding, busRide, wrecked – game.ts:5299)
   if (doorT >= 0 || opens.busy()) return false;
   if (walker) return true;
-  // (later: tram – game.ts:5301)
-  return !forklift && !(crane && crane->operating);
+  return !tram && !forklift && !(crane && crane->operating);
 }
 
 /** "Teleport here": somebody on foot to that very place; a vehicle into the lane of the road nearest it, facing along it (the way the camera looked, where it may). */
@@ -375,8 +381,7 @@ bool Game::canTurnAround() {
   // (later: riding, busRide – game.ts:5374)
   if (doorT >= 0 || opens.busy()) return false;
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane
-  // (later: tram – game.ts:5376)
-  return !walker && !aircraft && !forklift && !crane;
+  return !walker && !aircraft && !tram && !forklift && !crane;
 }
 
 }  // namespace fs

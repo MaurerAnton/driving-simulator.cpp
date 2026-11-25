@@ -58,8 +58,27 @@ std::string missingList(const OnFoot& w, const std::string& lang) {
 WalkVehicle Game::walkVehicle() {
   Vehicle& v = *vehicle;
   v.getModelPosition(mpos.data());
-  // (later: the tram: its cars in the way, the door of the cab at the front on the right – game.ts:4617)
   WalkVehicle out;
+  if (tram) {
+    // the tram: its cars in the way, the door of the cab at the front on the right
+    const std::vector<CarRole>& roles = carLayout(*tram->v.consist);
+    const double hw = tram->v.consist->width / 2;
+    for (size_t i = 0; i < tram->v.cars.size(); i++) {
+      const RailCar& c = tram->v.cars[i];
+      WalkUnit wu;
+      wu.x = c.x;
+      wu.z = c.z;
+      wu.yaw = c.yaw;
+      wu.front = roles[i].len / 2;
+      wu.rear = roles[i].len / 2;
+      wu.hw = hw;
+      out.units.push_back(wu);
+    }
+    out.y = tram->v.cars[0].y + 0.3;
+    out.door = roles[0].len / 2 - 1.4;
+    out.doorSide = 1;
+    return out;
+  }
   const VehicleDef& d = *def;
   WalkUnit u;
   u.x = mpos[0];
@@ -97,7 +116,14 @@ void Game::getOut() {
   Controls& c = input->c;
   const std::string& lang = settings.lang;
   if (walker || doorT >= 0 || opens.busy() || (demo && demo->active) || task) return;
-  // (later: out of the aeroplane: leavePlane – game.ts:4649; the tram's cab – game.ts:4653)
+  // (later: out of the aeroplane: leavePlane – game.ts:4649)
+  if (tram) {
+    // out of the tram's cab: it stands braked meanwhile (the passengers' doors as they are)
+    if (tram->speed() > 0.1 || tramAuto) return;
+    walkStart = false;
+    startDoor("out");
+    return;
+  }
   if (std::abs(v.speed) > 0.3) {
     tipText = tr("stopFirst", lang);
     tipUntil = time + 3;
@@ -351,8 +377,7 @@ bool Game::canEnterParked() {
   // (later: watcher, riding, busRide – game.ts:4928)
   if (state != "drive" || lesson || task || (demo && demo->active) || doorT >= 0 || opens.busy()) return false;
   if (walker || (crane && crane->operating)) return true;
-  // (later: tram – game.ts:4930)
-  return !aircraft && !forklift && std::abs(vehicle->speed) < 0.5;
+  return !aircraft && !tram && !forklift && std::abs(vehicle->speed) < 0.5;
 }
 
 void Game::enterParked(const Parked& p_) {
@@ -361,8 +386,8 @@ void Game::enterParked(const Parked& p_) {
   const Parked p = p_;
   const VehicleDef& d = *def;
   vehicle->getModelPosition(mpos.data());
-  // (later: wrecked, tram – game.ts:4943)
-  const bool stays = !aircraft && d.kind != "pedestrian" && d.kind != "forklift" && !d.trailer;
+  // (later: wrecked – game.ts:4943)
+  const bool stays = !aircraft && !tram && d.kind != "pedestrian" && d.kind != "forklift" && !d.trailer;
   const double height = d.model == "car" || d.model == "motorcycle" ? 1.6 : 3.6;
   if (stays) {
     LeftVehicle from;
@@ -494,9 +519,25 @@ void Game::stepFoot(double dt) {
   player.length = riding ? 0.1 : 0.6;
   player.width = riding ? 0.1 : 0.6;
   player.onFoot = !riding;
-  // (later: trams and trains: rail.update, roadEvents.railBlocks, their cars among the boxes – game.ts:5618)
+  stepRail(dt, player, true);
   railBoxes.clear();
+  for (const auto& rv : rail->vehicles) {
+    const std::vector<CarRole>& roles = carLayout(*rv->consist);
+    for (size_t i = 0; i < rv->cars.size(); i++) {
+      const RailCar& rc = rv->cars[i];
+      PlayerState b;
+      b.x = rc.x;
+      b.y = rc.y;
+      b.z = rc.z;
+      b.yaw = rc.yaw;
+      b.speed = rv->speed;
+      b.length = roles[i].len;
+      b.width = rv->consist->width;
+      railBoxes.push_back(b);
+    }
+  }
   traffic->obstacles.clear();
+  for (PlayerState& b : railBoxes) traffic->obstacles.push_back(&b);
   traffic->update(dt, player);
   const std::string& lang = settings.lang;
   for (const TrafficEvent& e : traffic->events) {
@@ -504,7 +545,8 @@ void Game::stepFoot(double dt) {
     else if (e.type == "forcedBrake") rules->noteAt("pedForcedBrake", "major", w->x, w->z, {}, 10);
   }
   if (!riding) {
-    // (later: a tram does not give way: whoever stands on its track is hit – rail.touching, game.ts:5634)
+    // a tram does not give way: whoever stands on its track is hit
+    if (rail->touching(RailPlayer{player.x, player.y, player.z, player.yaw, player.length, player.width})) rules->noteAt("pedHit", "fail", w->x, w->z, {}, 6);
     footRules(dt, *w);
     // what is within reach: a button  (later: a tram to get in, a bus at its stop – boardable, busAt, game.ts:5638)
     footPole = poleInReach(pedPoles, w->x, w->z);

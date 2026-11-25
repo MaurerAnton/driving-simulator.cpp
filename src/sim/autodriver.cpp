@@ -169,7 +169,7 @@ AutoCommand& AutoDriver::step(double dt, const Vehicle& v, const double* mpos, c
   // roadworks (src/sim/roadevents): a lane closed ahead – over to the open one in good time, and not back before its end
   RoadEvents* works = traffic ? traffic->roadEvents : nullptr;
   // kerb build-outs (src/sim/narrowings): through the gap they leave
-  Narrowings* narrow = traffic ? traffic->narrowings : nullptr;
+  Narrowings* narrow = traffic ? traffic->narrowings.get() : nullptr;
   const double nhw = me.width / 2;
   // level crossings (src/sim/levelcrossing): moderately towards one without barriers; before the cross while it says so
   LevelCrossings* lxs = traffic ? traffic->levelCrossings : nullptr;

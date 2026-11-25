@@ -3,8 +3,8 @@
 /**
  * The Hud's on-screen controls and the reminder of the keys.
  *
- * (Of the original's sheet behind "⋯", the wipers and the washer are left out, and the
- * aeroplane's autopilot – there and as the "AP" button: docs/STATUS.md, "Later".)
+ * (Of the original's sheet behind "⋯", the aeroplane's autopilot is left out – there and as
+ * the "AP" button: docs/STATUS.md, "Later".)
  */
 #include <algorithm>
 #include <memory>
@@ -119,6 +119,9 @@ void Hud::attachInput(Input& inputRef) {
   // the headlight flasher: lit while held
   item(t("beam.flasher"), "Flash");
   item(t("tbHazard"), "KeyX");
+  // the wiper stalk one place on, and the washer (held)
+  item(t("tbWipers"), "Digit8");
+  item(t("tbWasher"), "Digit7");
   item(t("tbHorn"), "KeyH");
   item(t("tbLookLeft"), "KeyJ");
   item(t("tbLookRight"), "KeyK");

@@ -4,13 +4,14 @@
  * 1.7.1: the weather on the vehicle and the roads (windscreen, wet roads, mud) and the real seasons belong to the
  * new "No mercy" preset only, which never comes by itself; and the simpler physics (even grip) are the default.
  *
- * Origin: tests/game/nomercy.test.ts @ v1.7.7 (its last case – the season shown – is game/outdoors.ts's).
+ * Origin: tests/game/nomercy.test.ts @ v1.7.7
  */
 #include <cassert>
 #include <cstdio>
 #include <string>
 
 #include "core/js.h"
+#include "game/outdoors.h"
 #include "game/settings.h"
 #include "platform/plat.h"
 
@@ -68,6 +69,13 @@ int main() {
     assert(loadSettings().evenRoads == true);
     storage("{\"version\":" + std::to_string(SETTINGS_VERSION) + ",\"evenRoads\":false}");
     assert(loadSettings().evenRoads == false);
+  }
+
+  // always summer unless "No mercy" (a season chosen is shown all the same)
+  {
+    assert(seasonShown({.weather = "real", .season = "real", .weatherFx = false}) == "summer");
+    assert(seasonShown({.weather = "real", .season = "real", .weatherFx = true}) == "real");
+    assert(seasonShown({.weather = "real", .season = "winter", .weatherFx = false}) == "winter");
   }
 
   storage();

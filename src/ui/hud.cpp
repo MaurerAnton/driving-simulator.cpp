@@ -388,6 +388,30 @@ void Hud::setClock(const std::optional<std::string>& text) {
   }
 }
 
+void Hud::setWipers(const std::optional<std::string>& mode) {
+  if (!dash) return;
+  if (!lampWipers) {
+    lampWipers = html(
+        "span", "lamp wipers",
+        "<svg viewBox=\"0 0 30 24\" aria-hidden=\"true\"><path d=\"M3 15a12 12 0 0 1 24 0z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M15 15 7.5 6.5\" "
+        "stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\"/><text x=\"15\" y=\"23.5\" text-anchor=\"middle\" font-size=\"8.5\" font-weight=\"800\" "
+        "font-family=\"sans-serif\" fill=\"currentColor\"></text></svg>");
+    // (green as a switched-on lamp; the class's display would beat the hidden attribute)
+    lampWipers.style("color", "#4fd06a");
+    lampWipers.style("opacity", "1");
+    dash.insertBefore(lampWipers, lampBelt);
+  }
+  const bool show = mode && *mode != "off";
+  const std::string display = show ? "" : "none";
+  if (lampWipers.style("display") != display) lampWipers.style("display", display);
+  const std::string label = mode && *mode == "intermittent" ? "int" : mode && *mode == "fast" ? "2" : "1";
+  El text = lampWipers.querySelector("text");
+  if (show && text && text.textContent() != label) {
+    text.textContent(label);
+    lampWipers.title(t("tbWipers") + ": " + t("wipers." + *mode));
+  }
+}
+
 void Hud::setWrecked(bool on) {
   if (!wreckBtn) return;
   wreckBtn.hidden(!on);

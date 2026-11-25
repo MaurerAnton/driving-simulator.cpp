@@ -4,8 +4,7 @@
  * switches, keep right on a double track, call at stops, brake for what is
  * on the track, turn back at the end of the line.
  *
- * Origin: tests/game/rail.test.ts (MaurerAnton/driving-simulator @ ff37c5d,
- * v0.7.0).
+ * Origin: tests/game/rail.test.ts @ v1.7.7
  */
 #include "../src/sim/rail.h"
 
@@ -198,7 +197,7 @@ int main() {
     assert(v->blocked);
     double gap = frontOf(*v).second - player.z;
     assert(gap > 2 && gap < 9);
-    assert(t.touching(player) == nullptr);
+    assert(!t.touching(player));
     run(t, 15, far);
     assert(v->speed > 5 && frontOf(*v).second < -260);
   }
@@ -228,14 +227,14 @@ int main() {
     assert(v);
     const RailCar& c = v->cars[1];
     RailPlayer p1 = {c.x + 1.6, 100, c.z, 0, 4.3, 1.8};
-    const RailTraffic::Touch* hit = t.touching(p1);
+    const std::optional<RailTraffic::Touch> hit = t.touching(p1);
     assert(hit);
     assert(hit->nx > 0.99 && std::fabs(hit->nz) < 0.01);
     assert(hit->depth > 0.3 && hit->depth < 1);
     RailPlayer p2 = {c.x + 2.6, 100, c.z, 0, 4.3, 1.8};
-    assert(t.touching(p2) == nullptr);
+    assert(!t.touching(p2));
     RailPlayer p3 = {c.x + 1.6, 110, c.z, 0, 4.3, 1.8};
-    assert(t.touching(p3) == nullptr);
+    assert(!t.touching(p3));
     double nx, nz, depth;
     assert(!boxOverlap(0, 0, 0, 2, 1, 10, 0, 0.3, 2, 1, nx, nz, depth));
     assert(boxOverlap(0, 0, 0, 2, 1, 0, -2.5, M_PI / 2, 2, 1, nx, nz, depth));
@@ -255,8 +254,8 @@ int main() {
     RailPlayer player = {0, 100, 30, 0, 4.3, 1.8};
     for (int i = 0; i < 50 * 40; i++) t.update(0.02, player);
     assert(t.vehicles.size() >= 1 && t.vehicles.size() <= 2);
-    for (const RailVehicle& v : t.vehicles)
-      for (const RailCar& c : v.cars) assert(std::fabs(c.z) < 0.01 && std::fabs(c.y - 100) < 0.01);
+    for (const auto& v : t.vehicles)
+      for (const RailCar& c : v->cars) assert(std::fabs(c.z) < 0.01 && std::fabs(c.y - 100) < 0.01);
     RailTraffic none({}, seeded);
     for (int i = 0; i < 200; i++) none.update(0.02, player);
     assert(none.vehicles.empty());

@@ -84,7 +84,7 @@ void Game::flyFrom(const SpawnJson& spot_, double agl) {
   airAgl = std::max(150.0, std::min(3000.0, agl));
   planePending = true;
   traffic->clear();
-  // (later: rail.clear – game.ts:3442)
+  rail->clear();
   keepClock = true;
   state = "placing";
   showModel(false);
@@ -312,7 +312,7 @@ void Game::afterFlightStep(Aircraft& a, double dt) {
   player.speed = 0;
   player.length = 0.1;
   player.width = 0.1;
-  // (later: rail.update – game.ts:4019)
+  stepRail(dt, player, false);
   traffic->obstacles.clear();
   traffic->update(dt, player);
   airfieldView->update(a.pos.x, a.pos.z);

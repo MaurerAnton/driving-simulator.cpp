@@ -44,7 +44,7 @@ Connector* straightOn(const Lane& lane) {
 
 int stopPlaceOf(int pole) { return static_cast<int>(std::floor(pole / 64.0)); }
 
-Traffic::Traffic(World& world_, LaneGraph& graph_, SignalSystem& signals_) : world(world_), graph(graph_), signals(signals_), pastBlocks(*this) {
+Traffic::Traffic(World& world_, LaneGraph& graph_, SignalSystem& signals_) : world(world_), graph(graph_), signals(signals_), pastBlocks(*this), narrowings(std::make_unique<Narrowings>(*this)) {
   probe.id = 9007199254740991LL;  // Number.MAX_SAFE_INTEGER
   probe.length = 4.3;
   probe.width = 1.8;
@@ -1613,7 +1613,7 @@ void Traffic::drive(TrafficCar* carp, double dt, const PlayerState& player) {
   }
   // past a kerb build-out: over in its gap, turned a little while it moves across (src/sim/narrowings)
   if (pl && narrowings && pl->edge->narrow) {
-    Narrowings* nw = narrowings;
+    Narrowings* nw = narrowings.get();
     const double hw = car.width / 2;
     const double hl = car.length / 2;
     const double ns = nw->shift(*pl, car.s, hw, hl);

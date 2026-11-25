@@ -75,7 +75,7 @@ void Game::endTasks() {
 
 void Game::placeAgain() {
   traffic->clear();
-  // (later: rail.clear – game.ts:1988)
+  rail->clear();
   vehicle->vel = {0, 0, 0};
   vehicle->angVel = {0, 0, 0};
   input->c.handbrake = 1;

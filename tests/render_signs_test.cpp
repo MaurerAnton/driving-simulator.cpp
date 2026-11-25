@@ -149,33 +149,15 @@ static void testDrawing() {
   assert(written(g, "999", false).empty());
   assert(written(g, "101", false).empty());
 
-  // the time on a panel: read and written by sim/signtime where that is there – as the map writes it where not
-  assert(!parseTimeWindow && !windowLines);
-  assert(written(g, "1040-30:22:00-06:00") == Texts{"22:00-06:00"});
-  assert(written(g, "1040-35:22-6") == (Texts{"Lärmschutz", "22-6"}));
-  std::vector<std::string> asked;
-  parseTimeWindow = [&](const std::string& raw) -> std::optional<TimeWindow> {
-    asked.push_back(raw);
-    if (raw == "tomorrow") return std::nullopt;
-    TimeWindow w;
-    w.spans.push_back({0x3e, 420, 1020});
-    return w;
-  };
-  windowLines = [](const TimeWindow& w) -> std::vector<std::string> {
-    assert(w.spans.size() == 1 && w.spans[0].days == 0x3e && w.spans[0].from == 420 && w.spans[0].to == 1020 && w.off == 0);
-    return {"Mo–Fr", "7–17 h"};
-  };
+  // the time on a panel: read and written by sim/signtime
+  assert(written(g, "1040-30:22:00-06:00") == Texts{"22–6 h"});
+  assert(written(g, "1040-35:22-6") == (Texts{"Lärmschutz", "22–6 h"}));
   assert(written(g, "1042-33:Mo-Fr 07:00-17:00") == (Texts{"Mo–Fr", "7–17 h"}));
-  assert(asked == Texts{"Mo-Fr 07:00-17:00"});
   assert(written(g, "1040-36:Mo-Fr 07:00-17:00") == (Texts{"Schulweg", "Mo–Fr", "7–17 h"}));
   assert(near(*artAspect("1040-36:Mo-Fr 07:00-17:00"), 600.0 / 450) && near(*artAspect("1042-33:Mo-Fr 07:00-17:00"), 600.0 / 330));
   // (a time that is not understood stays as it is written)
   assert(written(g, "1040-30:tomorrow") == Texts{"tomorrow"});
-  // (a panel without a time asks nothing)
-  asked.clear();
-  assert(written(g, "1040-36") == Texts{"Schulweg"} && written(g, "1004-30:150") == Texts{"150 m"} && asked.empty());
-  parseTimeWindow = nullptr;
-  windowLines = nullptr;
+  assert(written(g, "1040-36") == Texts{"Schulweg"} && written(g, "1004-30:150") == Texts{"150 m"});
 }
 
 static void testSizes() {

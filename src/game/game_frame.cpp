@@ -19,6 +19,9 @@
 #include "game/beamplay.h"
 #include "game/game.h"
 #include "render/forklift.h"
+#include "game/outdoors.h"
+#include "game/weather.h"
+#include "render/trams.h"
 #include "game/nav.h"
 #include "game/routepresets.h"
 #include "game/track.h"
@@ -31,13 +34,17 @@
 #include "render/actors.h"
 #include "render/crane.h"
 #include "render/far.h"
+#include "render/grass.h"
 #include "render/mirrors.h"
 #include "render/pedlights.h"
 #include "render/plane.h"
 #include "render/props.h"
+#include "render/levelcrossings.h"
+#include "render/roadworks.h"
 #include "render/yard.h"
 #include "render/signs.h"
 #include "render/truck.h"
+#include "render/windscreen.h"
 #include "sim/autodriver.h"
 #include "sim/autopilot.h"
 #include "sim/flight.h"
@@ -153,7 +160,10 @@ void Game::updateLesson(double dt, PlayerState& p) {
   Vehicle& v = *vehicle;
   const std::string& lang = settings.lang;
   if (!l) return;
-  // (later: the bus on a line, updateBusLine – game.ts:6351)
+  if (l->kind == "bus") {
+    updateBusLine(dt);
+    return;
+  }
   if (l->kind == "basics") {
     Controls& c = input->c;
     const bool automatic = v.spec.transmission == "automatic";
@@ -435,7 +445,7 @@ void Game::frame(double now) {
     const std::array<double, 2> f = focus();
     tiles.update(f[0], f[1]);
     props->update(f[0], f[1]);
-    // (later: grass.update – game.ts:6621)
+    grass->update(f[0], f[1], dt);
     updateVisuals(dt);
     // a crane posed as it works, the loads of its site where they are
     if (crane)
@@ -453,7 +463,7 @@ void Game::frame(double now) {
     const double cz = menuFocus.z + std::sin(a) * 260;
     tiles.update(menuFocus.x, menuFocus.z);
     props->update(cx, cz);
-    // (later: grass.update – game.ts:6641)
+    grass->update(cx, cz, dt);
     const double gy = tiles.heightAt(menuFocus.x, menuFocus.z);
     const double base = std::isnan(gy) ? 230 : gy;
     app.camera->position.set(cx, base + 95, cz);
@@ -474,7 +484,21 @@ void Game::frame(double now) {
     actors->update(traffic->cars, traffic->peds(), time, traffic->cyclists ? traffic->cyclists->list : noCyclists);
   }
   lap(frameTimes.scene);
-  // (later: wildView, railActors, transit, the lines of the trams, roadworks, crossingView, explosion – game.ts:6682)
+  // (later: wildView – game.ts:6682)
+  railActors->update(rail->vehicles, rail->lines);
+  // the lines: the trams run them (later: transit – the stops, the overhead line, the tram signals, the people at the stops; roadworks, crossingView, explosion – game.ts:6685)
+  updateLines();
+  {
+    const Vector3& cam = app.camera->position;
+    // the roadworks and the demonstrations of the day around the camera
+    if (roadworks) {
+      roadworks->crowdCap = settings.quality == "low" ? 70 : settings.quality == "medium" ? 140 : 220;
+      roadworks->update(roadEvents.get(), signs.get(), cam.x, cam.z, time, dt);
+    }
+    // the level crossings around the camera: their lights, barriers and bells
+    if (crossingView && levelCrossings) crossingView->update(*levelCrossings, signs.get(), cam.x, cam.z, time);
+  }
+  // (later: explosion – game.ts:6708)
   headlights(dt, haveCar ? &model : nullptr);
   // (later: online.frame – game.ts:6716)
 
@@ -485,7 +509,7 @@ void Game::frame(double now) {
   // (later: the replay's camera – game.ts:6723)
   else if (haveCar) {
     updateCamera(dt);
-    // (later: updateOutdoors – game.ts:6729)
+    updateOutdoors(dt, model);
     // the player's own figure: on foot, when the camera is not their eyes (not on the way in or out, not on a seat)
     // (later: riding, busRide – game.ts:6733)
     const OnFoot* fw = walker.get();
@@ -512,7 +536,34 @@ void Game::frame(double now) {
     // (later: the watcher's place as the middle of the picture – game.ts:6748)
     app.render(model.root->position);
     lap(frameTimes.render);
-    // (later: windscreen.frame, hud.setWipers, the fault noView – game.ts:6750)
+    // rain and snow on the windscreen, the wipers ("No mercy" graphics – 1.7.0: "very high" –, from the driver's seat): after the picture, which it keeps for its blur
+    {
+      const WeatherState& wn = weatherNow();
+      struct {
+        double x = 0, z = 0;
+      } wind;
+      windVector(wn, wind);
+      WindscreenView& ws = *windscreen;
+      // (later: not while watching – game.ts:6753)
+      ws.frame({.renderer = &app.renderer,
+                .scene = app.scene.get(),
+                .camera = app.camera.get(),
+                .model = &model,
+                .detail = settings.graphics.vehicleDetail && settings.graphics.weatherFx && !aircraft,
+                .cockpit = cameraMode == "cockpit" && !walker && doorT < 0,
+                .dt = state == "drive" ? dt : 0,
+                .rain = rainIntensity(wn),
+                .snow = snowIntensity(wn),
+                .temperature = wn.temperature,
+                .roadWet = wn.wet,
+                .windX = wind.x,
+                .windZ = wind.z,
+                .heater = vehicle->engineRunning,
+                .washer = input->washer(),
+                .light = app.sky.hemi->intensity / 1.2});
+      hud->setWipers(walker || aircraft ? std::nullopt : std::optional<std::string>(ws.mode));
+      if (ws.blindFor > 4 && state == "drive") rules->note("noView", "minor", {}, 60);
+    }
   } else {
     app.render(menuFocus);
   }
@@ -533,12 +584,46 @@ void Game::frame(double now) {
   if (looping) plat::requestAnimationFrame([this](double t) { frame(t); });
 }
 
+void Game::updateOutdoors(double dt, VehicleModel& model) {
+  Outdoors* od = outdoors.get();
+  if (!od) return;
+  // the cab keeps the rain out: the vehicle's outline, as high as it is (the tram's and the aeroplane's cabs: none) –
+  // a crane's cab, high up on its tower or turntable, round the eye (the loader crane is worked standing beside the truck)
+  // (later: not in a replay, in the tram – game.ts:6847)
+  const bool craneCab = crane && cameraMode == "cockpit" && def->kind != "loaderCrane";
+  const bool inside = !craneCab && !walker && !aircraft;
+  Object3D* shelter = craneCab ? static_cast<Object3D*>(app.camera.get()) : inside ? static_cast<Object3D*>(model.root.get()) : nullptr;
+  if (shelter != shelterOf) {
+    shelterOf = shelter;
+    const Outline& o = def->outline;
+    const double high = def->model == "car" ? 1.7 : def->model == "motorcycle" ? 0 : 3.6;
+    if (craneCab) od->view.setShelter(app.camera.get(), Box3(Vector3(-1.6, -1.6, -1.6), Vector3(1.6, 1.6, 1.6)));
+    else if (shelter && high > 0) od->view.setShelter(shelter, Box3(Vector3(-o.hw - 0.1, 0, -o.front - 0.1), Vector3(o.hw + 0.1, high, o.rear + 0.1)));
+    else od->view.setShelter(nullptr);
+  }
+  const OnFoot* w = walker.get();
+  const double x = w && walkerAway() ? w->x : mpos[0];
+  const double z = w && walkerAway() ? w->z : mpos[2];
+  od->update(dt, app.camera->position, Vector3(x, app.tiles->heightAt(x, z), z), {.weather = settings.weather, .season = settings.season, .weatherFx = settings.graphics.weatherFx},
+             lanes.get());
+  // (later: today's fuel prices – game.ts:6862)
+  ground->weatherGrip = od->grip;
+  // (the road physics switched off in the arcade options: every surface as dry asphalt)
+  ground->even = settings.evenRoads;
+  ground->evenTerrain = settings.evenTerrain;
+  // (bare winter crowns throw no full shadows: the trees' shadows go while they are bare)
+  props->setShadows(settings.graphics.propShadows && !od->look.thinCrowns());
+}
+
 void Game::updateVisuals(double dt) {
   Vehicle& v = *vehicle;
   Controls& c = input->c;
   CarVisualState& s = visual;
-  const double kmh = v.speed * 3.6;
-  // (later: the tram: no steering bar on the screen, its lever – game.ts:6882)
+  const double kmh = (tram ? tram->speed() : v.speed) * 3.6;
+  // (a tram is not steered: no steering bar on the screen – the indicators choose the way at a switch)
+  ui.toggleClass("rail", tram != nullptr);
+  if (tram)
+    if (TramCab* cab = dynamic_cast<TramCab*>(&model())) cab->setLever(tram->emergency ? -1.2 : tram->lever);
   s.speedKmh = std::abs(kmh);
   s.rpm = v.rpm;
   s.gear = v.spec.transmission == "automatic" ? (c.gear == 1 ? v.gear : c.gear) : v.gear;
@@ -594,7 +679,6 @@ void Game::updateVisuals(double dt) {
     rough = std::max(rough, w.grip < 0.75 ? 2.4 : 1.0);
   }
   {
-    // (later: the tram's sounds – game.ts:6941)
     AudioState a;
     a.rpm = v.rpm;
     a.load = v.engineLoad;
@@ -609,6 +693,25 @@ void Game::updateVisuals(double dt) {
     a.braking = driver.brake;
     a.parkingBrake = c.handbrake > 0.5;
     a.reversing = v.gear == -1;
+    if (tram && !aircraft) {
+      // the tram: its motors pulling or braking, the rails, the squeal in tight curves, the bell
+      RailSample at;
+      rail->net.sample(tram->v.path, tram->v.s, at);
+      const double cap = at.cap;
+      a = AudioState();
+      a.rpm = 0;
+      a.load = tram->powered() ? std::max(0.0, tram->lever) : 0;
+      a.braking = tram->emergency ? 1 : std::max(0.0, -tram->lever);
+      a.engineRunning = tram->powered();
+      a.starter = false;
+      a.speed = tram->speed();
+      a.skid = 0;
+      a.indicatorOn = c.indicator != 0 && state == "drive";
+      a.blinkOn = s.blinkOn;
+      a.horn = c.horn;
+      a.rough = 1;
+      a.curve = cap < 90 ? 1.1 / (cap * cap) : 0;
+    }
     if (aircraft) {
       // the aeroplane: its engine and propeller, the wind, the stall warning
       const Aircraft& ac = *aircraft;
@@ -648,7 +751,7 @@ void Game::updateVisuals(double dt) {
     // § 9 StVO: get in lane in good time – the route goes on from a particular lane
     if (h.lane != 0) navText += " – " + tr(h.lane < 0 ? "laneLeft" : "laneRight", lang);
   } else if ((lesson && lesson->kind == "basics") || task || drill) navText = lessonLine;
-  // (later: the bus on a line: its line – game.ts:6996)
+  else if (lesson && lesson->kind == "bus") navText = lessonLine + " · " + busNav;
   std::string tip = time < tipUntil ? tipText : "";
   // on a touch screen the tip says what to tap – and is itself the button for it
   std::string tipAction;
@@ -657,7 +760,13 @@ void Game::updateVisuals(double dt) {
     tip = tr(touch ? key + "Touch" : key, lang);
     tipAction = action;
   };
-  // (later: the bus on a line: the doors at the stop – game.ts:7006)
+  // the bus on a line: the doors at the stop, the people, the indicator to pull out
+  if (tip.empty() && busService && v.engineRunning) {
+    const BusStopsHere here = busStopsHere();
+    if (busService->doorsOpen && busService->passengers() > 0) tip = tr("tramPassengers", lang, {{"n", busService->passengers()}});
+    else if (busService->doorsOpen) say("tramCloseDoors", "KeyG");
+    else if (busService->atStop(here.front, here.stops, v.speed)) say("tramOpenDoors", "KeyG");
+  }
   if (tip.empty()) {
     if (!v.engineRunning) {
       bool stalledNow = false;
@@ -707,7 +816,7 @@ void Game::updateVisuals(double dt) {
   hs.autopilotDriving = autopilotDriving();
   // (the reminder of the keys is the car's: not for the tram – its lesson says how it is driven – nor for the
   // aeroplane, whose keys the tip line names)
-  hs.noKeyHints = aircraft != nullptr;
+  hs.noKeyHints = tram != nullptr || aircraft != nullptr;
   hs.indicator = c.indicator;
   hs.hazard = c.hazard;
   hs.blinkOn = s.blinkOn;
@@ -737,7 +846,8 @@ void Game::updateVisuals(double dt) {
     hs.navSub = tr(touch ? "navSubTouch" : "navSubKeys", lang);
     hs.navArrow = 0;
   }
-  // (later: a lesson watched: the instructor says what the car does – game.ts:7082; the tram's line of the display – game.ts:7083)
+  // (later: a lesson watched: the instructor says what the car does – game.ts:7082)
+  if (tram) tramHud(hs, touch);
   const OnFoot* w = walker.get();
   // (later: on the bus, riding along: the next stop, getting off there – busRide, riding, game.ts:7133)
   if (w && def->kind == "pedestrian") {

@@ -29,6 +29,7 @@
 #include "core/task.h"
 #include "engine/engine.h"
 #include "game/app.h"
+#include "game/busline.h"
 #include "game/ce.h"
 #include "game/lessonplaces.h"
 #include "game/openplay.h"
@@ -42,8 +43,11 @@
 #include "render/navscreen.h"
 #include "render/walker.h"
 #include "render/tiles.h"
+#include "sim/rail.h"
+#include "sim/tramdrive.h"
 #include "sim/playerstate.h"
 #include "sim/vehicle/types.h"
+#include "ui/bigmap.h"
 #include "world/lanes.h"
 #include "world/regions.h"
 #include "world/routegraph.h"
@@ -72,10 +76,12 @@ class DrivenPath;
 class FarTerrain;
 class FaultLog;
 class FlyCam;
+class GrassRenderer;
 class GameAudio;
 struct LessonDef;
 struct MapFollowers;
 class Navigator;
+class Outdoors;
 class NetIndex;
 class ParkedCarRenderer;
 class PedLightRenderer;
@@ -89,15 +95,31 @@ class WorldLayer;
 class SignalSystem;
 class SignRenderer;
 class Traffic;
+class BusLines;
+class BusSchedule;
+class RailActors;
+class Stops;
+class TransitSource;
+struct BusStopOnLane;
+struct HudState;
+struct Timetable;
 class TerrainSource;
 class TrafficRenderer;
 class PlayerTruck;
 class SpawnCars;
 struct Parked;
 class YardScene;
+class ExtraSigns;
+class TimedRules;
+class RoadEvents;
+struct RoadEventInfo;
+class RoadworksRenderer;
+class LevelCrossings;
+class LevelCrossingRenderer;
 class YardTask;
 class Trailer;
 class Vehicle;
+class WindscreenView;
 class WorldGround;
 // (src/ui and src/input)
 class BigMap;
@@ -190,7 +212,7 @@ class Game {
   /** who follows the road network as it comes in pieces (sim/follow.h) */
   std::unique_ptr<MapFollowers> followers;
   const std::unique_ptr<PropRenderer> props;
-  // (later: grass – game.ts:290)
+  // (grass: below, '--- weather, seasons, the windscreen ---' – game.ts:290)
   std::unique_ptr<SignRenderer> signs;
   PlayerCar car;
   const std::unique_ptr<TrafficRenderer> actors;
@@ -298,7 +320,7 @@ class Game {
   // (later: the aeroplane: aircraft … flightControls – game.ts:416)
   // (later: lines, lineStopsDirty, linesFor – game.ts:437)
   const std::unique_ptr<SceneryCollider> collider;
-  // (later: outdoors, shelterOf, explosion, wrecked – game.ts:443)
+  // (outdoors, shelterOf: below, '--- weather, seasons, the windscreen ---'; later: explosion, wrecked – game.ts:443)
   const std::unique_ptr<GameAudio> audio;
   // (later: sirens, services – game.ts:452)
   State state = "loading";
@@ -311,7 +333,7 @@ class Game {
   int fpsFrames = 0;
   double fpsSince = 0;
   int mirrorTurn = 0;
-  // (later: windscreen, mirrorZoom, hudMirror – game.ts:466)
+  // (windscreen: below, '--- weather, seasons, the windscreen ---'; later: mirrorZoom, hudMirror – game.ts:466)
   /** a tap on the vehicle's screen: the big map or the corner map (ui/screentap.ts) */
   std::unique_ptr<ScreenTap> screenTap;
   std::optional<SpawnJson> spawn;
@@ -594,7 +616,7 @@ class Game {
   bool ready = false;
   void frame(double now);
   CarVisualState visual;
-  // (later: updateOutdoors, soundAt – game.ts:6842)
+  // (updateOutdoors: below, '--- weather, seasons, the windscreen ---'; later: soundAt – game.ts:6842)
   void updateVisuals(double dt);
   void speak(const std::string& what, double dist, const std::string& text);
   /** on foot: how far the head is turned by the glance keys (smoothed) */
@@ -717,6 +739,92 @@ class Game {
   void taskDone(bool ok);
   /** Judge the task on the yard and say what is to be done. */
   void updateTask(double dt);
+  // --- transit ---
+  // trams and trains on the tracks around the player (sim/rail.ts), drawn by render/trams.ts; the lines of the
+  // trams and their timetables, the stops, the lines of the city buses (game.ts:388, 437, 1501, 6075)
+  std::unique_ptr<RailTraffic> rail;
+  const std::unique_ptr<RailActors> railActors;
+  std::vector<RailObstacle> railOthers;
+  /** the lines of the trams (lines.json.gz): which way they run and where they call */
+  std::shared_ptr<const LinesJson> lines;
+  bool lineStopsDirty = false;
+  /** the rail traffic that was given the lines (a new one is made when the tracks are read) */
+  const RailTraffic* linesFor = nullptr;
+  /** the timetables of the trams and buses (null: none for this map) – the trams and buses of the traffic keep to them (src/game/timedtransit.ts) */
+  std::unique_ptr<Timetable> timetable;
+  /** what rail.schedule points to (tramSchedule), and traffic.busSchedule (busSchedule) */
+  std::unique_ptr<RailSchedule> railSchedule;
+  std::unique_ptr<BusSchedule> busTimes;
+  /** the stops of the map (null: a map without the list) */
+  std::unique_ptr<Stops> stops;
+  /** the stops as the big map's search lists them */
+  std::vector<StopSource> stopSources;
+  /** the lines of the city buses (null: none for this map) */
+  std::shared_ptr<BusLines> busLines;
+  /** the names of stops the map does not name (the street they are in), by piece of track and mark */
+  std::map<std::string, std::string> stopNames;
+  /** the bus stops along each lane (worked out when a bus first needs them) */
+  std::map<int, std::vector<BusStopOnLane>> laneStops;
+  /** The maps' trams and buses (spectate.ts transitSource). */
+  std::unique_ptr<TransitSource> transitSrc;
+  /** where trams can go, for the big map: their tracks and stops (made once per set of tracks) */
+  std::optional<BigMapHost::Tramways> tramMap;
+  const RailTraffic* tramMapOf = nullptr;
+  const Stops* tramMapStops = nullptr;
+  /** The tracks were read: the rail traffic on them. */
+  void railsRead(std::shared_ptr<const std::vector<RailJson>> rails);
+  void linesRead(std::shared_ptr<const LinesJson> json);
+  void stopsRead(std::shared_ptr<const StopsJson> json);
+  /** A stop's name: as the map names it – or, on an older map, the street it is in. */
+  std::string stopName(int path, double mark);
+  /**
+   * The bus stops along a lane: the poles of the map's stops at the right of
+   * it (people wait at the kerb on the right), each where the front of a bus
+   * comes to stand – a metre and a half past the pole, the front door at it.
+   */
+  const std::vector<BusStopOnLane>& busStopsOn(const Lane& lane);
+  const BigMapHost::Tramways* tramways();
+  TransitSource* transitData();
+  /** trams and trains step with the player (`others`: the cars of the traffic as circles) – and their cars among the obstacles */
+  void stepRail(double dt, const PlayerState& player, bool withCars);
+  /** the lines given to the rail traffic, and the departure boards (each picture: game.ts:6686) */
+  void updateLines();
+  /** the bus on a line (its lesson): the stops served, the doors, the passengers – and what the HUD says of the next stop */
+  std::unique_ptr<BusService> busService;
+  std::string busNav;
+  /** The stops on the lane the bus is in, with their names. */
+  struct BusStopsHere {
+    double front = 0;
+    std::vector<BusStopAhead> stops;
+  };
+  BusStopsHere busStopsHere();
+  /** The bus on a line: the next stop, the doors and the passengers there, pulling out – five stops, then the lesson is done. */
+  void updateBusLine(double dt);
+  /** the tram the player drives (sim/tramdrive.ts): null when it is not a tram */
+  std::unique_ptr<TramDriver> tram;
+  /** where the player's tram is to stand once the drive is placed (tramStart), and since when the tracks are waited for (-1: not) */
+  std::optional<TramStart> tramAt;
+  double tramWait = -1;
+  /** the stop chosen in the menu to start the tram at ('' : the nearest) */
+  std::string tramStopName;
+  /** the tram drives by itself (its demonstration drive) – and, so asked, from the next start on */
+  bool tramAuto = false;
+  bool tramAutoPending = false;
+  /** how long the controls have been touched while it drives by itself (it is taken over after a moment) */
+  double tramTake = 0;
+  /** the assisted autopilot: the player holds the controls for a moment, it drives on once let go */
+  bool tramHeld = false;
+  double tramFree = 0;
+  /** the line the next tram put on the tracks runs (a tram taken over) */
+  std::string tramLineRef;
+  std::vector<TramEvent> tramEvents;
+  /** The game's vehicle stands where the tram's first car is: the camera, the map, the traffic keep to it. */
+  void placeTramProxy();
+  void noteTram(const std::vector<TramEvent>& events);
+  /** A step of the tram: the controller, the switch asked for, the tram on its track, the traffic around it. */
+  void stepTram(double dt);
+  /** what the HUD shows of the tram (game.ts:7083) */
+  void tramHud(HudState& hs, bool touch);
 
   // --- on foot ---
   // (getting out, walking round the vehicle and in the town, the doors, the cars parked on the map – game.ts:4594 … 5838)
@@ -818,6 +926,33 @@ class Game {
   const std::unique_ptr<BeamPlay> beams;
   /** The headlights, once a frame (game/beamplay.ts): `model` the vehicle driven (null: none – a replay, the menu). */
   void headlights(double dt, VehicleModel* model);
+  // --- weather, seasons, the windscreen ---
+  /** vertical grass on the ground ("No mercy"): render/grass.h (game.ts:290) */
+  std::unique_ptr<GrassRenderer> grass;
+  /** the weather and the season (game/outdoors.h): made once the map is read (game.ts:443) */
+  std::unique_ptr<Outdoors> outdoors;
+  /** what the rain is kept out of now: the vehicle's model, a crane's cab (the camera), nothing (game.ts:445) */
+  Object3D* shelterOf = nullptr;
+  /** the windscreen in rain and snow, and the wiper stalk (render/windscreen.h, game/wipers.h; game.ts:466) */
+  std::unique_ptr<WindscreenView> windscreen;
+  /**
+   * The weather and the season, once a picture: the real weather (or the
+   * one chosen) where the player is, rain and snow round the camera but not
+   * in the cab, the grip of the road.
+   */
+  void updateOutdoors(double dt, VehicleModel& model);
+  // --- roadworks, narrowings, level crossings, signs with times ---
+  /** the signs the map was built without (signs.json.gz, world/extrasigns): added to each tile – and the rules of those with a time on them (`rules.timed`) */
+  std::shared_ptr<ExtraSigns> extraSigns;
+  std::unique_ptr<TimedRules> timedRules;
+  /** the roadworks and the demonstrations of the day (src/sim/roadevents – `roadEvents.list()` for the map), and how they are drawn */
+  std::unique_ptr<RoadEvents> roadEvents;
+  std::unique_ptr<RoadworksRenderer> roadworks;
+  /** the level crossings: lights, barriers and bells, driven by the trains (src/sim/levelcrossing), and how they are drawn */
+  std::unique_ptr<LevelCrossings> levelCrossings;
+  std::unique_ptr<LevelCrossingRenderer> crossingView;
+  /** (what `roadEvents.list()` gave the big map last: it keeps a pointer to it) */
+  std::vector<RoadEventInfo> eventList;
 };
 
 }  // namespace fs
