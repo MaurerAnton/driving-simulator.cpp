@@ -19,6 +19,7 @@
 #include "game/exam/signs.h"
 #include "game/faultlog.h"
 #include "game/nav.h"
+#include "game/theory.h"
 #include "game/tourlog.h"
 #include "i18n/exam/index.h"
 #include "i18n/violations.h"
@@ -392,8 +393,8 @@ class LearnUi : public std::enable_shared_from_this<LearnUi> {
     else {
       Canvas canvas(640, 400);
       canvas.el().className("lr-plan");
-      const std::optional<double> at = learnPlan.sceneTime ? learnPlan.sceneTime(p.scene, p.step, p.off.value_or(0)) : std::nullopt;
-      if (at && learnPlan.drawPlan) learnPlan.drawPlan(canvas, p.scene, *at, t("learn.you"), c_.signBase);
+      const std::optional<double> at = sceneTime(p.scene, p.step, p.off.value_or(0));
+      if (at) drawPlan(canvas, p.scene, *at, t("learn.you"), c_.signBase);
       box.append(canvas.el());
     }
     return box;
@@ -544,11 +545,7 @@ class LearnUi : public std::enable_shared_from_this<LearnUi> {
     int right = 0;
     for (const DangerItem& x : DANGER_ITEMS)
       if (const DangerStat* s = d.danger.find(x.id); s && s->ok) right++;
-    bool scene = false;
-    if (learnHooks.THEORY) {
-      const std::vector<std::string> ids = learnHooks.THEORY();
-      scene = std::find(ids.begin(), ids.end(), item.scene) != ids.end();
-    }
+    const bool scene = theory::theoryLesson(item.scene) != nullptr;
     pg.panel.append(dom::el("p", "lr-state", (scene ? t("theory." + item.scene + ".title") : "") + " · " + t("learn.dangerProgress", {{"right", right}, {"total", DANGER_ITEMS.size()}})));
     ExamPicture pic;
     pic.scene = item.scene;
@@ -627,7 +624,7 @@ class LearnUi : public std::enable_shared_from_this<LearnUi> {
     in.learn = d;
     for (const LessonDef& l : LESSONS) in.lessons.push_back(l.id);
     if (learnHooks.DRILL_IDS) in.drills = learnHooks.DRILL_IDS();
-    if (learnHooks.THEORY) in.theory = learnHooks.THEORY();
+    for (const theory::LessonDef& l : theory::THEORY()) in.theory.push_back(l.id);
     in.theoryDone = theoryDone;
     for (const DangerItem& x : DANGER_ITEMS) in.danger.push_back(x.id);
     for (const FaultEntry& f : FaultLog().entries) in.faults.push_back({f.mode, f.t});
