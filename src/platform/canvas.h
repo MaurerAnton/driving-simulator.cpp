@@ -12,8 +12,9 @@
  *
  * Properties are set with a call of their name (C++ has no setters).  In the
  * browser this is the real canvas, with the browser's fonts and text shaping; on
- * the native host nothing is painted (text is measured roughly), the calls are
- * only counted – the tests look at what is asked for, not at pixels.
+ * the native host it is painted in memory (platform/native/canvas_native.cpp:
+ * plutovg, the fonts of third_party/fonts), and the calls are counted besides –
+ * the tests look at what is asked for, and at pixels.
  */
 #pragma once
 
@@ -66,7 +67,7 @@ struct Image {
 
 /**
  * `const img = new Image(); img.src = url; await img.decode()`: a picture from an
- * address (a failed one has handle 0).  Natively there are no pictures: always 0.
+ * address (a failed one has handle 0).  Natively: PNG, JPEG and SVG (from data: addresses and fetch).
  */
 Task<Image> loadImage(std::string url);
 /** a picture from bytes that are a JPEG, PNG or WebP file (createImageBitmap of a Blob) */
