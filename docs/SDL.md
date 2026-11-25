@@ -79,7 +79,8 @@ shell reaches neither the Wayland nor the X display): the smoke test passes on t
 (Panfrost) – 120 of 120 frames, state "drive", no GL error –, `--shot` writes the expected
 picture of the car on the start place, and SDL's `disk` audio driver
 (`SDL_AUDIO_DRIVER=disk SDL_AUDIO_DISK_OUTPUT_FILE=…`) records the idling engine.  Keys,
-mouse, fingers and gamepads have not been tried by hand yet.
+mouse, fingers and gamepads have not been tried by hand yet.  `--touch --shot=…` shows the
+touch controls painted over the drive (2026-11-25); pressing them has not been tried by hand.
 
 Not yet:
 * **The HTML menus are not seen** – only the small HUD and the touch controls are painted
@@ -111,7 +112,7 @@ library and the assets, lines the archive up and signs it with a key made for th
 **Building** happens in GitHub Actions only (`.github/workflows/android.yml`; this machine has
 no room for an NDK): every push to the branch `v21/android`, or by hand
 (`gh workflow run android.yml --ref <branch>`).  The APK is the run's artifact
-`fahrsim2-<commit>-arm64-v8a`:
+`fahrsim2-<commit>-arm64-v8a` (and `…-armeabi-v7a` for 32-bit phones):
 
     gh run download <run id> -n fahrsim2-<commit>-arm64-v8a
     adb install -r fahrsim2-<commit>-arm64-v8a.apk        # or open the file on the phone
@@ -120,7 +121,7 @@ no room for an NDK): every push to the branch `v21/android`, or by hand
 It is signed with a fresh test key each build: an APK of another build is installed over it only
 after the old one is removed (`adb uninstall io.github.maureranton.fahrsim2`).
 
-**What it is:** arm64-v8a, Android 8.0 (API 26) or newer, OpenGL ES 3.0, held sideways.  The
+**What it is:** arm64-v8a or armeabi-v7a, Android 8.0 (API 26) or newer, OpenGL ES 3.0, held sideways.  The
 site's files (`web/`) and the fonts are the APK's assets, read through SDL (`SDL_LoadFile`: a
 relative path is an asset there); localStorage is kept in the app's own folder; the map comes
 from the 1.7.7 site over the network (Java's `HttpURLConnection` through JNI –
@@ -131,6 +132,6 @@ CSS pixels of the display's scale, as a phone's browser does.  stdout and stderr
 
 **Not tried on a device yet** (built in CI only, no phone or emulator here).  Not there: the
 menus (as on the desktop), the region chooser (`--region` cannot be given to an APK), the
-pause/menu button, speech, vibration, tilt steering, geolocation; armeabi-v7a; a release key.
+pause/menu button, speech, vibration, tilt steering, geolocation; a release key.
 Going to the background stops the pictures and writes localStorage; whether the GL context
 survives that on every phone is not known.
