@@ -13,9 +13,6 @@
  * (SeasonLook), the wheel tracks on a snowy road (SnowTracks), the grip of
  * the tyres (`grip`, for WorldGround.weatherGrip) and the weather "now" that
  * any other part of the game may ask (setWeatherNow).
- *
- * (Real water in the terrain and the far view – render/water.ts WaterLook, the original's `water` here – is not
- * ported yet: the terrain and the far view are taught the season only.)
  */
 #pragma once
 
@@ -30,6 +27,7 @@
 #include "game/weather.h"
 #include "render/season.h"
 #include "render/snowtracks.h"
+#include "render/water.h"
 #include "render/weather.h"
 
 namespace fs {
@@ -66,6 +64,8 @@ class Outdoors {
   WeatherRenderer view;
   SeasonLook look;
   SnowTracks tracks;
+  /** real water in the terrain and the far view (`water.enabled`: the graphics setting) */
+  WaterLook water;
   /** the weather and the season shown now */
   WeatherPtr weather = CLEAR_WEATHER();
   SeasonState season;

@@ -33,7 +33,9 @@
 #include "game/ce.h"
 #include "game/lessonplaces.h"
 #include "game/openplay.h"
+#include "game/serviceworld.h"
 #include "game/settings.h"
+#include "game/wading.h"
 #include "game/walkmodes.h"
 #include "game/vehicles.h"
 #include "platform/dom.h"
@@ -321,13 +323,13 @@ class Game {
   // (later: passengerView – game.ts:403)
   /** the ground beyond the map's tiles: the hills on the horizon */
   const std::unique_ptr<FarTerrain> far;
-  // (later: wading, transit, roadEvents, roadworks, levelCrossings, crossingView – game.ts:407)
+  // (wading: below, '--- water, wading, fuel and services ---'; later: transit, roadEvents, roadworks, levelCrossings, crossingView – game.ts:407)
   // (later: the aeroplane: aircraft … flightControls – game.ts:416)
   // (later: lines, lineStopsDirty, linesFor – game.ts:437)
   const std::unique_ptr<SceneryCollider> collider;
   // (outdoors, shelterOf: below, '--- weather, seasons, the windscreen ---'; later: explosion, wrecked – game.ts:443)
   const std::unique_ptr<GameAudio> audio;
-  // (sirens: in the block of the cyclists, emergency vehicles and wildlife at the end; later: services – game.ts:452)
+  // (sirens: in the block of the cyclists, emergency vehicles and wildlife; services: in that of water, wading, fuel and services – game.ts:452)
   State state = "loading";
   CameraMode cameraMode = "cockpit";
 
@@ -973,6 +975,13 @@ class Game {
   std::unique_ptr<WildView> wildView;
   /** (what `emergencies` gave the big map last: it keeps a pointer to it) */
   std::vector<MapEmergency> emergencyList;
+  // --- water, wading, fuel and services ---
+  /** driving through water: its depth for the wheels, the wash, wet brakes, a drowned engine, the spray (game/wading.h; game.ts:407) */
+  std::unique_ptr<Wading> wading;
+  /** fuel stations, car washes, the fuel in the tank, the dirt, the loading of a truck (game/serviceworld.h; game.ts:454) */
+  std::unique_ptr<ServiceWorld> services;
+  /** (the stations and washes as the big map has them: it keeps a pointer to the list) */
+  std::vector<MapService> serviceList;
 };
 
 }  // namespace fs

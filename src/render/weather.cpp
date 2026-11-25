@@ -158,7 +158,9 @@ void main() {
 
 }  // namespace
 
-SkyParts skyParts(Sky& sky) { return {.fog = sky.fog, .sun = sky.sun, .hemi = sky.hemi, .uZenith = sky.uZenith, .uHorizon = sky.uHorizon, .uSunColor = sky.uSunColor}; }
+SkyParts skyParts(Sky& sky) {
+  return {.fog = sky.fog, .sun = sky.sun, .hemi = sky.hemi, .uZenith = sky.uZenith, .uHorizon = sky.uHorizon, .uSunColor = sky.uSunColor, .dome = sky.dome};
+}
 
 FogRange& weatherFog(double visibility, double near, double far, FogRange& out) {
   const double f = far > 0 ? std::min(1.0, (1.05 * std::max(1.0, visibility)) / far) : 1;

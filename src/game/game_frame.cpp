@@ -19,6 +19,7 @@
 #include "game/forkliftplay.h"
 #include "game/beamplay.h"
 #include "game/game.h"
+#include "world/fuelprices.h"
 #include "render/forklift.h"
 #include "game/outdoors.h"
 #include "game/weather.h"
@@ -615,7 +616,9 @@ void Game::updateOutdoors(double dt, VehicleModel& model) {
   const double z = w && walkerAway() ? w->z : mpos[2];
   od->update(dt, app.camera->position, Vector3(x, app.tiles->heightAt(x, z), z), {.weather = settings.weather, .season = settings.season, .weatherFx = settings.graphics.weatherFx},
              lanes.get());
-  // (later: today's fuel prices – game.ts:6862)
+  // (today's fuel prices round the player, where the settings hold a key of Tankerkönig)
+  fuelPrices().key = settings.fuelKey;
+  fuelPrices().refresh(x, z);
   ground->weatherGrip = od->grip;
   // (the road physics switched off in the arcade options: every surface as dry asphalt)
   ground->even = settings.evenRoads;
@@ -663,8 +666,8 @@ void Game::updateVisuals(double dt) {
   s.braking = driver.brake > 0.03;
   s.reversing = v.gear == -1;
   lastVisual = &s;
-  // (later: services.visual: the fuel gauge, the dirt – game.ts:6914)
   VehicleModel& model = this->model();
+  services->visual(s, model, dt);
   // (the aeroplane's model moves with the flight, in frame: planeVisual – it has no screen)
   const bool plane = def->model == "plane" && planeModel;
   if (!plane) model.update(s, dt, time);
@@ -944,7 +947,8 @@ void Game::updateVisuals(double dt) {
     hs.tipAction = "";
     hs.tip = time < tipUntil ? tipText : ac.stallWarning() ? tr("flyStall", lang) : time - startTime < 20 ? tr(touch ? "flyHelpTouch" : "flyHelp", lang) : "";
   }
-  // (later: watching – game.ts:7242; services.hud – game.ts:7247)
+  // (later: watching – game.ts:7242)
+  services->hud(hs, touch);
   // (on foot below the tower crane: the walker's place)
   if (crane) crane->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
   if (forklift) forklift->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
@@ -1164,7 +1168,7 @@ void Game::updateCamera(double dt) {
       cam.quaternion.copy(car.quaternion).multiply(tmpQ);
     }
   }
-  // (later: services.camera – game.ts:7486)
+  services->camera(cam);
   // (1 – nothing – unless the view is zoomed: only on foot and in the driver's seat)
   cam.fov = input->zoom.fov(cam.fov);
   cam.updateProjectionMatrix();
