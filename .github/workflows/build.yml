@@ -19,8 +19,12 @@ jobs:
       - name: Packages
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q ninja-build zlib1g-dev libpng-dev libegl-dev libgles-dev
+          sudo apt-get install -y -q ninja-build zlib1g-dev libpng-dev libegl-dev libgles-dev g++-14
+      # (C++26: the runner's default GCC 13 has no -std=c++26 – GCC 14 has)
       - name: Build and test
+        env:
+          CC: gcc-14
+          CXX: g++-14
         run: FS_JOBS=4 tools/check.sh
 
   web:
