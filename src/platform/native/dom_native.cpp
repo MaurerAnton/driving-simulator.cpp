@@ -12,6 +12,7 @@
 
 #include "platform/dom.h"
 #include "platform/dom_internal.h"
+#include "platform/native/canvas_native.h"
 #include "platform/native/dom_native.h"
 
 namespace fs::dom {
@@ -453,7 +454,11 @@ void retain(int h) {
   if (Node* n = node(h)) n->refs++;
 }
 void release(int h) {
-  if (Node* n = node(h)) n->refs--;
+  Node* n = node(h);
+  if (!n) return;
+  n->refs--;
+  // (a canvas nobody holds and that is not in the page: its pixels go – handles are never given again)
+  if (n->refs <= 0 && !n->parent && n->tag == "canvas") canvasNative::released(h);
 }
 int special(int which) {
   Page& p = page();
@@ -524,6 +529,8 @@ void setStr(int h, const char* prop, const char* value) {
     clear(h);
     if (*value) n->props[p] = value;
   } else n->props[p] = value;
+  // (a canvas given a size is blank again, its context as new)
+  if ((p == "width" || p == "height") && n->tag == "canvas") canvasNative::resized(h);
 }
 void setNum(int h, const char* prop, double value) {
   char buf[40];

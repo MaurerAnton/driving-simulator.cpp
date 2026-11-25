@@ -31,6 +31,7 @@
 #include "core/js.h"
 #include "core/task.h"
 #include "game/game.h"
+#include "ui/sdlhud.h"
 #include "game/settings.h"
 #include "platform/dom.h"
 #include "platform/native/native.h"
@@ -164,6 +165,8 @@ int main(int argc, char** argv) {
     std::unique_ptr<Game> game;
     try {
       game = std::make_unique<Game>(canvas, ui);
+      // the small display drawn over the picture (ui/sdlhud: the street, the speed, the tips, the corner map)
+      installSdlHud(*game->hud);
     } catch (const std::exception& e) {
       std::fprintf(stderr, "fahrsim-sdl: the game could not be made: %s\n", e.what());
       sdl::close();

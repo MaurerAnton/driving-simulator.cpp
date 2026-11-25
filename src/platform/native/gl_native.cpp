@@ -5,10 +5,12 @@
  * pictures without a browser, for development and for the tests that look at them.
  */
 #include "platform/glhost.h"
+#include "platform/native/canvas_native.h"
 #include "platform/native/gl_native.h"
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #if defined(FS_NATIVE_GL)
 #include <EGL/egl.h>
@@ -141,8 +143,32 @@ void resizeDrawingBuffer(int width, int height) {
 
 uint32_t screenFramebuffer() { return host().fbo; }
 
-bool texImageCanvas(int, bool, bool, int&, int&) { return false; }
-bool texImageImage(int, bool, bool, int&, int&) { return false; }
+namespace {
+/** RGBA pixels (not premultiplied, as WebGL takes a canvas by default) into the bound texture */
+bool upload(const std::vector<uint8_t>& px, bool srgb, int width, int height) {
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  glTexImage2D(GL_TEXTURE_2D, 0, srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  return true;
+}
+}  // namespace
+
+bool texImageCanvas(int canvasElement, bool flipY, bool srgb, int& width, int& height) {
+  std::vector<uint8_t> px;
+  int w = 0, h = 0;
+  // (the 2D canvas of this host paints for real: platform/native/canvas_native.cpp)
+  if (!canvasNative::pixels(canvasElement, px, w, h, false, flipY)) return false;
+  width = w;
+  height = h;
+  return upload(px, srgb, w, h);
+}
+bool texImageImage(int image, bool flipY, bool srgb, int& width, int& height) {
+  std::vector<uint8_t> px;
+  int w = 0, h = 0;
+  if (!canvasNative::imagePixels(image, px, w, h, false, flipY)) return false;
+  width = w;
+  height = h;
+  return upload(px, srgb, w, h);
+}
 
 /** which driver draws ("Mali-G52 (Panfrost)", "llvmpipe" …): for the tools' output */
 std::string rendererName() {
