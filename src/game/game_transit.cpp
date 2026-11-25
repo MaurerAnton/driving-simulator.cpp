@@ -170,7 +170,8 @@ void Game::stepRail(double dt, const PlayerState& player, bool withCars) {
   others.clear();
   if (withCars)
     for (const TrafficCar* c : traffic->cars) others.push_back(RailObstacle{c->x, c->z, 1.3});
-  // (later: roadEvents.railBlocks – the crowd of a march on its street, game.ts:4298)
+  // (and the crowd of a march on its street)
+  if (roadEvents) roadEvents->railBlocks(others);
   rail->update(dt, RailPlayer{player.x, player.y, player.z, player.yaw, player.length, player.width}, others);
 }
 
@@ -295,6 +296,7 @@ void Game::stepTram(double dt) {
   std::vector<RailObstacle>& others = railOthers;
   others.clear();
   for (const TrafficCar* car : traffic->cars) others.push_back(RailObstacle{car->x, car->z, 1.3});
+  if (roadEvents) roadEvents->railBlocks(others);
   // (later: roadEvents.railBlocks – the crowd of a march on its street, game.ts:6155)
   // (the others appear around the player's tram and keep clear of it like of any other)
   const RailCar front = t.v.cars[0];

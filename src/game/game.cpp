@@ -401,8 +401,9 @@ Task<void> Game::boot(URLSearchParams q) {
   // the kerb build-outs narrowing the roads: their beds and beacons are solid (src/sim/narrowings)
   narrowCollide(*collider, world.allEdges, true);
   app.map->listen(MapListener{[this](const WorldChange& c) { narrowCollide(*collider, c.edges, true); }, [this](const WorldChange& c) { narrowCollide(*collider, c.edges, false); }});
-  // (later: roadEvents.setTracks(rail.net), levelCrossings.setRail(rail): the trams and trains – game.ts:698)
+  roadEvents->setTracks(&rail->net);
   levelCrossings = std::make_unique<LevelCrossings>(world, *traffic);
+  levelCrossings->setRail(rail.get());
   traffic->levelCrossings = levelCrossings.get();
   signs->editPost = [this](const SignPost& p) { return levelCrossings->editPost(p); };
   crossingView = std::make_unique<LevelCrossingRenderer>(audio.get());
