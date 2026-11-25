@@ -8,8 +8,8 @@
  * the ground under the middle of the bicycle.
  *
  * (The class CyclistModel of the original is the interface render/actors.h declares – its tests
- * stand in for it; this is the model itself.  `makeCyclistModel` is what `CyclistModel::create`
- * is set to where the game is made.)
+ * stand in for it; this is the model itself.  `makeCyclistModel` is what the traffic's drawing
+ * makes – unless a test sets `CyclistModel::create`.)
  */
 #pragma once
 

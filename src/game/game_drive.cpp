@@ -54,6 +54,7 @@
 #include "sim/ground.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
+#include "sim/emergency.h"
 #include "sim/traffic.h"
 #include "sim/semitrailer.h"
 #include "sim/trailer.h"
@@ -277,11 +278,11 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   lanes->longVehicle = def->long_;
   lanes->noMotorway = def->noMotorway;
   routeFor.noMotorway = def->noMotorway;
-  // (later: services.begin, the fuel in the tank – game/serviceworld.ts, game.ts:2862)
-  const VehicleSpec spec = def->spec(arcadeTransmission(settings.arcadeDrive, settings.transmission), powerOf(*def, settings.powers));
+  // (the fuel in the tank, the dirt – and a truck's goods in its physics: game/serviceworld.ts)
+  const VehicleSpec spec = services->begin(*def, def->spec(arcadeTransmission(settings.arcadeDrive, settings.transmission), powerOf(*def, settings.powers)), !lesson && mode == "free");
   arcadeDrive->reset();
   vehicle = std::make_unique<Vehicle>(spec, *ground);
-  // (later: wading.reset – game.ts:2865)
+  wading->reset();
   // the sound of this kind of vehicle (its engine's revs – the tram and the aeroplane have their own)
   audio->setVehicle(soundKindOf(def->kind), spec);
   // (the aeroplane's model is kept beside the road vehicles': planeAdapter)
@@ -532,7 +533,7 @@ void Game::tryPlace() {
     pendingIntro = std::nullopt;
     hud->showIntro(intro.title, intro.text, [this] { resume(); });
   }
-  // (later: services.startScene – game.ts:3089)
+  else if (services->startScene(*vehicle, model(), [this] { resume(); })) state = "intro";
   else resume();
   if (planDemo && state == "drive") {
     planDemo = false;
@@ -777,8 +778,9 @@ void Game::onAction(const std::string& a) {
     audio->click("tick");
     hud->message(tr("wipers.title", settings.lang), tr("wipers." + m, settings.lang));
   }
-  // (later: 'service' – game.ts:3943)
-  else if (a == "help") {
+  else if (a == "service") {
+    services->act(state);
+  } else if (a == "help") {
     if (state == "drive") {
       state = "pause";
       input->enabled = false;
@@ -1084,7 +1086,17 @@ void Game::stepDrive(double dt) {
     c.ignition = true;
   }
 
-  // (later: services.drive; wading.step: through water, the brakes wet (brakeFactor) – game.ts:4232)
+  services->drive(dt, v, d, *def, walker != nullptr, task != nullptr, (demo && demo->active) || autoDrive > 0);
+  // through water: washed, the brakes wet (weaker while the physics steps), the engine drowned, the spray (game/wading.ts)
+  const WadingTip wadeTip =
+      wading->step(dt, walker || tram || aircraft ? nullptr : &v, def->model, services->dirt, d.brake, settings.quality != "low", app.sky.hemi->intensity / 1.2);
+  if (!wadeTip.empty()) {
+    tipText = tr(wadeTip, settings.lang);
+    tipUntil = time + 6;
+  }
+  const double pedal = d.brake;
+  // (wet brakes are road physics too: not when it is switched off)
+  if (!settings.evenRoads) d.brake *= wading->brakeFactor();
   acc = std::min(acc + dt, 0.1);
   bool stalled = false;
   bool grind = false;
@@ -1102,6 +1114,7 @@ void Game::stepDrive(double dt) {
     if (hitSpeed > impact) impact = hitSpeed;
     // (later: collider.lastBuilding, into the wall of a building at 70 km/h: explode – game.ts:4259)
   }
+  d.brake = pedal;
   path->add(v.pos[0], v.pos[2]);
   // a refused gear change: crunch, then the lever springs back
   if (grind) {
@@ -1266,7 +1279,13 @@ void Game::stepDrive(double dt) {
   // (a passenger does not drive: nothing to judge)
   if (!opens.passenger()) rules->update(dt, snap, traffic->events);
   signalTips(dt);
-  // (later: traffic.emergency.judging, its tip – game.ts:4374)
+  // blue lights and siren near by: what to do (src/sim/emergency) – not judged on a demonstration drive
+  if (traffic->emergency) traffic->emergency->judging = !(demo && demo->active);
+  const std::string emTip = traffic->emergency ? traffic->emergency->tip() : "";
+  if (!emTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {
+    tipText = tr(emTip, settings.lang);
+    tipUntil = time + 6;
+  }
   // (what the roadworks or a closure ahead ask: said once as they come up)
   const std::string roadTip = roadEvents ? roadEvents->takeTip() : "";
   if (!roadTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {

@@ -4,8 +4,7 @@
  * Any vehicle can be watched and taken over (src/game/takeover.h): what each kind
  * of the traffic is driven as, and which vehicle a tap along a ray meets.
  *
- * Origin: tests/game/takeover.test.ts @ v1.7.7 (the emergency vehicles of the traffic are no
- * part of the port: their cases are left out).
+ * Origin: tests/game/takeover.test.ts @ v1.7.7.
  */
 #include <cassert>
 #include <cstdio>
@@ -15,6 +14,7 @@
 #include "game/showdrive.h"
 #include "game/takeover.h"
 #include "game/vehicles.h"
+#include "sim/emergency.h"
 #include "sim/traffic.h"
 
 using namespace fs;
@@ -38,8 +38,14 @@ int main() {
   {
     for (int s : {0, 1, 2}) assert(takeKindOf(s) == "car");
     assert(takeKindOf(BUS_STYLE) == "bus");
+    for (const bool lit : {false, true}) {
+      assert(takeKindOf(emStyle(EM_POLICE, lit)) == "car");
+      assert(takeKindOf(emStyle(EM_DOCTOR, lit)) == "car");
+      assert(takeKindOf(emStyle(EM_AMBULANCE, lit)) == "lightTruck");
+      assert(takeKindOf(emStyle(EM_FIRE, lit)) == "truckSolo");
+    }
     // (and each is a vehicle of the game, driven on the road)
-    for (int s = 0; s < 8; s++) assert(VEHICLES.find(takeKindOf(s)));
+    for (int s = 0; s < 16; s++) assert(VEHICLES.find(takeKindOf(s)));
   }
 
   // a tap meets the nearest vehicle along its ray

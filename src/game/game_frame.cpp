@@ -5,6 +5,7 @@
 
 #include "audio/audio.h"
 #include "audio/profiles.h"
+#include "audio/siren.h"
 #include "audio/speech.h"
 #include "core/geom.h"
 #include "core/js.h"
@@ -18,6 +19,7 @@
 #include "game/forkliftplay.h"
 #include "game/beamplay.h"
 #include "game/game.h"
+#include "world/fuelprices.h"
 #include "render/forklift.h"
 #include "game/outdoors.h"
 #include "game/weather.h"
@@ -45,6 +47,7 @@
 #include "render/yard.h"
 #include "render/signs.h"
 #include "render/truck.h"
+#include "render/wildlife.h"
 #include "render/windscreen.h"
 #include "sim/autodriver.h"
 #include "sim/autopilot.h"
@@ -522,7 +525,8 @@ void Game::frame(double now) {
     static const std::vector<Cyclist*> noCyclists;
     actors->update(traffic->cars, traffic->peds(), time, traffic->cyclists ? traffic->cyclists->list : noCyclists);
     lap(frameTimes.scene);
-    // (later: wildView – game.ts:6682)
+    static const std::vector<WildAnimal> noAnimals;
+    if (wildView) wildView->update(traffic->wild ? traffic->wild->animals : noAnimals);
     railActors->update(rail->vehicles, rail->lines);
   }
   // the lines: the trams run them (later: transit – the stops, the overhead line, the tram signals, the people at the stops; roadworks, crossingView, explosion – game.ts:6685)
@@ -648,7 +652,9 @@ void Game::updateOutdoors(double dt, VehicleModel& model) {
   const double z = w && walkerAway() ? w->z : mpos[2];
   od->update(dt, app.camera->position, Vector3(x, app.tiles->heightAt(x, z), z), {.weather = settings.weather, .season = settings.season, .weatherFx = settings.graphics.weatherFx},
              lanes.get());
-  // (later: today's fuel prices – game.ts:6862)
+  // (today's fuel prices round the player, where the settings hold a key of Tankerkönig)
+  fuelPrices().key = settings.fuelKey;
+  fuelPrices().refresh(x, z);
   ground->weatherGrip = od->grip;
   // (the road physics switched off in the arcade options: every surface as dry asphalt)
   ground->even = settings.evenRoads;
@@ -696,8 +702,8 @@ void Game::updateVisuals(double dt) {
   s.braking = driver.brake > 0.03;
   s.reversing = v.gear == -1;
   lastVisual = &s;
-  // (later: services.visual: the fuel gauge, the dirt – game.ts:6914)
   VehicleModel& model = this->model();
+  services->visual(s, model, dt);
   // (the aeroplane's model moves with the flight, in frame: planeVisual – it has no screen)
   const bool plane = def->model == "plane" && planeModel;
   if (!plane) model.update(s, dt, time);
@@ -775,7 +781,8 @@ void Game::updateVisuals(double dt) {
     audio->update(a);
   }
 
-  // (later: sirens.update, the horns of the emergency vehicles – audio/siren.ts, game.ts:6978)
+  // the horns of the emergency vehicles on their calls (src/audio/siren)
+  if (sirens) sirens->update(audio->context(), audio->masterGain(), traffic->cars, *app.camera, cameraMode == "cockpit" && !walker, v.vel[0], v.vel[2]);
 
   // HUD
   if (state != "drive") return;
@@ -982,7 +989,7 @@ void Game::updateVisuals(double dt) {
     hs.z = watcher->at.z;
     hs.yaw = watcher->at.yaw;
   }
-  // (later: services.hud – game.ts:7247)
+  services->hud(hs, touch);
   // (on foot below the tower crane: the walker's place)
   if (crane) crane->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
   if (forklift) forklift->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
@@ -1204,7 +1211,7 @@ void Game::updateCamera(double dt) {
       cam.quaternion.copy(car.quaternion).multiply(tmpQ);
     }
   }
-  // (later: services.camera – game.ts:7486)
+  services->camera(cam);
   // (1 – nothing – unless the view is zoomed: only on foot and in the driver's seat)
   cam.fov = input->zoom.fov(cam.fov);
   cam.updateProjectionMatrix();

@@ -72,6 +72,8 @@ struct SkyParts {
   LightPtr hemi;
   /** the dome's uZenith, uHorizon and uSunColor (colours), which are tinted – null: no dome */
   UniformPtr uZenith, uHorizon, uSunColor;
+  /** the dome itself (render/water.h mirrors its colours and its sun) – null: none */
+  std::shared_ptr<Mesh> dome = nullptr;
 };
 
 /** The parts of the game's Sky the weather changes. */
