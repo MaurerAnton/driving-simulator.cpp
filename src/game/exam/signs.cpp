@@ -40,7 +40,8 @@ namespace detail {
 
 const std::vector<std::string>& trainerSigns() {
   static const auto* list = [] {
-    auto* l = new std::vector<std::string>(EXAM_EN.signs.keys());
+    // (detail::examEn(), not EXAM_EN: this may be made before that reference is set)
+    auto* l = new std::vector<std::string>(detail::examEn().signs.keys());
     std::stable_sort(l->begin(), l->end(), [](const std::string& a, const std::string& b) { return signOrder(a) < signOrder(b); });
     return l;
   }();

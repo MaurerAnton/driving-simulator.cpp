@@ -36,8 +36,13 @@ inline constexpr int EXAM_MAX_ERRORS = 10;
 
 using Rand = std::function<double()>;
 
-/** A small seeded random generator (mulberry32): the same seed, the same exam. */
+namespace exam {
+/**
+ * A small seeded random generator (mulberry32): the same seed, the same exam.
+ * (In a namespace of its own: audio/waves.h has a `seeded` of its own, another generator.)
+ */
 Rand seeded(uint32_t seed);
+}  // namespace exam
 
 template <class T>
 std::vector<T> shuffle(const std::vector<T>& list, const Rand& rand) {

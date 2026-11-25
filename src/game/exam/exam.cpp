@@ -12,7 +12,7 @@
 
 namespace fs {
 
-Rand seeded(uint32_t seed) {
+Rand exam::seeded(uint32_t seed) {
   // (the arithmetic of Math.imul, `^` and `>>>` is that of 32-bit unsigned numbers)
   auto a = std::make_shared<uint32_t>(seed);
   return [a]() {
