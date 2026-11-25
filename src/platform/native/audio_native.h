@@ -108,6 +108,19 @@ const ParamInfo* info(const AudioParam& param);
 /** how many objects of the host (contexts, nodes, buffers, waves) some value still names */
 int alive();
 
+// --- the loudspeakers ------------------------------------------------------------------
+
+/**
+ * The next `frames` samples (a multiple of 128) of everything the running contexts' graphs
+ * send to their loudspeakers, mixed: stereo, interleaved (L R L R …), at `sampleRate`, each
+ * within −1…1.  For a host that plays them (platform/sdl), called again and again with what
+ * its device needs next; a context's sound is made from its own clock on, which keeps near
+ * plat::nowMs().  What it plays: oscillators (also with a wave of their own), buffers,
+ * gains, filters, delays, stereo panners and a plain compressor, with every setting's
+ * automation and what nodes send into settings.  Not: speech.
+ */
+void mix(float* out, int frames, double sampleRate);
+
 // --- speech ---------------------------------------------------------------------------
 
 /** One utterance as it was handed to speechSynthesis.speak(). */

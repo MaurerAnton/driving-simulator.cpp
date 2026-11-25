@@ -5,6 +5,7 @@
  * pictures without a browser, for development and for the tests that look at them.
  */
 #include "platform/glhost.h"
+#include "platform/native/gl_native.h"
 
 #include <cstdio>
 #include <cstring>
@@ -29,6 +30,8 @@ struct Host {
   EGLContext context = EGL_NO_CONTEXT;
   EGLSurface surface = EGL_NO_SURFACE;
   bool ok = false;
+  /** the context is someone else's (a window's: platform/sdl) – no EGL of our own */
+  bool adopted = false;
   GLuint fbo = 0, color = 0, depth = 0;
   int width = 0, height = 0;
 };
@@ -62,6 +65,23 @@ void makeBuffers(int width, int height) {
 }
 
 }  // namespace
+
+namespace native {
+
+void adoptCurrentContext() {
+  Host& h = host();
+  h.adopted = true;
+  h.ok = true;
+}
+
+void drawingBuffer(uint32_t& fbo, int& width, int& height) {
+  const Host& h = host();
+  fbo = h.fbo;
+  width = h.width;
+  height = h.height;
+}
+
+}  // namespace native
 
 bool createContext(const std::string&, int width, int height, const ContextOptions&) {
   Host& h = host();
@@ -177,6 +197,11 @@ bool savePng(const std::string& path, int width, int height) {
 }
 
 #else  // no OpenGL ES on this machine
+
+namespace native {
+void adoptCurrentContext() {}
+void drawingBuffer(uint32_t& fbo, int& width, int& height) { fbo = 0, width = height = 0; }
+}  // namespace native
 
 bool createContext(const std::string&, int, int, const ContextOptions&) { return false; }
 bool hasContext() { return false; }

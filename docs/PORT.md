@@ -85,6 +85,8 @@ searched for in the C++.
     tools/cc.sh src/world/x.cpp  only check that a file compiles (quick)
     tools/check.sh               build everything and run all tests
 
+The game in a window of its own (SDL3, experimental, off by default): docs/SDL.md.
+
 The machine this is developed on is a tablet with four small cores and 8 GB of memory, and
 several of us compile at the same time.  The tools take turns by themselves: only one build
 runs at a time on the whole machine (a lock, `tools/env.sh`), so `tools/t.sh` may sit and wait
