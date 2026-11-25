@@ -86,6 +86,13 @@ class TerrainSource;
 class TrafficRenderer;
 class PlayerTruck;
 class YardScene;
+class ExtraSigns;
+class TimedRules;
+class RoadEvents;
+struct RoadEventInfo;
+class RoadworksRenderer;
+class LevelCrossings;
+class LevelCrossingRenderer;
 class YardTask;
 class Trailer;
 class Vehicle;
@@ -704,6 +711,18 @@ class Game {
   void taskDone(bool ok);
   /** Judge the task on the yard and say what is to be done. */
   void updateTask(double dt);
+  // --- roadworks, narrowings, level crossings, signs with times ---
+  /** the signs the map was built without (signs.json.gz, world/extrasigns): added to each tile – and the rules of those with a time on them (`rules.timed`) */
+  std::shared_ptr<ExtraSigns> extraSigns;
+  std::unique_ptr<TimedRules> timedRules;
+  /** the roadworks and the demonstrations of the day (src/sim/roadevents – `roadEvents.list()` for the map), and how they are drawn */
+  std::unique_ptr<RoadEvents> roadEvents;
+  std::unique_ptr<RoadworksRenderer> roadworks;
+  /** the level crossings: lights, barriers and bells, driven by the trains (src/sim/levelcrossing), and how they are drawn */
+  std::unique_ptr<LevelCrossings> levelCrossings;
+  std::unique_ptr<LevelCrossingRenderer> crossingView;
+  /** (what `roadEvents.list()` gave the big map last: it keeps a pointer to it) */
+  std::vector<RoadEventInfo> eventList;
 };
 
 }  // namespace fs

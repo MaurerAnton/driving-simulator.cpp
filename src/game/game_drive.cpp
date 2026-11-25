@@ -944,7 +944,13 @@ void Game::stepDrive(double dt) {
   // (a passenger does not drive: nothing to judge)
   if (!opens.passenger()) rules->update(dt, snap, traffic->events);
   signalTips(dt);
-  // (later: traffic.emergency.judging, its tip; roadEvents.takeTip – game.ts:4374)
+  // (later: traffic.emergency.judging, its tip – game.ts:4374)
+  // (what the roadworks or a closure ahead ask: said once as they come up)
+  const std::string roadTip = roadEvents ? roadEvents->takeTip() : "";
+  if (!roadTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {
+    tipText = tr(roadTip, settings.lang);
+    tipUntil = time + 7;
+  }
   if (!flyParked) rememberGoodSpot(player);
   if (task) updateTask(dt);
   // (later: updateDrill – game.ts:4388)

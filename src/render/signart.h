@@ -25,38 +25,10 @@
 #include <vector>
 
 #include "platform/canvas.h"
+#include "sim/signtime.h"
 
 namespace fs {
 
-// ---- src/sim/signtime.ts (not translated yet) ---------------------------------------------
-// What this file asks of it, by the original's names.  The two functions are null until
-// that file is there – a panel with a time then shows it as the map writes it
-// ("22:00-06:00"), which is what the original shows for a time it cannot read.  When
-// sim/signtime is translated these declarations go and its own take their place.
-
-/**
- * One span of a time window: on which days (bits 0–6 Sunday … Saturday, bit 7:
- * public holidays) it begins, from when to when (minutes after midnight of
- * that day; `from` < `to`).
- */
-struct TimeSpan {
-  int days = 0;
-  double from = 0;
-  double to = 0;
-};
-
-/** When something holds: in one of its spans, and not on the days it is off. */
-struct TimeWindow {
-  std::vector<TimeSpan> spans;
-  int off = 0;
-};
-
-/** Read a time as conditions and panels write it ("Mo-Fr 07:00-17:00"); none for anything else. */
-extern std::function<std::optional<TimeWindow>(const std::string& raw)> parseTimeWindow;
-/** The lines of a panel for a window, as German panels write them: ["Mo–Fr", "7–17 h"]. */
-extern std::function<std::vector<std::string>(const TimeWindow& w)> windowLines;
-
-// -------------------------------------------------------------------------------------------
 
 /** "1040-30:22:00-06:00" → ["1040-30", "22:00-06:00"] (only the first colon parts them) */
 std::pair<std::string, std::string> splitCode(const std::string& code);

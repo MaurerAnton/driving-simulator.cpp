@@ -33,6 +33,8 @@
 #include "render/pedlights.h"
 #include "render/plane.h"
 #include "render/props.h"
+#include "render/levelcrossings.h"
+#include "render/roadworks.h"
 #include "render/airfield.h"
 #include "render/semitruck.h"
 #include "render/signs.h"
@@ -46,6 +48,9 @@
 #include "sim/clearlanes.h"
 #include "sim/collision.h"
 #include "sim/follow.h"
+#include "sim/levelcrossing.h"
+#include "sim/narrowings.h"
+#include "sim/roadevents.h"
 #include "sim/ground.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
@@ -63,6 +68,7 @@
 #include "ui/tiltsteer.h"
 #include "ui/touchstick.h"
 #include "ui/worldtap.h"
+#include "world/extrasigns.h"
 #include "world/far.h"
 #include "world/netindex.h"
 #include "world/pedlights.h"
@@ -306,8 +312,14 @@ Task<void> Game::boot(URLSearchParams q) {
   ground = std::make_unique<WorldGround>(world, *terrain);
   // (later: wading, ground.waterDepth – game.ts:640)
   signs = std::make_unique<SignRenderer>(plat::locationBase() + "signs/", app.renderer.getMaxAnisotropy());
-  // (later: extraSigns, rules.timed: the signs the map was built without – game.ts:645)
+  // (and the signs the map was built without – with the rules of those with a time on them, by the game's clock)
   co_await signs->init();
+  extraSigns = co_await loadExtraSigns(app.map);
+  if (extraSigns) {
+    timedRules = std::make_unique<TimedRules>(extraSigns->rules, [] { return gameNow(); });
+    rules->timed = timedRules.get();
+    // (later: "bei Nässe" while the road is wet – weatherNow().wet > 0.3, game/weather – game.ts:653)
+  }
   progress->step(0.75, 0.98);
   signalHeads = std::make_unique<SignalRenderer>(world, signals.get());
   collider->add({.key = "signals", .rings = nullptr, .ringCounts = nullptr, .segments = nullptr, .discs = signalHeads->poles});
@@ -335,7 +347,25 @@ Task<void> Game::boot(URLSearchParams q) {
   followers->signals = signals.get();
   followers->changed = [this] { signalsDirty = true; };
   followMap(*app.map, *followers);
-  // (later: roadEvents, traffic.wild, lanes.wayCost, narrowCollide, levelCrossings, crossingView, roadworks – game.ts:679)
+  // the roadworks and demonstrations of the day: the traffic, the rules and the way planners know them; the map's pieces bring their zones
+  roadEvents = std::make_unique<RoadEvents>(world, *lanes, *signals);
+  // (later: traffic.wild – game.ts:686)
+  roadEvents->ready = [this](double x, double z, double r) { return !this->app.map->pieces || this->app.map->ready(x, z, r); };
+  roadEvents->collider = collider.get();
+  traffic->roadEvents = roadEvents.get();
+  lanes->wayCost = routeFor.wayCost = [this](int w) { return roadEvents->wayCost(w); };
+  app.map->listen(MapListener{[this](const WorldChange& c) { roadEvents->added(c); }, [this](const WorldChange& c) { roadEvents->removed(c); }});
+  // the kerb build-outs narrowing the roads: their beds and beacons are solid (src/sim/narrowings)
+  narrowCollide(*collider, world.allEdges, true);
+  app.map->listen(MapListener{[this](const WorldChange& c) { narrowCollide(*collider, c.edges, true); }, [this](const WorldChange& c) { narrowCollide(*collider, c.edges, false); }});
+  // (later: roadEvents.setTracks(rail.net), levelCrossings.setRail(rail): the trams and trains – game.ts:698)
+  levelCrossings = std::make_unique<LevelCrossings>(world, *traffic);
+  traffic->levelCrossings = levelCrossings.get();
+  signs->editPost = [this](const SignPost& p) { return levelCrossings->editPost(p); };
+  crossingView = std::make_unique<LevelCrossingRenderer>(audio.get());
+  app.scene->add(crossingView->group);
+  roadworks = std::make_unique<RoadworksRenderer>(audio.get());
+  app.scene->add(roadworks->group);
   if (app.map->pieces) {
     // … then the roads of the whole map (some megabytes: on a connection that asks to save data only
     // once they are needed) and the railway tracks are read while the menu is up
@@ -427,7 +457,12 @@ Task<void> Game::boot(URLSearchParams q) {
       closeMap();
     };
     host.menu = [this] { return mapFrom == "menu"; };
-    // (later: events, stops, services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:923)
+    host.events = [this]() -> const std::vector<RoadEventInfo>* {
+      if (!roadEvents) return nullptr;
+      eventList = roadEvents->list();
+      return &eventList;
+    };
+    // (later: stops, services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:924)
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
@@ -638,7 +673,8 @@ void Game::onTile(LoadedTile& tile, bool loaded) {
     // What stands in a lane (a fault of the map) is taken out of the way: sign posts are moved
     // beside the lane, lamps dropped, walls lose the pieces that reach in.  Maps built since do
     // this themselves and mark their tiles.
-    // (later: extraSigns.mergeInto, the signs the map was built without – game.ts:1187)
+    // the signs the map was built without (signs.json.gz), on the ground where they stand
+    if (extraSigns) extraSigns->mergeInto(tile.key, tile.header.signs, [this](double x, double z, double y) { return footGround(x, z, y); });
     const bool clear = !(tile.header.clr && *tile.header.clr);
     if (clear) {
       clearSigns(*lanes, tile.header.signs);
