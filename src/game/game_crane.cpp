@@ -61,7 +61,7 @@ void Game::stepCrane(double dt) {
   player.speed = 0;
   player.length = 0.1;
   player.width = 0.1;
-  // (later: rail.update – game.ts:4446)
+  stepRail(dt, player, false);
   traffic->obstacles.clear();
   traffic->update(dt, player);
   if (cw.over) finish();

@@ -152,8 +152,16 @@ void Game::teleportSpot(const SpawnJson& spot_) {
   }
   spawn = spot;
   traffic->clear();
-  // (later: rail.clear – game.ts:2180)
-  // (later: tram – the tram put on the tracks anew at the stop nearest to the place chosen – game.ts:2181)
+  rail->clear();
+  if (def->kind == "tram") {
+    // The tram is one of the rail vehicles that were just cleared away: it is put on the tracks anew, at the
+    // stop nearest to the place chosen – as when a drive begins (tryPlace).  (Before, its driver kept running
+    // a tram that was no longer drawn: only the cab was to be seen.)
+    tram = nullptr;
+    tramAt = std::nullopt;
+    tramStopName = "";
+    tramWait = time;
+  }
   // on foot: on the pavement there (and nobody rides a tram or a bus any more) – somebody who got out of the
   // vehicle gets out again beside it there (before, they stayed behind, tied to a vehicle far away)
   // (later: walker, leaveWalk, footAfterJump – game.ts:2192)
@@ -274,8 +282,8 @@ bool Game::canTeleport() {
   if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide, wrecked – game.ts:5286)
   // (later: walker – game.ts:5287)
-  // (later: tram, forklift – game.ts:5288)
-  return !aircraft && !(crane && crane->operating);
+  // (later: forklift – game.ts:5288)
+  return !aircraft && !tram && !(crane && crane->operating);
 }
 
 /**
@@ -289,8 +297,8 @@ bool Game::canDrive() {
   if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide, wrecked – game.ts:5299)
   // (later: walker – game.ts:5300)
-  // (later: tram, forklift – game.ts:5301)
-  return !(crane && crane->operating);
+  // (later: forklift – game.ts:5301)
+  return !tram && !(crane && crane->operating);
 }
 
 /** "Teleport here": somebody on foot to that very place; a vehicle into the lane of the road nearest it, facing along it (the way the camera looked, where it may). */
@@ -360,8 +368,8 @@ bool Game::canTurnAround() {
   if (state != "drive" || lesson || task || (demo && demo->active)) return false;
   // (later: doorT, opens, riding, busRide – game.ts:5374)
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane
-  // (later: walker, tram, forklift – game.ts:5376)
-  return !aircraft && !crane;
+  // (later: walker, forklift – game.ts:5376)
+  return !aircraft && !tram && !crane;
 }
 
 }  // namespace fs

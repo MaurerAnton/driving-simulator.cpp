@@ -96,7 +96,7 @@ void BigMap::RoadPath::stroke(const Ctx2D& g) const {
 
 BigMap::BigMap(BigMapHost host_, std::shared_ptr<WorldLayer> world) : host(std::move(host_)), worldLayer(std::move(world)) {
   photos = std::make_unique<AerialCache>([this] { redraw(); });
-  if (TransitLayer::create) {
+  {
     TransitMapHost th;
     th.lang = [this] { return host.lang(); };
     th.source = [this]() -> TransitSource* { return host.transit ? host.transit() : nullptr; };
@@ -105,7 +105,7 @@ BigMap::BigMap(BigMapHost host_, std::shared_ptr<WorldLayer> world) : host(std::
       if (host.watch) host.watch(v);
     };
     th.redraw = [this] { redraw(); };
-    transit = TransitLayer::create(std::move(th));
+    transit = std::make_unique<TransitLayer>(std::move(th));
   }
   PathDrawHost dh;
   dh.lang = [this] { return host.lang(); };
@@ -996,8 +996,8 @@ std::vector<LineSource> BigMap::lineSources() {
     return nullptr;
   };
   std::vector<LineSource> out;
-  const auto add = [&](const char* kind, const std::vector<std::optional<TimetableLine>>& list) {
-    for (const std::optional<TimetableLine>& l : list) {
+  const auto add = [&](const char* kind, const std::vector<std::unique_ptr<TimetableLine>>& list) {
+    for (const std::unique_ptr<TimetableLine>& l : list) {
       if (!l) continue;
       const StopSource* p = !l->patterns.empty() && !l->patterns[0].stops.empty() ? at(l->patterns[0].stops[0]) : nullptr;
       out.push_back({l->ref, kind, p ? p->x : 0, p ? p->z : 0, l->index});

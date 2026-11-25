@@ -13,6 +13,7 @@
 #include "game/ce.h"
 #include "game/clock.h"
 #include "game/craneplay.h"
+#include "game/timedtransit.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/yardtask.h"
@@ -34,6 +35,7 @@
 #include "render/plane.h"
 #include "render/props.h"
 #include "render/airfield.h"
+#include "render/trams.h"
 #include "render/semitruck.h"
 #include "render/signs.h"
 #include "render/truck.h"
@@ -168,7 +170,8 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       flightAuto(std::make_unique<FlightAutopilot>()),
       flightAssist(std::make_unique<FlightAssist>(ASSIST_BEGINNER)),
       flightControls(std::make_unique<FlightControls>()),
-      yardScene(std::make_unique<YardScene>()) {
+      yardScene(std::make_unique<YardScene>()),
+      railActors(std::make_unique<RailActors>()) {
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
   flightControls->engineOn = true;
   driver.steer = 0;
@@ -298,7 +301,16 @@ Task<void> Game::boot(URLSearchParams q) {
   // (the green arrows of what is there already – a map in one piece; the pieces of a map in pieces get theirs as they come)
   markArrows(world, *lanes, *signals, world.allNodes);
   traffic = std::make_unique<Traffic>(world, *lanes, *signals);
-  // (later: traffic.busSchedule, the buses of the lines with timetables – game.ts:634)
+  // the buses of the lines with timetables come where and when their trips are (src/game/timedtransit.ts)
+  {
+    BusScheduleHost h;
+    h.timetable = [this] { return timetable.get(); };
+    h.source = [this] { return transitData(); };
+    h.traffic = [this]() -> Traffic& { return *traffic; };
+    h.nowMs = [] { return gameClock.ms(); };
+    busTimes = busSchedule(std::move(h));
+    traffic->busSchedule = busTimes.get();
+  }
   // (later: traffic.emergency – game.ts:636)
   rules = std::make_unique<RuleMonitor>(world, *lanes, *signals, *traffic);
   nav = std::make_unique<Navigator>(*lanes);
@@ -323,11 +335,11 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: services, spawnCars – game.ts:668)
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
-  app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
-  // (later: railActors, passengerView, transit, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
+  app.scene->add(car.root, actors->group, railActors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
+  // (later: passengerView, transit, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
   if (world.json.yard) yardFrame.emplace(*world.json.yard);
   else yardFrame.reset();
-  // (later: rail = new RailTraffic(world.json.rails) – game.ts:676)
+  rail = std::make_unique<RailTraffic>(world.json.rails);
   // The road network may come in pieces around the car: lanes, traffic and signals follow it.
   followers = std::make_unique<MapFollowers>();
   followers->lanes = lanes.get();
@@ -342,14 +354,16 @@ Task<void> Game::boot(URLSearchParams q) {
     // (later: navigator.connection.saveData, which the host has no word for yet – game.ts:707)
     const bool saving = false;
     if (!saving || autoTour > 0 || !autoDemo.empty() || !autoMap.empty()) wantNet();
-    // (later: app.map.rails(), lines(), timetable() – game.ts:709; air(): below, once the display is there)
+    [](Game* self) -> Task<void> { self->railsRead(co_await self->app.map->rails()); }(this).detach();
+    // (air(): below, once the display is there)
+    // the lines of the trams: which way they run and where they call (with the tracks, the departure boards know them)
+    [](Game* self) -> Task<void> { self->linesRead(co_await self->app.map->lines()); }(this).detach();
     // the ground of the whole region, coarse: what lies beyond the tiles
     [](Game* self) -> Task<void> {
       const std::shared_ptr<const Bytes> buf = co_await self->app.map->far();
       std::optional<FarGround> f = buf ? parseFar(*buf) : std::nullopt;
       if (f) self->far->set(std::move(f));
     }(this).detach();
-    // (later: app.map.stops(): the stops, the bus lines – game.ts:759)
   }
   car.root->visible = false;
   progress->creeping = false;
@@ -363,6 +377,9 @@ Task<void> Game::boot(URLSearchParams q) {
     // the airfields: drawn on the ground, firm under an aeroplane's wheels, and the ends of their runways to take off from
     // (2.0: asked for once the display is there, which is given the ends of the runways – game.ts:721 asks with the tracks)
     [](Game* self) -> Task<void> { self->airRead(co_await self->app.map->air()); }(this).detach();
+    // the stops (their names, poles and platforms): the tram's start points in the menu, what is drawn at a stop
+    // (2.0: asked for once the display is there, which is given the stops of the trams – game.ts:760 asks with the tracks)
+    [](Game* self) -> Task<void> { self->stopsRead(co_await self->app.map->stops()); }(this).detach();
   }
   // (later: signalTimers – game.ts:781)
   input = std::make_unique<Input>(app.canvas, settings);
@@ -427,13 +444,14 @@ Task<void> Game::boot(URLSearchParams q) {
       closeMap();
     };
     host.menu = [this] { return mapFrom == "menu"; };
-    // (later: events, stops, services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:923)
+    host.stops = [this]() -> const std::vector<StopSource>* { return &stopSources; };
+    // (later: events, services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:923)
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
     host.startPreset = [this](const std::string& id) { startPreset(id); };
     host.planTour = [this](double metres, std::optional<SpawnJson> end, std::function<void(double share)> progress) { return planTour(metres, std::move(end), std::move(progress)); };
-    // (later: tramways – game.ts:938)
+    host.tramways = [this] { return tramways(); };
     host.tourPrefs = [this] { return settings.tourPrefs; };
     host.setTourPrefs = [this](const TourPrefs& p) {
       settings.tourPrefs = p;
@@ -448,7 +466,8 @@ Task<void> Game::boot(URLSearchParams q) {
       settings.reality.aerial = on;
       saveSettings(settings);
     };
-    // (later: transit, watch – game.ts:953)
+    host.transit = [this] { return transitData(); };
+    // (later: watch – game/spectate.ts, game.ts:953)
     host.roads = [this, &world]() -> const RoadSource* {
       RouteGraph* g = routeGraphNow();
       if (!g) return nullptr;
@@ -721,7 +740,8 @@ void Game::applySettings() {
   app.camera->updateProjectionMatrix();
   props->density = gx.propDensity;
   props->setShadows(gx.propShadows);
-  // (later: grass, outdoors, services.dirtShown, railActors.detail – game.ts:1256)
+  // (later: grass, outdoors, services.dirtShown – game.ts:1256)
+  railActors->detail(s.quality != "low");
   ui.style("zoom", jsStr(s.uiScale));
   app.resize();
   for (const std::unique_ptr<Mirror>& m : car.mirrors) m->setEnabled(s.mirrors != "off");
@@ -742,7 +762,12 @@ void Game::applySettings() {
   if (traffic) traffic->targetCount = static_cast<int>(jsRound(s.traffic * 34));
   // the people on foot: with the traffic, as many as the graphics allow
   if (traffic) traffic->crowd->target = crowdTarget(s.traffic, s.quality);
-  // (later: rail.target, ringMax, far: trams and trains come with the traffic – game.ts:1285)
+  // trams and trains come with the traffic: none when it is switched off
+  if (rail) {
+    rail->target = s.traffic > 0.02 ? 4 : 0;
+    rail->ringMax = std::min(620.0, app.tiles->viewRadius * 0.8);
+    rail->far = std::min(900.0, app.tiles->viewRadius * 1.1);
+  }
   // (later: applyDevMap – game.ts:1290)
 }
 
@@ -924,7 +949,8 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
   else if (mk == "bus") made = std::make_unique<PlayerBus>();
   else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
   else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
-  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker – game.ts:1906)
+  else if (mk == "tram") made = std::make_unique<TramCab>();
+  // (later: walker – game.ts:1909)
   else if (mk == "motorcycle") {
     bikes.push_back(std::make_unique<PlayerBike>(bikeVariant(def.kind)));
     return bikes.back().get();

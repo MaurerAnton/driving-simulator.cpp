@@ -372,7 +372,17 @@ void Game::startTrip(const std::vector<SpawnJson>& stops_, bool self, const Tour
     else if (state == "pause") resume();
     return;
   }
-  // (later: tram – tramAuto, the tram's demonstration drive – game.ts:2375)
+  if (tram) {
+    // the tram follows its tracks: "by itself" is its demonstration drive (the places chosen do not matter to it)
+    if (!self) {
+      tramAuto = true;
+      tramTake = 0;
+      tramHeld = false;
+      if (state == "map") closeMap();
+      hud->message(tr("tramAutoOn", settings.lang));
+    }
+    return;
+  }
   if (state == "map") {
     mapFrom = "drive";
     closeMap();
@@ -663,9 +673,8 @@ void Game::takeOverCar(int id) {
 
 /** Does the autopilot drive now (the car's, or the tram's), without the player at the controls? */
 bool Game::autopilotDriving() {
-  // (later: tramAuto, tramHeld – game.ts:3497)
   // (later: lessonWatch – game.ts:3497)
-  return demo && demo->active && demo->driver && !demo->held;
+  return (demo && demo->active && demo->driver && !demo->held) || (tramAuto && !tramHeld);
 }
 
 /**
