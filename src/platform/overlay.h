@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <string>
 
 namespace fs {
 
@@ -25,5 +26,21 @@ inline std::function<OverlayImage()> sdlOverlayHook;
 
 /** the picture to draw over this frame (empty: none) */
 inline OverlayImage sdlOverlay() { return sdlOverlayHook ? sdlOverlayHook() : OverlayImage{}; }
+
+/** a finger or the mouse on the window (CSS pixels, as innerWidth/innerHeight count them) */
+struct OverlayPointer {
+  /** "down", "move", "up" or "cancel" */
+  std::string type;
+  /** which finger (the mouse: -1) */
+  int64_t id = 0;
+  double x = 0, y = 0;
+};
+
+/**
+ * What the picture over the frame does with a pointer (its own controls: the touch controls of
+ * ui/sdlhud).  Offered each pointer as it comes down: true – the overlay takes it, and it and all
+ * that follows of it (moves, up) are the overlay's alone; the page does not see them.
+ */
+inline std::function<bool(const OverlayPointer&)> sdlOverlayPointerHook;
 
 }  // namespace fs

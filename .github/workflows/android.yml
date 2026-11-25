@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# The experimental APK (docs/SDL.md, "Android"): fahrsim-sdl as libmain.so, started by the SDL
+# fork's NativeActivity (j4niwzis/SDL), debug-signed, uploaded as an artifact.  Nothing here is
+# deployed; build.yml and the Pages site are not touched.
+#
+# After progressive-chat's .github/workflows/android.yml and .github/actions/android-setup (the
+# same author): the same fork at the same commit, its dex writer built with clang 23 and CMake 4
+# (it is C++23 with `import std`) as progressive-chat's desktop-setup installs them.  Unlike
+# progressive-chat, the game itself needs no NDK of its own making (it is C++20): the runner's
+# NDK builds it, and the runner's SDK (aapt2, zipalign, apksigner, android.jar) packages it.
+name: android
+
+on:
+  push:
+    branches: [v21/android]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SDL_FORK: https://github.com/j4niwzis/SDL.git
+  SDL_COMMIT: 91c08de87b43fdecc824464fcce15499ccbc7101
+
+jobs:
+  apk:
+    name: APK (${{ matrix.abi }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: clang 23 and CMake 4 (for the fork's dex writer), Ninja
+        run: |
+          set -euo pipefail
+          codename="$(. /etc/os-release && echo "${UBUNTU_CODENAME:-noble}")"
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          echo "deb http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-23 main" | sudo tee /etc/apt/sources.list.d/llvm23.list
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends clang-23 libc++-23-dev libc++abi-23-dev llvm-23 ninja-build zip
+          cd /tmp
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors -o cmake.tar.gz \
+            https://github.com/Kitware/CMake/releases/download/v4.4.4/cmake-4.4.4-linux-x86_64.tar.gz
+          sudo tar xzf cmake.tar.gz -C /opt
+          echo /opt/cmake-4.4.4-linux-x86_64/bin >> "$GITHUB_PATH"
+
+      - name: The SDL fork
+        run: |
+          set -euo pipefail
+          git init -q "$HOME/sdl"
+          cd "$HOME/sdl"
+          git remote add origin "$SDL_FORK"
+          git fetch -q --depth 1 origin "$SDL_COMMIT"
+          git checkout -q FETCH_HEAD
+          test -f build-scripts/native-activity/dex/CMakeLists.txt
+
+      - name: The activity's classes (the fork's dex writer)
+        run: |
+          set -euo pipefail
+          cmake --version
+          cmake -S "$HOME/sdl/build-scripts/native-activity/dex" -B "$HOME/dex" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++-23 -DCMAKE_CXX_FLAGS='-stdlib=libc++ -fno-experimental-new-constant-interpreter'
+          cmake --build "$HOME/dex"
+          mkdir -p build-android
+          # (the NativeActivity loads libmain.so: SDL is linked into it statically, with its JNI_OnLoad)
+          "$HOME/dex/sdl-native-dex" --out build-android/classes.dex --library main
+          python3 "$HOME/sdl/build-scripts/native-activity/dex/verify.py" build-android/classes.dex
+
+      - name: The NDK
+        run: |
+          set -euo pipefail
+          ndk="${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_HOME}"
+          test -f "$ndk/build/cmake/android.toolchain.cmake"
+          test -f "$ndk/sources/android/native_app_glue/android_native_app_glue.c"
+          grep Pkg.Revision "$ndk/source.properties"
+          echo "NDK=$ndk" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=android-26 \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS_RELEASE=-O2 -DCMAKE_C_FLAGS_RELEASE=-O2 -DFAHRSIM_OPT=-O2 \
+            -DFS_SDL3=ON -DFETCHCONTENT_SOURCE_DIR_SDL3="$HOME/sdl"
+
+      - name: Build libmain.so
+        run: cmake --build build-android -t fahrsim-sdl -j4
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse --short=12 HEAD)"
+          STRIP="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" tools/android/apk.sh \
+            --out "build-android/fahrsim2-${commit}-${{ matrix.abi }}.apk" --dex build-android/classes.dex \
+            --lib "${{ matrix.abi }}:build-android/libmain.so" --version-name "2.1.0-dev+${commit}" --version-code "${{ github.run_number }}"
+          unzip -l build-android/fahrsim2-*.apk | grep -E "AndroidManifest.xml|classes.dex|lib/|assets/fonts/NotoSans-400.ttf|assets/web/index.html"
+          echo "COMMIT=$commit" >> "$GITHUB_ENV"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: fahrsim2-${{ env.COMMIT }}-${{ matrix.abi }}
+          path: build-android/fahrsim2-*-${{ matrix.abi }}.apk
+          if-no-files-found: error

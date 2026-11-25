@@ -6,13 +6,16 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <stdexcept>
+#include <thread>
 #include <unistd.h>
 
 #include "platform/native/native.h"
@@ -44,6 +47,7 @@ struct Host {
   double pixelRatio = 1;
   /** addresses nothing is mounted for are fetched from the real network (tools; never in tests) */
   bool network = false;
+  native::FileReader reader;
 };
 
 Host& host() {
@@ -59,16 +63,83 @@ class MemoryStorage : public Storage {
     return it->second;
   }
   bool setItem(const std::string& key, const std::string& value) override {
+    auto it = items_.find(key);
+    if (it != items_.end() && it->second == value) return true;
     items_[key] = value;
+    changed();
     return true;
   }
-  void removeItem(const std::string& key) override { items_.erase(key); }
+  void removeItem(const std::string& key) override {
+    if (items_.erase(key)) changed();
+  }
+
+  /** kept in a file (keepLocalStorage): "<key bytes> <value bytes>\n<key><value>" one after the other */
+  void keep(const std::string& file) {
+    file_ = file;
+    std::ifstream f(file, std::ios::binary);
+    std::string all((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    size_t at = 0;
+    while (at < all.size()) {
+      const size_t nl = all.find('\n', at);
+      if (nl == std::string::npos) break;
+      unsigned long k = 0, v = 0;
+      if (std::sscanf(all.c_str() + at, "%lu %lu", &k, &v) != 2 || nl + 1 + k + v > all.size()) break;
+      items_[all.substr(nl + 1, k)] = all.substr(nl + 1 + k, v);
+      at = nl + 1 + k + v;
+    }
+    dirty_ = false;
+  }
+  /** write the file now (when there is one and something changed) */
+  void flush() {
+    if (file_.empty() || !dirty_) return;
+    dirty_ = false;
+    lastWrite_ = nowMs();
+    const std::string tmp = file_ + ".new";
+    {
+      std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+      if (!f) return;
+      for (const auto& [k, v] : items_) f << k.size() << ' ' << v.size() << '\n' << k << v;
+      if (!f) return;
+    }
+    std::rename(tmp.c_str(), file_.c_str());
+  }
+  /** written a moment after a change (not at every one: a setting may change every frame) */
+  void flushSoon() {
+    if (dirty_ && nowMs() - lastWrite_ > 2000) flush();
+  }
 
  private:
   std::map<std::string, std::string> items_;
+  std::string file_;
+  bool dirty_ = false;
+  double lastWrite_ = -1e9;
+  void changed() {
+    if (!file_.empty()) dirty_ = true;
+  }
 };
 
-bool readFile(const std::string& path, Bytes& out) {
+MemoryStorage& local() {
+  static auto* s = new MemoryStorage();
+  return *s;
+}
+
+/** The network's threads: what fetch asked for is fetched there, and its answer handed back to pump(). */
+struct Net {
+  std::mutex m;
+  std::condition_variable wake;
+  std::deque<std::pair<Request, std::function<void(Response)>>> jobs;
+  std::deque<std::function<void()>> answered;
+  int busy = 0;
+  int threads = 0;
+  native::NetworkFetch fetch;
+};
+
+Net& net() {
+  static auto* n = new Net();   // (never destroyed: its threads outlive whatever exit destroys)
+  return *n;
+}
+
+bool fileSystemRead(const std::string& path, Bytes& out) {
   std::ifstream f(path, std::ios::binary);
   if (!f) return false;
   f.seekg(0, std::ios::end);
@@ -187,9 +258,41 @@ static Response curlFetch(const Request& request) {
     }
     pclose(p);
   }
-  if (res.status > 0) readFile(tmp, res.body);
+  if (res.status > 0) fileSystemRead(tmp, res.body);
   std::remove(tmp);
   return res;
+}
+
+/** hand a request to the network's threads (at most four of them); `done` runs in pump() with the answer */
+static void askNetwork(Request request, std::function<void(Response)> done) {
+  Net& n = net();
+  request.progress = nullptr;   // (what it holds belongs to this thread: told in `done` instead)
+  std::lock_guard<std::mutex> lock(n.m);
+  n.jobs.emplace_back(std::move(request), std::move(done));
+  n.busy++;
+  if (n.threads < 4 && n.threads < n.busy) {
+    n.threads++;
+    std::thread([&n] {
+      for (;;) {
+        std::pair<Request, std::function<void(Response)>> job;
+        {
+          std::unique_lock<std::mutex> lock(n.m);
+          n.wake.wait(lock, [&n] { return !n.jobs.empty(); });
+          job = std::move(n.jobs.front());
+          n.jobs.pop_front();
+        }
+        native::NetworkFetch fn;
+        {
+          std::lock_guard<std::mutex> lock(n.m);
+          fn = n.fetch;
+        }
+        Response res = fn ? fn(job.first) : curlFetch(job.first);
+        std::lock_guard<std::mutex> lock(n.m);
+        n.answered.push_back([done = std::move(job.second), res = std::move(res)]() mutable { done(std::move(res)); });
+      }
+    }).detach();
+  }
+  n.wake.notify_one();
 }
 
 Task<Response> fetch(Request request) {
@@ -207,7 +310,24 @@ Task<Response> fetch(Request request) {
     std::string path = best->second;
     if (!path.empty() && path.back() != '/' && !rest.empty() && rest.front() != '/') path += '/';
     path += rest;
-    if (readFile(path, res.body)) {
+    if (path.compare(0, 7, "http://") == 0 || path.compare(0, 8, "https://") == 0) {
+      // (a folder on the network: the address beside it, its query and all)
+      if (!h.network) res.status = 0;
+      else {
+        Request there = request;
+        there.url = best->second;
+        const std::string after = request.url.substr(best->first.size());
+        if (!there.url.empty() && there.url.back() != '/' && !after.empty() && after.front() != '/') there.url += '/';
+        there.url += after;
+        Resolver<Response> r2 = r;
+        auto progress = request.progress;
+        askNetwork(std::move(there), [r2, progress](Response got) mutable {
+          if (progress && got.ok()) progress(static_cast<double>(got.body.size()), static_cast<double>(got.body.size()));
+          r2.resolve(std::move(got));
+        });
+        return r.task();
+      }
+    } else if (native::readFile(path, res.body)) {
       res.status = 200;
       double a = 0, b = 0;
       if (rangeOf(request, a, b) && a < static_cast<double>(res.body.size())) {
@@ -218,7 +338,12 @@ Task<Response> fetch(Request request) {
       if (path.size() > 5 && path.compare(path.size() - 5, 5, ".json") == 0) res.contentType = "application/json";
     } else res.status = 404;
   } else if (!best && h.network && (request.url.compare(0, 8, "https://") == 0 || request.url.compare(0, 7, "http://") == 0)) {
-    res = curlFetch(request);
+    auto progress = request.progress;
+    askNetwork(std::move(request), [r, progress](Response got) mutable {
+      if (progress && got.ok()) progress(static_cast<double>(got.body.size()), static_cast<double>(got.body.size()));
+      r.resolve(std::move(got));
+    });
+    return r.task();
   }
   auto progress = request.progress;
   // (the answer comes later, as in a browser: whoever asked goes on first)
@@ -235,10 +360,7 @@ Task<Response> fetch(std::string url) {
   return fetch(std::move(q));
 }
 
-Storage& localStorage() {
-  static MemoryStorage s;
-  return s;
-}
+Storage& localStorage() { return local(); }
 Storage& sessionStorage() {
   static MemoryStorage s;
   return s;
@@ -270,6 +392,18 @@ namespace native {
 void mount(const std::string& prefix, const std::string& dir) { host().mounts.emplace_back(prefix, dir); }
 void unmountAll() { host().mounts.clear(); }
 void useNetwork(bool on) { host().network = on; }
+void setNetwork(NetworkFetch fetch) {
+  Net& n = net();
+  std::lock_guard<std::mutex> lock(n.m);
+  n.fetch = std::move(fetch);
+}
+void setFileReader(FileReader reader) { host().reader = std::move(reader); }
+bool readFile(const std::string& path, Bytes& out) {
+  const FileReader& reader = host().reader;
+  return reader ? reader(path, out) : fileSystemRead(path, out);
+}
+void keepLocalStorage(const std::string& file) { local().keep(file); }
+void flushLocalStorage() { local().flush(); }
 void setSearch(const std::string& search) { host().search = search; }
 void manualClock(bool on, double date) {
   Host& h = host();
@@ -299,6 +433,21 @@ void setViewport(int width, int height, double pixelRatio) {
 int pump() {
   Host& h = host();
   int ran = 0;
+  // the network's answers that have come
+  {
+    Net& n = net();
+    std::deque<std::function<void()>> came;
+    {
+      std::lock_guard<std::mutex> lock(n.m);
+      came.swap(n.answered);
+      n.busy -= static_cast<int>(came.size());
+    }
+    for (auto& fn : came) {
+      fn();
+      ran++;
+    }
+  }
+  local().flushSoon();
   // what is ready now (not what these add: that is the next round's)
   size_t n = h.ready.size();
   for (size_t i = 0; i < n && !h.ready.empty(); i++) {
@@ -329,7 +478,13 @@ void drain() {
   }
 }
 
-int pending() { return static_cast<int>(host().ready.size() + host().timers.size()); }
+int networkBusy() {
+  Net& n = net();
+  std::lock_guard<std::mutex> lock(n.m);
+  return n.busy;
+}
+
+int pending() { return static_cast<int>(host().ready.size() + host().timers.size()) + networkBusy(); }
 
 }  // namespace native
 }  // namespace fs::plat

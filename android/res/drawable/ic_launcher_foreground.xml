@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-only
+     A steering wheel in the HUD's yellow (#ffcc00), inside the adaptive icon's safe zone (66 of 108). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+  <!-- the rim -->
+  <path android:fillColor="#00000000" android:strokeColor="#ffcc00" android:strokeWidth="6"
+      android:pathData="M54,27 A27,27 0 1,1 53.99,27 Z" />
+  <!-- the hub and its three spokes -->
+  <path android:fillColor="#ffcc00"
+      android:pathData="M54,47 A7,7 0 1,1 53.99,47 Z M30,52 L47,52 L47,57 L30,57 Z M61,52 L78,52 L78,57 L61,57 Z M51.5,60 L56.5,60 L56.5,79 L51.5,79 Z" />
+</vector>

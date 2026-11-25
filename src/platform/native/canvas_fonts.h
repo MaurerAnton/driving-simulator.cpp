@@ -31,6 +31,9 @@ struct FontSpec {
   double px = 10;
 };
 
+/** the folder of the program's own fonts, as the host's file reader takes it (Android: "fonts" among the APK's assets) */
+void useFontDir(const std::string& dir);
+
 /** read the CSS `font` shorthand; false: it is not one (the font stays as it was, as in a browser) */
 bool parseFont(const std::string& css, FontSpec& out);
 

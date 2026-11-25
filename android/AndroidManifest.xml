@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-License-Identifier: AGPL-3.0-only
+Fahrsim Baunatal 2 as an APK (experimental – docs/SDL.md, "Android").  After progressive-chat's
+android/AndroidManifest.xml: the activity is the SDL fork's NativeActivity (its classes are
+written out by the fork's own dex writer, no Java is compiled), and the library it loads is
+libmain.so (cmake/android.cmake).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="io.github.maureranton.fahrsim2">
+    <!-- the map and the regions come from the network -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application android:label="Fahrsim 2" android:allowBackup="false"
+        android:hasCode="true" android:extractNativeLibs="true"
+        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
+        android:icon="@mipmap/ic_launcher">
+        <!-- held sideways, as the game is laid out; the window is drawn again for a new size, not restarted -->
+        <activity android:name="org.libsdl.nativeapp.NativeActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|density|uiMode|smallestScreenSize|fontScale|navigation"
+            android:screenOrientation="sensorLandscape"
+            android:exported="true" android:launchMode="singleTask">
+            <meta-data android:name="android.app.lib_name" android:value="main" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

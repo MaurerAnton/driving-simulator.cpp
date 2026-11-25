@@ -10,13 +10,20 @@
  * The program's own options (not handed to the game):
  *   --region=ID      the region to open (settings: region – its map comes from the network)
  *   --map=DIR        the site's own map (map.json and its tiles); otherwise MAP_DIR, or the
- *                    original's public/map beside the repository
+ *                    original's public/map beside the repository; with none on disk, the 1.7.7
+ *                    site's map over the network (MAP_URL)
  *   --site=DIR       the site's other files (signs/, parts/, lang/, data/: the repository's web/)
  *   --offline        nothing from the network (only what lies on disk)
  *   --size=WxH       the window's size (1280x720)
  *   --frames=N       stop N pictures after the game is ready
  *   --shot=PATH      … and write the last one as a PNG first (N: 120 when not given)
  *   --mute, --novsync
+ *   --touch          the pointer counts as coarse (a touch screen): the touch controls are shown
+ *                    from the start and work with the mouse too (on Android always)
+ *
+ * On Android (src/app/main_android.cpp starts this) the site's files and the fonts are the APK's
+ * assets (web/, fonts/), the map comes over the network, and localStorage is kept in SDL's
+ * folder for the app (as on the desktop).
  */
 #include <cstdio>
 #include <cstdlib>
@@ -35,6 +42,7 @@
 #include "platform/overlay.h"
 #include "game/settings.h"
 #include "platform/dom.h"
+#include "platform/native/canvas_fonts.h"
 #include "platform/native/native.h"
 #include "platform/plat.h"
 #include "platform/sdl/sdl_host.h"
@@ -42,6 +50,9 @@
 using namespace fs;
 
 namespace {
+
+/** the map when there is none on disk: the one the 1.7.7 site serves (as the test site on GitHub Pages takes it) */
+const char* const MAP_URL = "https://maureranton.github.io/driving-simulator/map/";
 
 bool isMapDir(const std::string& dir) {
   return !dir.empty() && (std::filesystem::exists(dir + "/map.json") || std::filesystem::exists(dir + "/world.json"));
@@ -90,7 +101,7 @@ Task<void> boot(Game* game, std::string search, std::string* failed) {
 int usage() {
   std::printf(
       "fahrsim-sdl [--start=free] [--vehicle=car] [--region=ID] [--lang=de] [--NAME=VALUE …]\n"
-      "            [--map=DIR] [--site=DIR] [--offline] [--size=WxH] [--frames=N] [--shot=PATH] [--mute] [--novsync]\n"
+      "            [--map=DIR] [--site=DIR] [--offline] [--size=WxH] [--frames=N] [--shot=PATH] [--mute] [--novsync] [--touch]\n"
       "Every --NAME=VALUE the program does not take itself is handed to the game as ?NAME=VALUE.\n");
   return 0;
 }
@@ -98,8 +109,24 @@ int usage() {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string search, mapAsked, site = std::string(FS_SOURCE_DIR) + "/web", region, shot;
-  bool offline = false, startGiven = false;
+#if defined(SDL_PLATFORM_ANDROID)
+  // (the APK's assets: SDL reads a relative path there – web/ is the site, fonts/ the canvas's fonts)
+  std::string site = "web";
+  plat::native::setFileReader([](const std::string& path, Bytes& out) {
+    size_t n = 0;
+    void* data = SDL_LoadFile(path.c_str(), &n);
+    if (!data) return false;
+    out.assign(static_cast<const uint8_t*>(data), static_cast<const uint8_t*>(data) + n);
+    SDL_free(data);
+    return true;
+  });
+  canvasFonts::useFontDir("fonts");
+  plat::native::setNetwork(sdl::androidFetch);
+#else
+  std::string site = std::string(FS_SOURCE_DIR) + "/web";
+#endif
+  std::string search, mapAsked, region, shot;
+  bool offline = false, startGiven = false, touch = false;
   int frames = -1;
   sdl::Options options;
   for (int i = 1; i < argc; i++) {
@@ -116,6 +143,7 @@ int main(int argc, char** argv) {
     else if (name == "site") site = value;
     else if (name == "region") region = value;
     else if (name == "offline") offline = true;
+    else if (name == "touch") touch = true;
     else if (name == "mute") options.audio = false;
     else if (name == "novsync") options.vsync = false;
     else if (name == "frames") frames = std::atoi(value.c_str());
@@ -141,12 +169,21 @@ int main(int argc, char** argv) {
   plat::native::mount(plat::locationBase(), site);
   const std::string mapDir = findMap(mapAsked);
   if (!mapDir.empty()) plat::native::mount(plat::locationBase() + "map/", mapDir);
-  else std::fprintf(stderr, "fahrsim-sdl: no map on disk (--map=DIR or MAP_DIR): only a region (--region) can be opened\n");
+  else if (!offline) {
+    std::printf("fahrsim-sdl: no map on disk (--map=DIR or MAP_DIR): the map comes from %s\n", MAP_URL);
+    plat::native::mount(plat::locationBase() + "map/", MAP_URL);
+  } else std::fprintf(stderr, "fahrsim-sdl: no map on disk (--map=DIR or MAP_DIR) and --offline: nothing can be opened\n");
   plat::native::useNetwork(!offline);
+  // localStorage (the settings, the progress …) kept in the app's own folder
+  if (char* pref = SDL_GetPrefPath("MaurerAnton", "fahrsim2")) {
+    plat::native::keepLocalStorage(std::string(pref) + "localStorage.txt");
+    SDL_free(pref);
+  }
   plat::native::setLanguages(deviceLanguages());
 #if defined(SDL_PLATFORM_ANDROID) || defined(SDL_PLATFORM_IOS)
-  plat::native::setCoarsePointer(true);
+  touch = true;
 #endif
+  plat::native::setCoarsePointer(touch);
   {
     // (no guess of the region from the IP address: the region is asked for on the command line, or the site's map opens)
     Settings s = loadSettings();
@@ -198,6 +235,7 @@ int main(int argc, char** argv) {
     }
     // (the game's GL objects go while the context is still there)
     sdlOverlayHook = nullptr;   // (it reads the Hud that goes with the game)
+    sdlOverlayPointerHook = nullptr;
     game.reset();
   }
   sdl::close();

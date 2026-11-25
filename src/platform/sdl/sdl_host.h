@@ -25,6 +25,7 @@
 #include <string>
 
 #include "platform/dom.h"
+#include "platform/plat.h"
 
 namespace fs::sdl {
 
@@ -61,5 +62,11 @@ std::string rendererName();
 std::string videoDriver();
 /** close the window, the context, the sound */
 void close();
+
+/**
+ * Android: a request over the network, through Java's HttpURLConnection (android_net.cpp – for
+ * plat::native::setNetwork: it runs on a network thread and waits for its answer).
+ */
+plat::Response androidFetch(const plat::Request& request);
 
 }  // namespace fs::sdl

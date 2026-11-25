@@ -489,6 +489,10 @@ class Hud {
   const Canvas& cornerMap() const { return mapCanvas; }
   /** the HUD is shown (setHudVisible) */
   bool hudShown() const { return hud && hud.style("display") != "none"; }
+  /** the driver's input the on-screen controls feed (attachInput; null before) */
+  Input* inputNow() const { return input; }
+  /** the touch controls' opacity (settings.touchOpacity) */
+  double touchOpacity() const { return settings.touchOpacity; }
 
  private:
   std::string t(std::string_view key, const TrParams& p = {}) const;

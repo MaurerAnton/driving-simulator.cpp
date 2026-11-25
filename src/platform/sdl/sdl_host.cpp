@@ -53,6 +53,13 @@ struct Host {
   /** --shot: where the next picture shown is written, and whether it was */
   std::string shotPath;
   bool shotDone = false;
+  /** window points per CSS pixel (Android counts the window in the screen's pixels: a browser there counts CSS pixels) */
+  double cssScale = 1;
+  /** the fingers the overlay took (platform/overlay.h), and whether it has the mouse */
+  std::map<SDL_FingerID, bool> overlayFingers;
+  bool overlayMouse = false;
+  /** the app is in the background (Android): no pictures until it comes back */
+  bool background = false;
 };
 
 Host& host() {
@@ -190,6 +197,17 @@ void sized(bool tell) {
   SDL_GetWindowSize(h.window, &w, &ht);
   float density = SDL_GetWindowPixelDensity(h.window);
   if (!(density > 0)) density = 1;
+#if defined(SDL_PLATFORM_ANDROID)
+  {
+    // (the window's size is in the screen's pixels: the page is laid out in CSS pixels of the
+    // display's scale, as a phone's browser does – devicePixelRatio is that scale)
+    const float scale = SDL_GetWindowDisplayScale(h.window);
+    h.cssScale = scale > 1 ? scale : 1;
+    w = static_cast<int>(std::lround(w / h.cssScale));
+    ht = static_cast<int>(std::lround(ht / h.cssScale));
+    density *= static_cast<float>(h.cssScale);
+  }
+#endif
   plat::native::setViewport(std::max(1, w), std::max(1, ht), density);
   if (h.canvas) {
     dom::native::setRect(h.canvas, dom::Rect{0, 0, static_cast<double>(w), static_cast<double>(ht)});
@@ -229,9 +247,31 @@ std::vector<dom::TouchPoint> touchesNow() {
   return out;
 }
 
+/** offer a pointer to the overlay (platform/overlay.h): true – it took it */
+bool toOverlay(const char* type, int64_t id, double x, double y) {
+  if (!sdlOverlayPointerHook) return false;
+  OverlayPointer p;
+  p.type = type;
+  p.id = id;
+  p.x = x;
+  p.y = y;
+  return sdlOverlayPointerHook(p);
+}
+
 void finger(const SDL_TouchFingerEvent& f, Uint32 type) {
   Host& h = host();
   const double x = f.x * plat::innerWidth(), y = f.y * plat::innerHeight();
+  // the overlay's own controls first: a finger they take is theirs until it is lifted
+  const char* otype = type == SDL_EVENT_FINGER_DOWN ? "down" : type == SDL_EVENT_FINGER_MOTION ? "move" : type == SDL_EVENT_FINGER_UP ? "up" : "cancel";
+  if (type == SDL_EVENT_FINGER_DOWN && toOverlay(otype, static_cast<int64_t>(f.fingerID), x, y)) {
+    h.overlayFingers[f.fingerID] = true;
+    return;
+  }
+  if (h.overlayFingers.count(f.fingerID)) {
+    toOverlay(otype, static_cast<int64_t>(f.fingerID), x, y);
+    if (type == SDL_EVENT_FINGER_UP || type == SDL_EVENT_FINGER_CANCELED) h.overlayFingers.erase(f.fingerID);
+    return;
+  }
   int id;
   if (type == SDL_EVENT_FINGER_DOWN) {
     id = h.nextFinger++;
@@ -343,28 +383,44 @@ void event(const SDL_Event& ev) {
       dom::native::dispatch(dom::body(), e);
       break;
     }
-    case SDL_EVENT_MOUSE_MOTION:
+    case SDL_EVENT_MOUSE_MOTION: {
       if (ev.motion.which == SDL_TOUCH_MOUSEID) break;   // (a finger: its own events)
-      pointer("pointermove", ev.motion.x, ev.motion.y, 1, "mouse", true, -1, buttonsOf(ev.motion.state), ev.motion.xrel, ev.motion.yrel, SDL_GetModState());
+      const double x = ev.motion.x / h.cssScale, y = ev.motion.y / h.cssScale;
+      if (h.overlayMouse) {
+        toOverlay("move", -1, x, y);
+        break;
+      }
+      pointer("pointermove", x, y, 1, "mouse", true, -1, buttonsOf(ev.motion.state), ev.motion.xrel / h.cssScale, ev.motion.yrel / h.cssScale, SDL_GetModState());
       break;
+    }
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
     case SDL_EVENT_MOUSE_BUTTON_UP: {
       if (ev.button.which == SDL_TOUCH_MOUSEID) break;
       const bool down = ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
       const int button = buttonOf(ev.button.button);
-      pointer(down ? "pointerdown" : "pointerup", ev.button.x, ev.button.y, 1, "mouse", true, button, buttonsOf(SDL_GetMouseState(nullptr, nullptr)), 0, 0,
-              SDL_GetModState());
-      if (!down && button == 2) pointer("contextmenu", ev.button.x, ev.button.y, 1, "mouse", true, button, 0);
-      if (!down && button == 0) pointer("click", ev.button.x, ev.button.y, 1, "mouse", true, button, 0);
-      if (!down && button == 0 && ev.button.clicks == 2) pointer("dblclick", ev.button.x, ev.button.y, 1, "mouse", true, button, 0);
+      const double x = ev.button.x / h.cssScale, y = ev.button.y / h.cssScale;
+      // (the left button on the overlay's controls is theirs until it is let go)
+      if (button == 0 && down && !h.overlayMouse && toOverlay("down", -1, x, y)) {
+        h.overlayMouse = true;
+        break;
+      }
+      if (button == 0 && !down && h.overlayMouse) {
+        h.overlayMouse = false;
+        toOverlay("up", -1, x, y);
+        break;
+      }
+      pointer(down ? "pointerdown" : "pointerup", x, y, 1, "mouse", true, button, buttonsOf(SDL_GetMouseState(nullptr, nullptr)), 0, 0, SDL_GetModState());
+      if (!down && button == 2) pointer("contextmenu", x, y, 1, "mouse", true, button, 0);
+      if (!down && button == 0) pointer("click", x, y, 1, "mouse", true, button, 0);
+      if (!down && button == 0 && ev.button.clicks == 2) pointer("dblclick", x, y, 1, "mouse", true, button, 0);
       break;
     }
     case SDL_EVENT_MOUSE_WHEEL: {
       if (ev.wheel.which == SDL_TOUCH_MOUSEID || !h.canvas) break;
       dom::Event e;
       e.type = "wheel";
-      e.clientX = e.offsetX = ev.wheel.mouse_x;
-      e.clientY = e.offsetY = ev.wheel.mouse_y;
+      e.clientX = e.offsetX = ev.wheel.mouse_x / h.cssScale;
+      e.clientY = e.offsetY = ev.wheel.mouse_y / h.cssScale;
       // (a notch is 100 pixels in a browser; SDL counts up as away from the user, the browser's deltaY as down the page)
       const double flip = ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1;
       e.deltaX = ev.wheel.x * 100 * flip;
@@ -378,6 +434,20 @@ void event(const SDL_Event& ev) {
     case SDL_EVENT_FINGER_MOTION:
     case SDL_EVENT_FINGER_UP:
     case SDL_EVENT_FINGER_CANCELED: finger(ev.tfinger, ev.type); break;
+    case SDL_EVENT_WILL_ENTER_BACKGROUND:
+      // (Android: the window goes away – what is kept is written now, the pictures stop until it is back)
+      h.background = true;
+      plat::native::flushLocalStorage();
+      if (h.audio) SDL_PauseAudioStreamDevice(h.audio);
+      dom::native::dispatch(dom::window(), "blur");
+      break;
+    case SDL_EVENT_DID_ENTER_FOREGROUND:
+      h.background = false;
+      if (h.audio) SDL_ResumeAudioStreamDevice(h.audio);
+      sized(true);
+      break;
+    case SDL_EVENT_TERMINATING:
+    case SDL_EVENT_LOW_MEMORY: plat::native::flushLocalStorage(); break;
     case SDL_EVENT_GAMEPAD_ADDED: padAdded(ev.gdevice.which); break;
     case SDL_EVENT_GAMEPAD_REMOVED: padRemoved(ev.gdevice.which); break;
     default: break;
@@ -643,6 +713,12 @@ bool frame() {
   SDL_Event ev;
   while (SDL_PollEvent(&ev)) event(ev);
   if (h.quit) return false;
+  while (h.background && !h.quit) {
+    // (in the background: nothing is drawn – only the events are waited for, and what the network answered is taken)
+    if (SDL_WaitEventTimeout(&ev, 200)) event(ev);
+    plat::native::pump();
+  }
+  if (h.quit) return false;
   readPads();
   // what is due in the host's queue (answers of fetch, timers): for a while, not for ever – the picture waits
   const double until = plat::nowMs() + 12;
@@ -677,6 +753,7 @@ std::string videoDriver() {
 
 void close() {
   Host& h = host();
+  plat::native::flushLocalStorage();
   for (const Pad& p : h.pads) SDL_CloseGamepad(p.pad);
   h.pads.clear();
   plat::native::setGamepads({});

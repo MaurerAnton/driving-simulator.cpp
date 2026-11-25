@@ -13,6 +13,8 @@
 #include <memory>
 #include <unordered_map>
 
+#include "platform/native/native.h"
+
 #if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -45,19 +47,8 @@ struct Face {
   std::unordered_map<int, std::vector<stbtt_vertex>> shapes;
 
   bool load(const std::string& path, int index) {
-    FILE* f = std::fopen(path.c_str(), "rb");
-    if (!f) return false;
-    std::fseek(f, 0, SEEK_END);
-    const long n = std::ftell(f);
-    std::fseek(f, 0, SEEK_SET);
-    if (n <= 0) {
-      std::fclose(f);
-      return false;
-    }
-    data.resize(static_cast<size_t>(n));
-    const size_t got = std::fread(data.data(), 1, data.size(), f);
-    std::fclose(f);
-    if (got != data.size()) return false;
+    // (read as the host reads its files: on Android the fonts are the APK's assets)
+    if (!plat::native::readFile(path, data) || data.empty()) return false;
     const int offset = stbtt_GetFontOffsetForIndex(data.data(), index);
     if (offset < 0 || !stbtt_InitFont(&info, data.data(), offset)) return false;
     stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
@@ -96,8 +87,14 @@ struct Family {
   std::vector<FaceFile> files;
 };
 
+std::string& fontDirGiven() {
+  static auto* d = new std::string();
+  return *d;
+}
+
 /** the folder of the fonts that come with the program */
 std::string fontDir() {
+  if (!fontDirGiven().empty()) return fontDirGiven();
   static const std::string dir = [] {
     std::vector<std::string> places;
     if (const char* e = std::getenv("FAHRSIM_FONTS")) places.push_back(e);
@@ -204,7 +201,7 @@ Face* faceOf(Family& fam, int weight, bool italic) {
 std::map<std::string, std::string>& systemFiles() {
   static auto* m = new std::map<std::string, std::string>([] {
     std::map<std::string, std::string> files;
-    std::vector<std::string> dirs = {"/usr/share/fonts", "/usr/local/share/fonts"};
+    std::vector<std::string> dirs = {"/usr/share/fonts", "/usr/local/share/fonts", "/system/fonts"};
     if (const char* home = std::getenv("HOME")) {
       dirs.push_back(std::string(home) + "/.local/share/fonts");
       dirs.push_back(std::string(home) + "/.fonts");
@@ -471,5 +468,7 @@ void outline(const Glyph& g, double px, OutlineSink& sink) {
   }
   if (open) sink.close();
 }
+
+void useFontDir(const std::string& dir) { fontDirGiven() = dir; }
 
 }  // namespace fs::canvasFonts
