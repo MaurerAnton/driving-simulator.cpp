@@ -33,6 +33,9 @@
 #include "game/ce.h"
 #include "game/lessonplaces.h"
 #include "game/openplay.h"
+#include "game/replay.h"
+#include "game/showdrive.h"
+#include "game/spectate.h"
 #include "game/settings.h"
 #include "game/walkmodes.h"
 #include "game/vehicles.h"
@@ -48,6 +51,7 @@
 #include "sim/playerstate.h"
 #include "sim/vehicle/types.h"
 #include "ui/bigmap.h"
+#include "ui/carousel.h"
 #include "world/lanes.h"
 #include "world/regions.h"
 #include "world/routegraph.h"
@@ -102,6 +106,7 @@ class Stops;
 class TransitSource;
 struct BusStopOnLane;
 struct HudState;
+struct ReplayState;
 struct Timetable;
 class TerrainSource;
 class TrafficRenderer;
@@ -113,6 +118,10 @@ class ExtraSigns;
 class TimedRules;
 class RoadEvents;
 struct RoadEventInfo;
+class TapPicker;
+class PeopleRenderer;
+class CyclistModel;
+class CarExterior;
 class RoadworksRenderer;
 class LevelCrossings;
 class LevelCrossingRenderer;
@@ -403,7 +412,7 @@ class Game {
   std::shared_ptr<WorldLayer> worldLayer;
   /** the roads the big map draws ways on (ui/pathdraw.h roadSource: made anew each time it asks) */
   std::unique_ptr<RoadSource> mapRoads;
-  // (later: transitSrc, watcher, tramLineRef – game.ts:531)
+  // (watcher: below, '--- replays and watching ---')
   /** what is to be done once the vehicle is placed */
   std::function<void()> afterPlace;
   // (later: airAgl – game.ts:535)
@@ -423,7 +432,7 @@ class Game {
   Quaternion tmpQ;
   Matrix4 tmpM;
   Vector3 headV;
-  // (figure: below, "on foot")  (later: recorder, replay, replayFrom, replayLive, replayShown, replayHidden, replayCam – game.ts:553)
+  // (figure: below, "on foot"; recorder, replay … replayCam: below, '--- replays and watching ---')
   std::unique_ptr<ResultSummary> lastResult;
   Vector3 eyeWorld;
 
@@ -518,10 +527,8 @@ class Game {
   Vector3 menuFocus;
   // (later: timetable – game.ts:1501)
   VehicleModel& ensureModel(const VehicleDef& def);
-  // (later: menuPreview … previewPos, setMenuPreview, menuPreviewKey, clearPreview, placePreview, nameSign, levelTrailer, standModel – game.ts:1528)
-  // (later: showGroup … showSpots, buildShowroom – game.ts:1644)
+  // (menuPreview … placePreview, nameSign, levelTrailer, standModel, showGroup … buildShowroom: below, '--- replays and watching ---')
   void parkedVisual(Vehicle& v);
-  // (later: menuShow, the vehicle chosen behind the menu of rows – game.ts:1852)
   VehicleModel* makeModel(const VehicleDef& def);
   /** the model of the vehicle driven now (the original's getter `model`) */
   VehicleModel& model();
@@ -586,7 +593,6 @@ class Game {
   bool isExactSpot(const SpawnJson& sp) const;
   std::optional<SpawnJson> startSpot(const AddressHit& hit);
   Place fitExact(const Place& sp, const Outline& o);
-  // (later: menuSpot – game.ts:4982)
   void startWhereIAm();
   // (later: newVehicle, a new vehicle after one went up in flames – game.ts:5017)
   void signsBesideRoad(std::vector<SignPost>& signs);
@@ -959,6 +965,136 @@ class Game {
   std::unique_ptr<TheoryMode> theory;
   /** The theory lessons: situations shown on the practice yard – no drive, no traffic, no rules, no HUD meanwhile (game_theory.cpp). */
   void openTheory();
+  // --- replays and watching ---
+  /** the drive written down as it goes, the replay being watched, where it was opened from ('pause' | 'result'), and the live lights meanwhile (game.ts:553) */
+  Recorder recorder;
+  std::unique_ptr<ReplayView> replay;
+  std::string replayFrom = "pause";
+  std::shared_ptr<const SignalSnapshot> replayLive;
+  std::shared_ptr<const SignalSnapshot> replayShown;
+  const RailVehicle* replayHidden = nullptr;
+  struct ReplayCam {
+    /** 'behind' | 'driver' | 'free' */
+    std::string mode = "behind";
+    double yaw = 0;
+    double pitch = -0.25;
+    double dist = 9;
+  };
+  ReplayCam replayCam;
+  /** what the replay moves: the vehicle's model – the aeroplane's own (as `frame` places it) */
+  Group& replayRoot();
+  /** The replay is offered once there is something to see again (a few seconds of the drive). */
+  void offerReplay();
+  ReplayFrame captureFrame(bool others, bool lights);
+  ReplayState replayState();
+  void startReplay();
+  void endReplay();
+  void placeReplay(double dt);
+  void replayCamera();
+  /** a tram or bus of the timetables (Watcher), or anything else the map shows or a tap chose (PointWatcher), being watched – null: none (game.ts:532) */
+  std::unique_ptr<WatchView> watcher;
+  /** (a watcher that ended in its own step – a button of its bar: let go at the next picture) */
+  std::unique_ptr<WatchView> watchGone;
+  /** what startPointWatch is to watch: `kind` 'em' | 'car' | 'rail' with `id`, 'event' with `ev` */
+  struct WatchWhat {
+    std::string kind;
+    int id = 0;
+    std::optional<RoadEventInfo> ev;
+  };
+  /** a tap on a vehicle: watch it, or get into a model of the test place (game/takeover.ts) */
+  std::unique_ptr<TapPicker> tapPicker;
+  /** Watch a tram or bus (chosen on the big map): the camera goes with it, the world loads round it, the player's vehicle waits. */
+  void startWatch(const WatchRequest& v);
+  /**
+   * Watch something else the map shows: an emergency vehicle of the traffic
+   * (by its id), a demonstration (its crowd) or a site of roadworks (its
+   * middle, where the workers are) – or a vehicle tapped.
+   */
+  void startPointWatch(const WatchWhat& what);
+  /**
+   * What a tap on the 3D picture may choose now: in a free drive – while
+   * watching, on foot, or standing in the vehicle seen from outside – any
+   * vehicle of the traffic, the trams and trains; on the test place its
+   * models.  Null: nothing (a tap is left to the rest of the game).
+   */
+  std::optional<std::vector<PickBox>> pickBoxes();
+  /** A vehicle was tapped: watch it – or, on the test place, get into the model. */
+  void picked(const PickTarget& t);
+  void takeOverTram(int id);
+  /** On foot on the test place beside one of its models – nearer to it than to the own vehicle: which (−1: none). */
+  int showBeside();
+  /** Into a model of the test place (tapped, or the door key on foot beside it): the drive there goes on with it, from where it stands. */
+  void enterShow(int i);
+  /** Back to the player's own vehicle: the world loads round it again. */
+  void endWatch(bool clear = true);
+  /** The trams and trains of the traffic go (to come anew where they are due) – the player's own tram stays. */
+  void clearRail();
+  /** A step while watching: the vehicle runs on, the world round it – the player's own vehicle waits. */
+  void stepWatch(double dt);
+  /** The player takes the vehicle watched over: a drive of a tram from its stop on its line, or of a bus from where it is, shown its line's way. */
+  void takeOverWatched(const WatchRequest& w, const TakeOver& at);
+  /** the drive "every model": on the yard among them – where each model stands, which one is being driven (game/showdrive.ts) */
+  bool showOn = false;
+  ShowSpots showSpots;
+  /** every model of the game, parked on the practice yard (made the first time it is visited – game.ts:1644) */
+  const std::shared_ptr<Group> showGroup = make<Group>();
+  const std::unique_ptr<RailActors> showRail;
+  const std::unique_ptr<PeopleRenderer> showPeople;
+  bool showBuilt = false;
+  /** (what draws the models there: kept for as long as the game runs) */
+  std::vector<std::unique_ptr<VehicleModel>> showModels;
+  std::vector<std::unique_ptr<CarExterior>> showExteriors;
+  std::vector<std::shared_ptr<TowedModel>> showTowed;
+  std::unique_ptr<CyclistModel> showCyclist;
+  std::unique_ptr<PlaneModel> showPlane;
+  std::vector<std::unique_ptr<RailVehicle>> showTrams;
+  /** where a vehicle standing still is put (placePreview, standModel) */
+  std::array<double, 3> previewPos{0, 0, 0};
+  /** A sign with a name, standing over a model (a sprite: it faces whoever looks). */
+  void nameSign(const std::string& text, double x, double y, double z);
+  /**
+   * A trailer just coupled behind a vehicle that stands (the menu, the test
+   * place): its height and pitch – level at the vehicle's ground `y` where
+   * the ground under its wheels gave an implausible slope (not loaded yet).
+   */
+  std::array<double, 2> levelTrailer(const Trailer& t, double y);
+  /** A vehicle of the game standing (engine off) at (x, z) on the ground, facing yaw – and the trailer it pulls. */
+  void standModel(const VehicleDef& d, VehicleModel& model, double x, double z, double yaw, const std::function<double(double x, double z)>& groundAt, TowedModel* towed,
+                  PlayerTruck* withTruck);
+  /**
+   * The test place: on the practice yard every model of the game – the
+   * vehicles of every licence class side by side, the cars, cyclists and
+   * people of the traffic, the trams (two coupled, one with a trailer car)
+   * and the aeroplane – each with its name.  Made once, the first time.
+   */
+  void buildShowroom();
+  /** what the menu of rows or the stage has chosen (the vehicle and where it would start), what is placed of it, and the camera's circle round it (game.ts:1528) */
+  std::optional<MenuPreview> menuPreview;
+  std::string previewKey;
+  RailVehicle* previewTram = nullptr;
+  std::optional<Vector3> previewCentre;
+  double previewRadius = 9;
+  void setMenuPreview(const MenuPreview* p);
+  /** What makes the vehicle behind the menu different from the one placed: the vehicle, the place, its make-up. */
+  std::string menuPreviewKey(const MenuPreview& p);
+  /** Nothing placed behind the menu any more. */
+  void clearPreview();
+  /** The vehicle chosen in the menu, standing where the drive would begin: on the road, on the track at the stop, at the end of the runway. */
+  void placePreview(const MenuPreview& p);
+  /**
+   * The scene behind the menu of rows: the vehicle chosen where it would
+   * start, the camera circling it slowly.  False while there is nothing to
+   * show yet (the ground there is still loading): then the view from above.
+   */
+  bool menuShow();
+  /**
+   * Where the vehicle behind the main menu stands: where the drive would
+   * begin – at an address or a place chosen, in the lane of the road in front
+   * of it (or, "place precisely", at the very place) – facing along the road,
+   * clear of walls and outside the buildings.  The tram, the aeroplane and
+   * the cranes have places of their own.
+   */
+  Place menuSpot(const MenuPreview& p);
 };
 
 }  // namespace fs

@@ -65,6 +65,8 @@ class RailActors {
 
   /** Show the vehicles where the simulation has them (`lines`: the lines, for the displays at their fronts). */
   void update(const std::vector<std::unique_ptr<RailVehicle>>& vehicles, const std::vector<RailLine>& lines = {});
+  /** … the same of vehicles held elsewhere (a replay's: game/replay.h) */
+  void update(const std::vector<const RailVehicle*>& vehicles, const std::vector<RailLine>& lines = {});
 
   void dispose();
 

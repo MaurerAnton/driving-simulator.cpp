@@ -2,9 +2,9 @@
 /**
  * transitSource: what the big map needs to know of the trams and buses
  * (src/ui/transitmap.ts), made from what the game has read – positions along
- * their lines, at the game's clock.  (Of src/game/spectate.ts, whose watching
- * is not ported yet, the part that serves the map and the buses of the
- * timetables; lineTakeOver with it.)
+ * their lines, at the game's clock.  (Of src/game/spectate.ts the part that
+ * serves the map and the buses of the timetables; lineTakeOver with it.  The
+ * watching itself: game/spectate.h.)
  *
  * Origin: src/game/spectate.ts @ v1.7.7 (transitSource, lineTakeOver)
  */
@@ -13,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "ui/transitmap.h"
@@ -38,8 +39,16 @@ struct TransitGetters {
 /** The trams and buses for the big map: positions along their lines, at the game's clock. */
 std::unique_ptr<TransitSource> transitSource(TransitGetters get);
 
-/** A bus taken over on its line: the ways to drive and where its last stop is. */
+/**
+ * Where a vehicle is taken over: its place, the stop it stands at or runs to next – and, a bus, the ways of its
+ * line from here on (lineTakeOver gives the last two).  (Its use: game/spectate.h.)
+ */
 struct TakeOver {
+  double x = 0;
+  double z = 0;
+  double yaw = 0;
+  std::string stop;
+  /** a bus: its line's ways from the one it is on (to the end of its route), and where its last stop is */
   std::vector<int> ways;
   std::optional<Spot> end;
 };

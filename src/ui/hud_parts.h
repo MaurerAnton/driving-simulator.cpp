@@ -3,11 +3,14 @@
 /** What the files of the Hud share (hud.cpp, hud_menu.cpp, hud_settings.cpp, hud_touch.cpp) – not for anybody else. */
 #pragma once
 
+#include <functional>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "core/task.h"
 #include "i18n/index.h"
+#include "ui/addresspicker.h"
 #include "platform/dom.h"
 #include "sim/rules.h"
 
@@ -45,6 +48,9 @@ std::vector<std::string> words(const std::string& text);
  * "2026-11-23T12:00:00" (the reader's own time) – NaN for anything else.
  */
 double dateOf(const std::string& text);
+
+/** `load: () => this.loadAddresses()` as the address field takes it: the search of the list, once it is there */
+Task<AddressSearchOf<AddressHit>> searchOf(std::function<Task<AddressIndex*>()> load);
 
 /** call a hook of the Hud (a copy of it: what it does may put another in its place) */
 template <class F, class... Args>

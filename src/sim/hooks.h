@@ -97,6 +97,8 @@ class Cyclists {
 
 /** An emergency vehicle and its call (interface EmergencyCar: what the traffic reads of it). */
 struct EmergencyCar {
+  /** EM: police, ambulance, fire engine, the emergency doctor (what a watcher calls it: game.ts startPointWatch) */
+  int kind = 0;
   /** on a call: blue lights and siren on (false: a police car on patrol) */
   bool call = false;
   /** the connectors of its way after the one it takes next, in order (Traffic.nextFor hands them out) */

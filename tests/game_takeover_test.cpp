@@ -5,13 +5,14 @@
  * of the traffic is driven as, and which vehicle a tap along a ray meets.
  *
  * Origin: tests/game/takeover.test.ts @ v1.7.7 (the emergency vehicles of the traffic are no
- * part of the port, nor is the test place of game/showdrive.ts: their cases are left out).
+ * part of the port: their cases are left out).
  */
 #include <cassert>
 #include <cstdio>
 #include <optional>
 #include <vector>
 
+#include "game/showdrive.h"
 #include "game/takeover.h"
 #include "game/vehicles.h"
 #include "sim/traffic.h"
@@ -51,6 +52,34 @@ int main() {
     // (over them all, or beyond reach: none)
     assert(!pickAlong(0, 1, 0, 0, 1, -1, boxes));
     assert(!pickAlong(0, 1, 0, 0, 0, -1, boxes, 10));
+  }
+
+  // a model of the test place got into is hidden while driven; the others are shown
+  {
+    ShowSpots spots;
+    Group ra;
+    Group rb;
+    spots.add(ShowSpot{.kind = "car", .x = 0, .y = 0, .z = 0, .yaw = 0, .outline = VEHICLES.at("car").outline, .height = 1.6, .roots = {&ra}});
+    spots.add(ShowSpot{.kind = "bus", .x = 20, .y = 0, .z = 0, .yaw = 0, .outline = VEHICLES.at("bus").outline, .height = 3.4, .roots = {&rb}});
+    assert(spots.boxes().size() == 2);
+    // (a drive on the test place from the menu: from the usual place, all shown)
+    assert(spots.start() == nullptr);
+    assert(spots.taken == -1);
+    // into the bus: the drive begins where it stands, it is hidden
+    assert(spots.choose(1) == &spots.list[1]);
+    assert(spots.start() == &spots.list[1]);
+    assert(rb.visible == false);
+    assert(ra.visible == true);
+    const std::vector<PickBox> left = spots.boxes();
+    assert(left.size() == 1 && (left[0].what == PickTarget{.kind = "show", .id = -1, .i = 0}));
+    // on foot beside the car: it; beside where the bus stood: nothing (it is driven)
+    assert(spots.near(1.5, 0) == 0);
+    assert(spots.near(21.5, 0) == -1);
+    // then into the car: the bus is shown again
+    spots.choose(0);
+    spots.start();
+    assert(rb.visible == true);
+    assert(ra.visible == false);
   }
 
   std::printf("game_takeover_test: ok\n");

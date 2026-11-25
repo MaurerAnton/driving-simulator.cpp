@@ -344,7 +344,7 @@ void Game::startTrip(const std::vector<SpawnJson>& stops_, bool self, const Tour
   // (what was handed in may be the map's own, which closing the map clears: held here for as long as it is read)
   const std::vector<SpawnJson> stops = stops_;
   const std::optional<TourPreview> tour = tour_ ? std::optional<TourPreview>(*tour_) : std::nullopt;
-  // (later: endWatch – game.ts:2347)
+  endWatch();
   routeWatch = nullptr;
   // (on foot beside the vehicle: back into the seat first; a tram is driven by hand only)
   if (walker) leaveWalk();
@@ -649,9 +649,19 @@ void Game::takeOverCar(int id) {
   // (`car.drawn ?? car`)
   const Place d = car->drawn ? Place{.x = car->drawn->x, .z = car->drawn->z, .yaw = car->drawn->yaw} : Place{.x = car->x, .z = car->z, .yaw = car->yaw};
   const VehicleKind kind = takeKindOf(car->style);
-  // (later: a bus on a line is shown its line's way: transitData, lineWay, lineTakeOver – game.ts:3297)
+  const std::optional<BusOnLine> line = car->bus ? car->bus->line : std::nullopt;
+  TransitSource* src = line ? transitData() : nullptr;
+  std::optional<TourPreview> way;
+  if (line && src) {
+    TakeOver at = lineTakeOver(*src, line->index, line->k);
+    at.x = d.x;
+    at.z = d.z;
+    at.yaw = d.yaw;
+    at.stop = "";
+    way = lineWay(*src, at);
+  }
   const int paint = !car->em && !car->bus ? car->color : -1;
-  // (later: endWatch – game.ts:3301)
+  endWatch(false);
   if (demo) endDemo("ended");
   const VehicleKind was = settings.vehicle;
   settings.vehicle = kind;
@@ -668,7 +678,7 @@ void Game::takeOverCar(int id) {
   settings.vehicle = was;
   // (a car of the traffic: in its paint)
   if (paint >= 0 && def->model == "car") this->car.exterior.paint->color.setHex(paint);
-  // (later: afterPlace – the way of the bus's line, startTrip([], true, way) – game.ts:3314)
+  if (way) afterPlace = [this, way] { startTrip({}, true, &*way); };
   hud->message(tr("watchTakenVehicle", lang, {{"what", tr(VEHICLES.at(kind).name, lang)}}));
 }
 

@@ -12,16 +12,13 @@
  * "Later") is left out here, and so are the public functions that serve only those
  * parts:
  *
- *   showReplay, updateReplay, hideReplay,
- *   ReplayBar, ReplayState                     (replays; `onReplay` stays, as the hook it is)
  *   showAssetProgress, setAssetProgress,
  *   hideAssetProgress, setTileVersions,
  *   onTileVersion                              (developer map modes)
  *
  * Where the Hud itself would open such a part, a hook of the original's name stands
- * in its place, empty until the part is there (see "hooks" below): the stage and
- * carousel menus, the learning modes, the arcade panel, the version picker, the map
- * packs.  A menu entry whose part is not there is not shown.
+ * in its place, empty until the part is there (see "hooks" below): the arcade panel,
+ * the version picker, the map packs.  A menu entry whose part is not there is not shown.
  */
 #pragma once
 
@@ -56,6 +53,8 @@ class Input;
 class MiniMap;
 /** ui/carousel.ts: the vehicle chosen in the menu of rows and where it would start */
 struct MenuPreview;
+/** game/replay.ts: a note of the instructor on the timeline of a replay */
+struct ReplayNote;
 /** ui/arcade.ts: what the arcade panel sets */
 struct ArcadeHost;
 
@@ -140,6 +139,27 @@ struct StartRequest {
   std::optional<TramStopChoice> stop = std::nullopt;
   /** the aeroplane: start at this end of a runway */
   std::optional<RunwayChoice> runway = std::nullopt;
+};
+
+/** What the buttons of the replay bar do. */
+struct ReplayBar {
+  std::function<void()> toggle;
+  std::function<void(double seconds)> step;
+  std::function<void()> speed;
+  std::function<void(double t)> seek;
+  std::function<void()> camera;
+  std::function<void()> exit;
+};
+
+/** What the replay bar shows: where the replay stands, how fast, which view. */
+struct ReplayState {
+  double t = 0;
+  double start = 0;
+  double end = 0;
+  bool playing = false;
+  double speed = 1;
+  /** 'behind' | 'driver' | 'free' */
+  std::string camera = "behind";
 };
 
 struct ResultSummary {
@@ -279,6 +299,18 @@ class Hud {
    */
   void showLog(std::function<void()> back);
 
+  /**
+   * The bar of a replay, at the foot of the screen (the middle stays free for
+   * the picture): the clock and the note of the instructor at that moment,
+   * the timeline with a mark for each note (a tap jumps to just before it),
+   * and the buttons – back, play, on, how fast, which view, done.
+   * (`notes` are kept by the caller for as long as the bar is shown.)
+   */
+  void showReplay(ReplayBar bar, const std::vector<ReplayNote>& notes, const ReplayState& state);
+  /** The bar as the replay stands now (only what changed is written). */
+  void updateReplay(const ReplayState& s);
+  void hideReplay();
+
   void hideOverlay();
 
   // --------------------------------------------------------------------- HUD
@@ -364,16 +396,6 @@ class Hud {
   // Parts of the game that are not in 2.0.0: each hook has the name of what the original
   // calls there and is empty until that part is translated.
 
-  /** the main menu as a stage (ui/stage.ts) and in rows of cards (ui/carousel.ts): Hud.showStage / showCarousel of the original */
-  std::function<void(const std::vector<SpawnJson>& spawns)> showStage = nullptr;
-  std::function<void(const std::vector<SpawnJson>& spawns)> showCarousel = nullptr;
-  /**
-   * ui/stage.ts startFromSpot: a place tapped on the map opened from the menu becomes the start – changes `last`;
-   * false: nothing fits.  (menuStartAt does nothing without it.)
-   */
-  std::function<bool(const VehicleKind& kind, Settings::LastStart& last, const SpawnJson& spot, const std::vector<TramStopChoice>* tramStops, const std::vector<RunwayChoice>* runways,
-                     const std::string& unnamed)>
-      startFromSpot = nullptr;
   /** ui/arcade.ts arcadePanel: the panel for `arcade` */
   std::function<dom::El(ArcadeHost& host)> arcadePanel = nullptr;
   /** ui/versionpicker.ts playVersionButton (an empty El: the site has not that version) and versionSettings (`when`: a moment given as ISO text, written for the reader) */
@@ -475,6 +497,20 @@ class Hud {
   std::string tipText;
   /** the HUD itself (made by buildHud, after everything above) */
   dom::El hud;
+  /** the replay's bar (null: none shown) and the instructor's notes on its timeline */
+  struct ReplayBox {
+    dom::El root;
+    dom::El play;
+    dom::El speed;
+    dom::El cam;
+    dom::El time;
+    dom::El note;
+    dom::El range;
+    dom::El marks;
+    std::string shown;
+  };
+  std::optional<ReplayBox> replayBox;
+  const std::vector<ReplayNote>* replayNotes = nullptr;
 
  public:
   /** the player's arrangement of the HUD's parts (ui/hudlayout.ts) */
@@ -500,6 +536,10 @@ class Hud {
   T tFn() const;
   double fitRoundel(const std::string& text);
   void setOverlay(const dom::El& node);
+  /** The main menu in rows of cards over the 3D scene (ui/carousel.ts). */
+  void showCarousel(const std::vector<SpawnJson>& spawns);
+  /** The main menu as a stage: the vehicle large in the 3D picture, icons round it (ui/stage.ts). */
+  void showStage(const std::vector<SpawnJson>& spawns);
   /** A learning mode (ui/learn.ts): the theory exam, the sign trainer, spotting dangers, the lesson log, or their overview ('hub' | 'exam' | 'signs' | 'danger' | 'log'). */
   void showLearn(const std::string& screen, std::function<void()> back);
   struct LearnMode {

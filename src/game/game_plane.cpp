@@ -77,7 +77,7 @@ void Game::flyFrom(const SpawnJson& spot_, double agl) {
   if (!aircraft || lesson || (state != "map" && state != "pause")) return;
   // (the spot may be the map's own, which closing the map clears: held here)
   SpawnJson spot = spot_;
-  // (later: endWatch(false) – game.ts:3435)
+  endWatch(false);
   bigMap->close();
   spot.rough = false;
   spawn = spot;

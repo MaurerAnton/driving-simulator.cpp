@@ -42,6 +42,7 @@
 #include "render/far.h"
 #include "render/grass.h"
 #include "render/pedlights.h"
+#include "render/people.h"
 #include "render/plane.h"
 #include "render/props.h"
 #include "render/levelcrossings.h"
@@ -76,6 +77,7 @@
 #include "game/startat.h"   // 2.0
 #include "ui/stage.h"   // 2.0: startFromSpot
 #include "ui/bigmap.h"
+#include "game/takeover.h"
 #include "ui/geoip.h"
 #include "ui/hud.h"
 #include "ui/pathdraw.h"
@@ -192,7 +194,9 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       yardScene(std::make_unique<YardScene>()),
       drillScene(std::make_unique<DrillScene>()),
       beams(std::make_unique<BeamPlay>()),
-      railActors(std::make_unique<RailActors>()) {
+      railActors(std::make_unique<RailActors>()),
+      showRail(std::make_unique<RailActors>()),
+      showPeople(std::make_unique<PeopleRenderer>(12)) {
   // (the learning modes' lesson log lists the basic tasks of class B: ui/learn.ts reads game/drills.ts DRILL_IDS)
   learnHooks.DRILL_IDS = [] { return DRILL_IDS; };
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
@@ -383,11 +387,14 @@ Task<void> Game::boot(URLSearchParams q) {
                                                     [this](double x, double z) { return !std::isnan(this->app.tiles->heightAt(x, z)); });
   // (later: services – game.ts:668)
   spawnCars = makeSpawnCars();
-  // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
+  // (a tap on a vehicle: watch it, or get into a model of the test place – game/takeover.ts)
+  tapPicker = std::make_unique<TapPicker>(app.canvas, app.camera, [this] { return pickBoxes(); }, [this](const PickTarget& t) { picked(t); });
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
   app.scene->add(car.root, actors->group, railActors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
   app.scene->add(markers->group, figure->group, drillScene->group);
-  // (later: passengerView, transit, showGroup, showRail, showPeople, explosion in the scene – game.ts:671)
+  // (later: passengerView, transit – game.ts:671)
+  app.scene->add(showGroup, showRail->group, showPeople->group);
+  // (later: explosion in the scene – game.ts:671)
   fadeEl = dom::el("div");
   fadeEl.className("fade");
   ui.append(fadeEl);
@@ -445,7 +452,6 @@ Task<void> Game::boot(URLSearchParams q) {
 
   hud = std::make_unique<Hud>(ui, settings, world);
   // (a place tapped on the menu's map becomes the next start: ui/stage.ts, which hud.ts calls directly)
-  hud->startFromSpot = startFromSpot;
   if (app.map->pieces) {
     // the airfields: drawn on the ground, firm under an aeroplane's wheels, and the ends of their runways to take off from
     // (2.0: asked for once the display is there, which is given the ends of the runways – game.ts:721 asks with the tracks)
@@ -460,7 +466,8 @@ Task<void> Game::boot(URLSearchParams q) {
   hud->onStart = [this](const StartRequest& req) {
     begin(req.mode, req.spawn, false, req.address ? &*req.address : nullptr, req.stop ? &*req.stop : nullptr, req.runway ? &*req.runway : nullptr);
   };
-  // (later: hud.onMenuPreview, transit.departuresFor – game.ts:788)
+  hud->onMenuPreview = [this](const MenuPreview* p) { setMenuPreview(p); };
+  // (later: transit.departuresFor – game.ts:789)
   hud->onResume = [this] { resume(); };
   // (later: hud.onReality – game.ts:798)
   // (later: hud.arcade, the arcade mode's panel: the world at another moment, the time faster – ui/arcade.ts, game.ts:800)
@@ -514,8 +521,7 @@ Task<void> Game::boot(URLSearchParams q) {
     BigMapHost host;
     host.world = &world;
     host.lang = [this] { return settings.lang; };
-    // (later: the menu preview's yaw while the map is opened from the menu – game.ts:906)
-    host.car = [this] { return BigMapHost::Car{mpos[0], mpos[2], mapFrom == "menu" ? 0 : vehicle->yaw}; };
+    host.car = [this] { return BigMapHost::Car{mpos[0], mpos[2], mapFrom == "menu" ? (menuPreview ? menuPreview->yaw : 0) : vehicle->yaw}; };
     host.path = path.get();
     host.net = [this] { return netIndex.get(); };
     host.spotAt = [this](double x, double z) -> std::optional<SpawnJson> {
@@ -541,7 +547,8 @@ Task<void> Game::boot(URLSearchParams q) {
       eventList = roadEvents->list();
       return &eventList;
     };
-    // (later: services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:924)
+    // (later: services, emergencies, fuelPrice, priceSource – game.ts:924)
+    host.watchPoint = [this](const BigMapHost::WatchPoint& what) { startPointWatch(WatchWhat{.kind = what.kind, .id = what.id, .ev = what.ev}); };
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
@@ -563,7 +570,7 @@ Task<void> Game::boot(URLSearchParams q) {
       saveSettings(settings);
     };
     host.transit = [this] { return transitData(); };
-    // (later: watch – game/spectate.ts, game.ts:953)
+    host.watch = [this](const WatchRequest& v) { startWatch(v); };
     host.roads = [this, &world]() -> const RoadSource* {
       RouteGraph* g = routeGraphNow();
       if (!g) return nullptr;
@@ -611,7 +618,8 @@ Task<void> Game::boot(URLSearchParams q) {
   rules->onViolation = [this](const Violation& v) {
     hud->toast(v);
     faultLog->add({.t = plat::dateMs(), .id = v.id, .severity = v.severity, .data = v.data, .street = rules->context.roadName, .mode = lesson ? lesson->id : "free", .x = jsRound(v.x), .z = jsRound(v.z)});
-    // (later: recorder.note, on the timeline of the replay too – game.ts:976)
+    // (on the timeline of the replay too)
+    recorder.note({.t = time, .id = v.id, .severity = v.severity, .data = v.data});
     audio->click("chime");
     if (v.severity == "fail" && lesson && lesson->kind == "exam" && failT < 0) failT = time + 2.5;
   };
@@ -959,7 +967,7 @@ Task<void> Game::setTiltSteer(bool on) {
 
 void Game::toMenu() {
   if (theory) theory->close();
-  // (later: endWatch – game.ts:1458)
+  endWatch(false);
   afterPlace = nullptr;
   // (a tour that is left for the menu is kept as far as it was driven)
   if (demo && demo->tour) endDemo("ended");
@@ -973,7 +981,9 @@ void Game::toMenu() {
   figure->hide();
   if (spawnCars) spawnCars->clear();
   intoParked = false;
-  // (later: previewKey, showOn – game.ts:1472)
+  // (the menu of rows places the vehicle chosen anew; the test place is left)
+  previewKey = "";
+  showOn = false;
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
   if (planeModel) planeModel->root->visible = false;
