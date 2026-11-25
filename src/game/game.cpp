@@ -20,6 +20,7 @@
 #include "game/netstats.h"
 #include "game/releases.h"
 #include "game/routepresets.h"
+#include "game/spawncar.h"
 #include "game/track.h"
 #include "geo/utm.h"
 #include "i18n/index.h"
@@ -343,11 +344,16 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: actors.highOf, the traffic's main beam – game/beamplay.ts, game.ts:663)
   airfieldView = std::make_unique<AirfieldRenderer>([this](double x, double z) { return groundHeight(x, z); },
                                                     [this](double x, double z) { return !std::isnan(this->app.tiles->heightAt(x, z)); });
-  // (later: services, spawnCars – game.ts:668)
+  // (later: services – game.ts:668)
+  spawnCars = makeSpawnCars();
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
   app.scene->add(car.root, actors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
-  // (later: railActors, passengerView, transit, drillScene, markers, figure, showGroup, showRail, showPeople, explosion in the scene; fadeEl – game.ts:671)
+  app.scene->add(markers->group, figure->group);
+  // (later: railActors, passengerView, transit, drillScene, showGroup, showRail, showPeople, explosion in the scene – game.ts:671)
+  fadeEl = dom::el("div");
+  fadeEl.className("fade");
+  ui.append(fadeEl);
   if (world.json.yard) yardFrame.emplace(*world.json.yard);
   else yardFrame.reset();
   // (later: rail = new RailTraffic(world.json.rails) – game.ts:676)
@@ -404,7 +410,19 @@ Task<void> Game::boot(URLSearchParams q) {
     pause();
     if (state == "pause") hud->showArcade();
   };
-  // (later: hud.onGetOut, on foot beside the vehicle – game.ts:855)
+  hud->onGetOut = [this] {
+    // (down from the tower crane: on foot beside it – game/craneplay.ts)  (later: off the forklift – game.ts:857)
+    if (!walker && crane && crane->type == "tower") {
+      resume();
+      towerDoor();
+      return;
+    }
+    if (walker || (demo && demo->active) || task || crane) return;
+    // (later: the tram: standing, not driving by itself – out of the cab and on foot beside it – game.ts:865)
+    if (std::abs(vehicle->speed) > 0.3) return;
+    resume();
+    getOut();
+  };
   hud->onPause = [this] { pause(); };
   hud->loadAddresses = [this] { return loadAddresses(); };
   hud->onTeleport = [this](const AddressHit& hit) { teleportTo(hit); };
@@ -442,7 +460,12 @@ Task<void> Game::boot(URLSearchParams q) {
       if (settings.placeExact) return exactSpot(tr("mapPlace", settings.lang), x, z);
       return roadSpot(x, z, "", 160);
     };
-    // (later: loadedArea, canSpawnCar, spawnCar – game/spawncar.ts, game.ts:910)
+    host.loadedArea = [this]() -> const std::vector<float>* { return mapFrom == "menu" ? nullptr : &spawnCars->area.outline(); };
+    host.canSpawnCar = [this](double x, double z) -> std::string { return !canSpawnCar(true) ? "no" : spawnCars->canPlaceAt(x, z) ? "ok" : "outside"; };
+    host.spawnCar = [this](double x, double z) {
+      closeMap();
+      spawnCars->spawnAt(x, z);
+    };
     host.canTeleport = [this] { return mapFrom != "menu" && !lesson && !crane; };
     host.teleport = [this](const SpawnJson& spot) {
       if (mapFrom != "menu") return teleportSpot(spot);
@@ -540,7 +563,8 @@ Task<void> Game::boot(URLSearchParams q) {
   const std::optional<VehicleKind> kind = vehicleKind(qv.value_or(""));
   // (a kind whose vehicle is not in this build – game/vehicles.h – is not chosen)
   if (kind && VEHICLES.find(*kind)) settings.vehicle = *kind;
-  // (later: ?onfoot=1 – game.ts:996)
+  // ?onfoot=1: this visit's drives begin beside the vehicle (the setting itself is not changed)
+  if (q.get("onfoot") == "1") settings.startOutside = true;
   applySettings();
   // (the tilt steering saved on: the listener is started here, so a phone held to steer does
   //  so without the switch being touched again – iOS asks its permission at the first touch,
@@ -656,7 +680,13 @@ double Game::devView(double x, double h, double z, double heading, double pitch,
 }
 
 void Game::onTile(LoadedTile& tile, bool loaded) {
-  // (later: services.tile, spawnCars.tile – game.ts:1179)
+  // (later: services.tile – game.ts:1179)
+  // (where a car may be put down: the loaded area, the footprints of its buildings – game/spawncar.ts)
+  {
+    const SectionArray* pts = tile.data.get("collPts");
+    const SectionArray* cnt = tile.data.get("collCnt");
+    spawnCars->tile(tile.key, TileBox{tile.header.cx, tile.header.cz, tile.header.size}, pts ? &pts->f32 : nullptr, cnt ? &cnt->u16 : nullptr, loaded);
+  }
   if (loaded) {
     // What stands in a lane (a fault of the map) is taken out of the way: sign posts are moved
     // beside the lane, lamps dropped, walls lose the pieces that reach in.  Maps built since do
@@ -862,7 +892,11 @@ void Game::toMenu() {
   // (later: services.end – game.ts:1464)
   if (crane) crane->dispose();
   crane = nullptr;
-  // (later: endForklift, figure.hide, spawnCars.clear, intoParked, previewKey, showOn – game.ts:1468)
+  // (later: endForklift – game.ts:1467)
+  figure->hide();
+  if (spawnCars) spawnCars->clear();
+  intoParked = false;
+  // (later: previewKey, showOn – game.ts:1472)
   car.root->visible = false;
   for (const auto& [key, model] : models) model->root->visible = false;
   if (planeModel) planeModel->root->visible = false;
@@ -955,7 +989,8 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
   else if (mk == "bus") made = std::make_unique<PlayerBus>();
   else if (mk == "minibus") made = std::make_unique<PlayerBus>(MINIBUS);
   else if (mk == "tractor") made = std::make_unique<PlayerTractor>();
-  // (later: tram – TramCab, render/fleet.h, with the tram's drive; walker – game.ts:1906)
+  // (later: tram – TramCab, render/fleet.h, with the tram's drive – game.ts:1906)
+  else if (mk == "walker") made = std::make_unique<WalkerModel>();
   else if (mk == "motorcycle") {
     bikes.push_back(std::make_unique<PlayerBike>(bikeVariant(def.kind)));
     return bikes.back().get();
@@ -982,9 +1017,9 @@ VehicleModel& Game::model() {
 void Game::showModel(bool on) {
   car.root->visible = on && def->model == "car";
   const std::string key = modelKey(*def);
-  // (later: spawnCars.keeps, the vehicle left standing stays drawn – game/spawncar.ts, game.ts:1937)
+  // (the vehicle left standing when the player got into another stays drawn – game/spawncar.ts)
   for (const auto& [k, model] : models)
-    if (model != &car) model->root->visible = on && k == key;
+    if (model != &car) model->root->visible = (on && k == key) || (spawnCars && spawnCars->keeps(model->root.get()));
   if (carTrailer) carTrailer->group->visible = on && def->trailer && def->model != "truck";
   if (truck) {
     truck->trailer->visible = on && def->kind == "truck";

@@ -56,6 +56,8 @@
 #include "ui/pathdraw.h"
 #include "ui/screentap.h"
 #include "ui/tiltsteer.h"
+#include "game/spawncar.h"
+#include "platform/intl.h"
 #include "ui/touchstick.h"
 #include "ui/worldtap.h"
 #include "world/lanes.h"
@@ -78,10 +80,10 @@ void Game::footFlyFrame() {
     host.heightAt = [this](double x, double z) { return this->app.tiles->heightAt(x, z); };
     host.allowed = [this] { return canTeleport(); };
     host.canDrive = [this] { return canDrive(); };
-    // (later: … spawnCars.picking, spawnCars.claims – game/spawncar.ts, game.ts:5197)
-    host.claimed = [this](double cx, double cy, bool down) { return down ? false : screenTap && screenTap->covers(cx, cy); };
-    // (later: tapToWalk, a tap sends the person on foot there – game.ts:5198)
-    host.tapped = [](const GroundPoint&) {};
+    host.claimed = [this](double cx, double cy, bool down) {
+      return down ? spawnCars && spawnCars->picking : (screenTap && screenTap->covers(cx, cy)) || (spawnCars && spawnCars->claims(cx, cy));
+    };
+    host.tapped = [this](const GroundPoint& p) { tapToWalk(p.x, p.z); };
     host.teleport = [this](const GroundPoint& p, double yaw) { teleportHere(p.x, p.y, p.z, yaw); };
     host.drive = [this](const GroundPoint& p) { driveHere(p.x, p.z); };
     host.t = [this](const std::string& k) { return tr(k, settings.lang); };
@@ -91,9 +93,12 @@ void Game::footFlyFrame() {
   input->flyCam = flying;
   // (the free camera begins anew – where the camera is – each time it is chosen)
   if (cameraMode != "free") fly->ready = false;
+  const OnFoot* w = walker.get();
   const bool touch = inputMode == "touch" && state == "drive";
-  // (later: walking, walkCtl: the ways of walking – game/walkmodes.ts, game.ts:5206)
-  touchStick->frame(touch ? (flying ? StickUse("fly") : std::nullopt) : std::nullopt);
+  // (later: riding, busRide – game.ts:5205)
+  const bool walking = w && doorT < 0 && walkModeOf(settings.walkControls, true) != "tank";
+  if (!w) walkCtl.cancel();
+  touchStick->frame(touch ? (walking ? StickUse("walk") : flying ? StickUse("fly") : std::nullopt) : std::nullopt);
   worldTap->frame();
   // (later: tileVersionsFrame – game.ts:5210)
 }
@@ -275,7 +280,7 @@ void Game::frame(double now) {
   }
   App& app = this->app;
   TileManager& tiles = *app.tiles;
-  // (later: spawnCars.frame – game.ts:6464)
+  if (spawnCars) spawnCars->frame();
   footFlyFrame();
 
   // the road network around where things happen (it may come in pieces), and the signal heads of what is loaded
@@ -433,9 +438,9 @@ void Game::frame(double now) {
     props->update(f[0], f[1]);
     grass->update(f[0], f[1], dt);
     updateVisuals(dt);
-    // a crane posed as it works, the loads of its site where they are  (later: not on foot – game.ts:6624)
+    // a crane posed as it works, the loads of its site where they are
     if (crane)
-      if (CraneModel* cm = dynamic_cast<CraneModel*>(&model)) crane->render(*cm, time, state == "drive");
+      if (CraneModel* cm = dynamic_cast<CraneModel*>(&model)) crane->render(*cm, time, state == "drive" && !walker);
     // (later: forklift.render; the drive written down for its replay – game.ts:6626)
   }
   // (later: menuShow, the vehicle chosen behind the menu of rows – game.ts:6632)
@@ -479,10 +484,14 @@ void Game::frame(double now) {
   else if (haveCar) {
     updateCamera(dt);
     updateOutdoors(dt, model);
-    // (later: the player's own figure on foot – game.ts:6731)
+    // the player's own figure: on foot, when the camera is not their eyes (not on the way in or out, not on a seat)
+    // (later: riding, busRide – game.ts:6733)
+    const OnFoot* fw = walker.get();
+    if (fw && settings.footView == "behind" && doorT < 0) figure->show(fw->x, fw->y, fw->z, fw->yaw, fw->distance, fw->speed > 0.25, time);
+    else figure->hide();
     far->update(app.camera->position.x, app.camera->position.z);
     const std::string& mode = settings.mirrors;
-    if (cameraMode == "cockpit" && mode != "off") {
+    if (cameraMode == "cockpit" && mode != "off" && !walker) {
       const std::vector<std::unique_ptr<Mirror>>& mirrors = model.mirrors;
       const double farMirror = std::min(450.0, app.tiles->viewRadius * 0.4);
       // (each mirror in the frame of what it is fixed to: the motorcycle's turn with the handlebar and lean with it)
@@ -509,13 +518,13 @@ void Game::frame(double now) {
       } wind;
       windVector(wn, wind);
       WindscreenView& ws = *windscreen;
-      // (later: not on foot, not while getting in or out, not watching – game.ts:6753)
+      // (later: not while watching – game.ts:6753)
       ws.frame({.renderer = &app.renderer,
                 .scene = app.scene.get(),
                 .camera = app.camera.get(),
                 .model = &model,
                 .detail = settings.graphics.vehicleDetail && settings.graphics.weatherFx && !aircraft,
-                .cockpit = cameraMode == "cockpit",
+                .cockpit = cameraMode == "cockpit" && !walker && doorT < 0,
                 .dt = state == "drive" ? dt : 0,
                 .rain = rainIntensity(wn),
                 .snow = snowIntensity(wn),
@@ -526,7 +535,7 @@ void Game::frame(double now) {
                 .heater = vehicle->engineRunning,
                 .washer = input->washer(),
                 .light = app.sky.hemi->intensity / 1.2});
-      hud->setWipers(aircraft ? std::nullopt : std::optional<std::string>(ws.mode));
+      hud->setWipers(walker || aircraft ? std::nullopt : std::optional<std::string>(ws.mode));
       if (ws.blindFor > 4 && state == "drive") rules->note("noView", "minor", {}, 60);
     }
   } else {
@@ -554,9 +563,9 @@ void Game::updateOutdoors(double dt, VehicleModel& model) {
   if (!od) return;
   // the cab keeps the rain out: the vehicle's outline, as high as it is (the tram's and the aeroplane's cabs: none) –
   // a crane's cab, high up on its tower or turntable, round the eye (the loader crane is worked standing beside the truck)
-  // (later: not in a replay, on foot, in the tram – game.ts:6847)
+  // (later: not in a replay, in the tram – game.ts:6847)
   const bool craneCab = crane && cameraMode == "cockpit" && def->kind != "loaderCrane";
-  const bool inside = !craneCab && !aircraft;
+  const bool inside = !craneCab && !walker && !aircraft;
   Object3D* shelter = craneCab ? static_cast<Object3D*>(app.camera.get()) : inside ? static_cast<Object3D*>(model.root.get()) : nullptr;
   if (shelter != shelterOf) {
     shelterOf = shelter;
@@ -566,9 +575,9 @@ void Game::updateOutdoors(double dt, VehicleModel& model) {
     else if (shelter && high > 0) od->view.setShelter(shelter, Box3(Vector3(-o.hw - 0.1, 0, -o.front - 0.1), Vector3(o.hw + 0.1, high, o.rear + 0.1)));
     else od->view.setShelter(nullptr);
   }
-  // (later: the walker's place, once away from the vehicle – game.ts:6858)
-  const double x = mpos[0];
-  const double z = mpos[2];
+  const OnFoot* w = walker.get();
+  const double x = w && walkerAway() ? w->x : mpos[0];
+  const double z = w && walkerAway() ? w->z : mpos[2];
   od->update(dt, app.camera->position, Vector3(x, app.tiles->heightAt(x, z), z), {.weather = settings.weather, .season = settings.season, .weatherFx = settings.graphics.weatherFx},
              lanes.get());
   // (later: today's fuel prices – game.ts:6862)
@@ -625,7 +634,7 @@ void Game::updateVisuals(double dt) {
   if (!plane) model.update(s, dt, time);
   // the map on the vehicle's own screen, in the driver's seat – the corner map is hidden meanwhile (render/navscreen.ts)
   VehicleScreen* screen = &model == &car && !plane ? carScreen.get() : plane ? nullptr : model.navScreen;
-  const bool onScreen = screen && settings.mapOnScreen && cameraMode == "cockpit";
+  const bool onScreen = screen && settings.mapOnScreen && cameraMode == "cockpit" && !walker && doorT < 0;
   // (a tap on the screen opens the big map – or, as the settings choose, brings the map back into the corner: ui/screentap.ts)
   if (!screenTap) screenTap = std::make_unique<ScreenTap>(app.canvas, app.camera, [this] { return settings.screenTap; }, [this] { openMap(); });
   ScreenTap& tap = *screenTap;
@@ -752,7 +761,7 @@ void Game::updateVisuals(double dt) {
   // (the truck's instruments stand far away at the foot of its windscreen: the strip stays)
   // (on foot there is nothing to read off a dashboard)
   hs.showDash = cameraMode != "cockpit" || def->dash;
-  hs.onFoot = false;
+  hs.onFoot = walker != nullptr;
   // (the autopilot drives by itself: a stop button is offered to take over)
   hs.autopilotDriving = autopilotDriving();
   // (the reminder of the keys is the car's: not for the tram – its lesson says how it is driven – nor for the
@@ -787,9 +796,67 @@ void Game::updateVisuals(double dt) {
     hs.navSub = tr(touch ? "navSubTouch" : "navSubKeys", lang);
     hs.navArrow = 0;
   }
-  // (later: a lesson watched: the instructor says what the car does – game.ts:7082; the tram's line of the display – game.ts:7083;
-  //  on the bus, riding along, on foot in the town, on foot round the vehicle – game.ts:7132; getting out is offered – game.ts:7200;
-  //  a passenger, the buttons beside the person on foot – game.ts:7205)
+  // (later: a lesson watched: the instructor says what the car does – game.ts:7082; the tram's line of the display – game.ts:7083)
+  const OnFoot* w = walker.get();
+  // (later: on the bus, riding along: the next stop, getting off there – busRide, riding, game.ts:7133)
+  if (w && def->kind == "pedestrian") {
+    // on foot in the town: the speed, and what there is to do here – a button  (later: a tram to get in, a bus – game.ts:7171)
+    hs.navText = tr(w->running ? "footRunning" : "footWalking", lang, {{"speed", jsRound(w->speed * 3.6)}});
+    hs.navSub = "";
+    hs.navArrow = 0;
+    hs.navActive = false;
+    hs.tip = "";
+    hs.tipAction = "";
+    if (time < tipUntil) hs.tip = tipText;
+    else if (footPole && signals->pedestrian(footPole->controller, footPole->group) == "red" && !signals->requested(footPole->controller)) {
+      hs.tip = tr(touch ? "footButtonTouch" : "footButton", lang);
+      hs.tipAction = "KeyG";
+    } else if (time - walkSince < 12) hs.tip = tr(touch ? "footHelpTouch" : "footHelp", lang);
+  } else if (w) {
+    // on foot: what there is to check round the vehicle, and how far that is done
+    hs.navText = tr(w->allChecked() ? "checkDone" : "walkTitle", lang);
+    std::string sub;
+    for (const OnFoot::Progress& p : w->progress()) {
+      if (!sub.empty()) sub += "  ";
+      sub += tr(checkTextKey(p.id), lang) + " " + (p.done >= p.of ? std::string("✓") : p.of > 1 ? std::to_string(p.done) + "/" + std::to_string(p.of) : std::string("·"));
+    }
+    hs.navSub = sub;
+    hs.navArrow = 0;
+    hs.navActive = false;
+    hs.tip = "";
+    hs.tipAction = "";
+    // (later: !wrecked – game.ts:7189)
+    const std::optional<WalkHud> open = time < tipUntil ? std::nullopt : opens.walkHud(w, touch, lang, &model == &car);
+    if (time < tipUntil) hs.tip = tipText;
+    else if (open) {
+      hs.tip = open->tip;
+      hs.tipAction = open->action;
+    } else if (w->atDoor()) {
+      hs.tip = tr(touch ? "getInTouch" : "getIn", lang);
+      hs.tipAction = "KeyG";
+    }
+    // (later: wrecked: wreckedTip – game.ts:7197)
+    else if (w->tooFar) hs.tip = tr("tooFar", lang, {{"d", jsRound(std::hypot(w->x - mpos[0], w->z - mpos[2]))}});
+    else if (time - walkSince < 10) hs.tip = tr(touch ? "walkHelpTouch" : "walkHelp", lang);
+  } else if (doorT < 0 && !(demo && demo->active) && !task && (hs.tip.empty() || hs.tipAction == "Enter") && std::abs(kmh) < 1 && !v.engineRunning && c.handbrake > 0.5 &&
+             v.odometer - startOdo > 30) {
+    // standing, engine off, parking brake on: getting out is offered
+    hs.tip = tr(touch ? "getOutHintTouch" : "getOutHint", lang);
+    hs.tipAction = "KeyG";
+  }
+  if (!w && opens.passenger() && &model == &car && !opens.busy() && time >= tipUntil) {
+    // a passenger: where one sits – and, the car standing, how to get out
+    const bool out = std::abs(kmh) < 1 && !(demo && demo->active);
+    hs.tip = opens.seatTip(touch, lang, out);
+    hs.tipAction = out ? "KeyG" : "";
+  }
+  // the buttons beside the person on foot: open, shut, get in (game/openplay.ts)
+  // (later: !wrecked – game.ts:7212)
+  const std::optional<WalkHud> near = w && state == "drive" && def->kind != "pedestrian" ? opens.walkHud(w, touch, lang, &model == &car) : std::nullopt;
+  opens.buttons(ui, near ? near->buttons : std::vector<OpenButton>{}, [this](const std::string& id) {
+    if (id == "enter") getIn();
+    else opens.toggleAt(walker.get());
+  });
   if (aircraft) {
     // flying: how fast through the air (the strip in km/h, the line in knots), how high, climbing or sinking
     const Aircraft& ac = *aircraft;
@@ -817,8 +884,8 @@ void Game::updateVisuals(double dt) {
     hs.tip = time < tipUntil ? tipText : ac.stallWarning() ? tr("flyStall", lang) : time - startTime < 20 ? tr(touch ? "flyHelpTouch" : "flyHelp", lang) : "";
   }
   // (later: watching – game.ts:7242; services.hud – game.ts:7247)
-  // (later: on foot below the tower crane: the walker's place – game.ts:7248)
-  if (crane) crane->hud(hs, touch);
+  // (on foot below the tower crane: the walker's place)
+  if (crane) crane->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
   // (later: forklift.hud – game.ts:7249)
   hud->update(hs, time);
 }
@@ -835,11 +902,14 @@ void Game::speak(const std::string& what, double dist, const std::string& text) 
 }
 
 void Game::updateCamera(double dt) {
-  // (later: footGlance, the head turned by the glance keys on foot – game.ts:7271)
+  {
+    const double want = walker ? input->glanceYaw() : 0;
+    footGlance += (want - footGlance) * (1 - std::exp(-dt * 8));
+  }
   Camera& cam = *app.camera;
   // zooming the view (input/camzoom.ts): on foot and in the driver's seat – pinch, the wheel, + and −
-  // (later: watcher, doorT, opens, walker – game.ts:7277)
-  const bool zoomable = !crane && cameraMode == "cockpit";
+  // (later: watcher – game.ts:7277)
+  const bool zoomable = !crane && doorT < 0 && !opens.blending() && (walker || cameraMode == "cockpit");
   input->viewZoom = zoomable;
   input->zoom.update(dt, settings.zoomRelease, zoomable);
   // (later: watcher.camera – game.ts:7280)
@@ -861,12 +931,55 @@ void Game::updateCamera(double dt) {
   Vector3& lean = tmpV.set(-v.accLat * 0.004, 0, v.accLong * 0.005);
   lean.clampLength(0, 0.06);
   eyeWorld.copy(plane ? planeModel->eye : model().eye).add(lean).applyMatrix4(car.matrixWorld);
-  // working a crane: from the operator's seat, or round the hook (game/craneplay.ts)  (later: not on foot – game.ts:7302)
-  if (CraneModel* cm = crane ? craneModel() : nullptr; cm && crane->camera(cam, cameraMode, c, dt, *cm)) {
+  // working a crane: from the operator's seat, or round the hook (game/craneplay.ts)
+  if (CraneModel* cm = crane && !walker ? craneModel() : nullptr; cm && crane->camera(cam, cameraMode, c, dt, *cm)) {
     cam.updateProjectionMatrix();
     return;
   }
-  // (later: on foot, on the bus, a passenger, getting in and out – game.ts:7306)
+  if (const OnFoot* w = walker.get(); w || doorT >= 0 || opens.blending()) {
+    // on foot: the eyes of somebody standing beside the vehicle – and on the way in or out, from one to the other
+    cam.near = 0.06;
+    cam.fov = 62;
+    Vector3& to = tmpV;
+    Quaternion& q = tmpQ;
+    // (later: on the bus, a passenger in a tram: a seat, looking round from there – busRide, riding, game.ts:7313)
+    if (w && settings.footView == "behind") {
+      // seen from behind: a few metres back and above, looking past the head the way the person looks
+      const Vector3& head = headV.set(w->x, w->y + 1.55, w->z);
+      const double pitch = std::max(-1.1, std::min(0.6, w->pitch - 0.22));
+      const double back = 3.3 * std::cos(pitch);
+      const double gy0 = w->yaw + footGlance;
+      to.set(w->x + std::sin(gy0) * back, head.y - std::sin(pitch) * 3.3, w->z + std::cos(gy0) * back);
+      // (not into the ground behind a kerb or on a slope)
+      const double gy = footGround(to.x, to.z, to.y + 1);
+      if (std::isfinite(gy)) to.y = std::max(to.y, gy + 0.5);
+      tmpM.lookAt(to, head, Vector3(0, 1, 0));  // (Object3D.DEFAULT_UP)
+      q.setFromRotationMatrix(tmpM);
+    } else if (w) {
+      to.set(w->x, w->y + EYE, w->z);
+      // (looking left, right or back: the head turns – the glance keys and their buttons)
+      q.setFromEuler(Euler(w->pitch, w->yaw + footGlance, 0, Euler::YXZ));
+    } else {
+      to.copy(eyeWorld);
+      q.copy(car.quaternion);
+    }
+    if (opens.blending()) {
+      // into the car's seat or out of it, as the door stands open (game/openplay.ts)
+      const double k = opens.blend();
+      cam.position.copy(doorFrom.pos).lerp(to, k);
+      cam.quaternion.copy(doorFrom.quat).slerp(q, k);
+    } else if (doorT >= 0) {
+      const double k = std::min(1.0, doorT / 0.6);
+      cam.position.copy(doorFrom.pos).lerp(to, k);
+      cam.quaternion.copy(doorFrom.quat).slerp(q, k);
+    } else {
+      cam.position.copy(to);
+      cam.quaternion.copy(q);
+    }
+    cam.fov = input->zoom.fov(cam.fov);
+    cam.updateProjectionMatrix();
+    return;
+  }
   if (cameraMode == "cockpit") {
     cam.near = 0.06;
     cam.fov = 60;

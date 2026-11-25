@@ -36,8 +36,7 @@ std::unique_ptr<CraneWork> Game::makeCraneWork(const CraneType& type) {
 
 void Game::craneToggle() {
   CraneWork* cw = crane.get();
-  // (later: not while on foot – game.ts:4423)
-  if (!cw || state != "drive") return;
+  if (!cw || state != "drive" || walker) return;
   const bool was = cw->operating;
   if (cw->toggle(*vehicle, input->c.handbrake > 0.5) || was == cw->operating) return;
   input->c.handbrake = 1;
@@ -48,19 +47,32 @@ void Game::craneToggle() {
 
 void Game::stepCrane(double dt) {
   CraneWork& cw = *crane;
-  // (later: climbed down from the tower crane: on foot, stepWalk – the crane stands as it was left – game.ts:4439)
-  cw.work(dt, *vehicle);
+  // (climbed down from the tower crane: on foot – the crane stands as it was left)
+  const OnFoot* w = walker.get();
+  if (w) stepWalk(dt);
+  else cw.work(dt, *vehicle);
   vehicle->getModelPosition(mpos.data());
   rules->time += dt;
   signals->update(dt);
   PlayerState player;
-  player.x = mpos[0];
-  player.y = mpos[1];
-  player.z = mpos[2];
-  player.yaw = vehicle->yaw;
-  player.speed = 0;
-  player.length = 0.1;
-  player.width = 0.1;
+  if (w) {
+    player.x = w->x;
+    player.y = w->y;
+    player.z = w->z;
+    player.yaw = w->yaw;
+    player.speed = w->speed;
+    player.length = 0.6;
+    player.width = 0.6;
+    player.onFoot = true;
+  } else {
+    player.x = mpos[0];
+    player.y = mpos[1];
+    player.z = mpos[2];
+    player.yaw = vehicle->yaw;
+    player.speed = 0;
+    player.length = 0.1;
+    player.width = 0.1;
+  }
   // (later: rail.update – game.ts:4446)
   traffic->obstacles.clear();
   traffic->update(dt, player);
