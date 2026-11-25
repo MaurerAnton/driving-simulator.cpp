@@ -314,6 +314,10 @@ template <class T>
 T& deref(const std::unique_ptr<T>& v) {
   return *v;
 }
+template <class T>
+T& deref(std::unique_ptr<T>& v) {
+  return *v;
+}
 }  // namespace lxdetail
 
 template <class Rail>

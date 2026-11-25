@@ -10,6 +10,7 @@
 #include "game/clock.h"
 #include "geo/utm.h"
 #include "sim/collision.h"
+#include "core/date.h"
 #include "sim/timetable.h"
 #include "sim/rail.h"
 #include "sim/rules.h"
