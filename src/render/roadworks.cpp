@@ -417,8 +417,8 @@ std::array<int, 3> RoadworksRenderer::crowd(RoadEvents& ev, const Demonstration&
   Pt pt;
   for (int i = 0; i < n; i++) {
     const int row = i / cols;
-    const int col = i % cols;
-    if (!posFor(row, col, i, pt)) continue;
+    const int column = i % cols;
+    if (!posFor(row, column, i, pt)) continue;
     const double along = std::atan2(-pt.tx, -pt.tz) + back;
     // standing at a rally: turned this way and that, towards the front
     const double yaw = along + (walking ? (r(i, 3) - 0.5) * 0.25 : (r(i, 3) - 0.5) * 1.1 + 0.25 * std::sin(time * 0.13 + i));
