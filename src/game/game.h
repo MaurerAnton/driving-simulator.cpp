@@ -104,6 +104,7 @@ class Trailer;
 class Vehicle;
 class WindscreenView;
 class WorldGround;
+class TheoryMode;
 // (src/ui and src/input)
 class BigMap;
 class Hud;
@@ -823,6 +824,11 @@ class Game {
   std::unique_ptr<LevelCrossingRenderer> crossingView;
   /** (what `roadEvents.list()` gave the big map last: it keeps a pointer to it) */
   std::vector<RoadEventInfo> eventList;
+  // --- the theory lessons ---
+  /** the theory lessons (made when first opened – game.ts:2695) */
+  std::unique_ptr<TheoryMode> theory;
+  /** The theory lessons: situations shown on the practice yard – no drive, no traffic, no rules, no HUD meanwhile (game_theory.cpp). */
+  void openTheory();
 };
 
 }  // namespace fs

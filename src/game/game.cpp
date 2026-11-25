@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
+#include "game/theorymode.h"
 #include "game/weather.h"
 
 #include <algorithm>
@@ -920,7 +921,8 @@ Task<void> Game::setTiltSteer(bool on) {
 }
 
 void Game::toMenu() {
-  // (later: theory.close, endWatch – game.ts:1457)
+  if (theory) theory->close();
+  // (later: endWatch – game.ts:1458)
   afterPlace = nullptr;
   // (a tour that is left for the menu is kept as far as it was driven)
   if (demo && demo->tour) endDemo("ended");
