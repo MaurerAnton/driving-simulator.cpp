@@ -7,4 +7,4 @@ name="$1"; shift
 fs_configure || exit 1
 fs_locked cmake --build "$FS_BUILD" -j"${FS_JOBS:-2}" -t "$name" 2>&1 | grep -vE "^\[[0-9]+/[0-9]+\] (Building|Linking|Re-running|Generating)|^-- |^ninja: no work" 
 [ "${PIPESTATUS[0]}" = 0 ] || exit 1
-cd "$FS_ROOT" && "$FS_BUILD/$name" "$@"
+cd "$FS_ROOT" && fs_run "$FS_BUILD/$name" "$@"

@@ -347,7 +347,7 @@ void Game::startTrip(const std::vector<SpawnJson>& stops_, bool self, const Tour
   // (later: endWatch – game.ts:2347)
   routeWatch = nullptr;
   // (on foot beside the vehicle: back into the seat first; a tram is driven by hand only)
-  // (later: walker, leaveWalk – game.ts:2350)
+  if (walker) leaveWalk();
   if (aircraft) {
     Aircraft& plane = *aircraft;
     // the aeroplane by itself: to the (first) place chosen, at least 300 m above the ground there, circling it –
@@ -646,7 +646,8 @@ void Game::takeOverCar(int id) {
   const VehicleKind was = settings.vehicle;
   settings.vehicle = kind;
   parkedAt = Place{.x = d.x, .z = d.z, .yaw = d.yaw};
-  // (later: intoParked – it keeps the drive from beginning on foot – game.ts:3306)
+  // (it keeps the drive from beginning on foot)
+  intoParked = true;
   const AddressHit at{.label = tr("mapPlace", lang), .street = "", .x = d.x, .z = d.z, .exact = true};
   try {
     begin("free", 0, true, &at);
