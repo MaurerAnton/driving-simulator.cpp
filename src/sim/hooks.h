@@ -4,7 +4,7 @@
  *
  * The traffic, the rule monitor and the driver of the autopilot call into the people on foot,
  * the cyclists, the emergency vehicles, the roadworks, the kerb build-outs, the level
- * crossings, the wild animals, the bus lines and the signs with a time on them.  None of
+ * crossings, the wild animals and the signs with a time on them.  None of
  * those is here yet.  Each stands in this file as a class of the original's name with just
  * the members that are called – all of them for the missing part to fill in – and whoever holds
  * one holds a pointer that is null until the part exists:
@@ -29,7 +29,9 @@
 #include "sim/insertion_map.h"
 #include "sim/pedestrians.h"
 #include "sim/playerstate.h"
+#include "world/buslines.h"
 #include "world/lanes.h"
+#include "world/stops.h"
 #include "world/types.h"
 #include "world/world.h"
 #include "world/extrasigns.h"
@@ -46,33 +48,7 @@ class RuleMonitor;
 
 // ---- src/sim/pedestrians.ts: translated (sim/pedestrians.h) ------------------------------
 
-// ---- src/world/stops.ts -------------------------------------------------------------------
-
-struct StopPlace;
-
-/** A pole of a stop (interface StopPole: what the people read of it). */
-struct StopPole {
-  StopPlace* place = nullptr;
-  double x = 0;
-  double z = 0;
-  int flags = 0;
-};
-
-/** A stop place (interface StopPlace: what the people read of it). */
-struct StopPlace {
-  int id = 0;
-  double x = 0;
-  double z = 0;
-  std::vector<StopPole> poles;
-};
-
-/** The stops of the map (class Stops). */
-class Stops {
- public:
-  virtual ~Stops() = default;
-  /** the places within r metres of (x, z) */
-  virtual std::vector<const StopPlace*> near(double x, double z, double r) const = 0;
-};
+// ---- src/world/stops.ts: translated (world/stops.h) ------------------------------------
 
 // ---- src/sim/cyclists.ts ------------------------------------------------------------------
 
@@ -164,45 +140,7 @@ class Wildlife {
   virtual void update(double dt, const PlayerState& player) = 0;
 };
 
-// ---- src/world/buslines.ts ----------------------------------------------------------------
-
-struct BusLineStop {
-  /** the stop place's number in the map's stops */
-  int place = 0;
-  /** the way of the line it lies on (index into its ways), and how far along that road (m from its node a) */
-  int k = 0;
-  double m = 0;
-};
-
-/** A line of the city buses in one direction (interface BusLine: what the traffic reads of it). */
-struct BusLine {
-  /** its number in BusLines.lines */
-  int index = 0;
-  /** the line's number and where it goes */
-  std::string ref;
-  std::string to;
-  /** the ways (road * 2 + direction) of its route in order, and how many of them are the route itself (the rest: the way round to the line back) */
-  std::vector<int32_t> ways;
-  int end = 0;
-  /** the line back, where one begins at this one's end */
-  BusLine* back = nullptr;
-};
-
-/** The lines of the city buses (class BusLines). */
-class BusLines {
- public:
-  virtual ~BusLines() = default;
-  struct At {
-    BusLine* line = nullptr;
-    int k = 0;
-  };
-  std::vector<BusLine*> lines;
-  /** the lines that run along way `w`, each with the index of that way in its ways */
-  virtual std::vector<At> at(int w) = 0;
-  virtual bool has(int w) = 0;
-  /** the stops of `line` on its ways k0 … k1 (written into `out`, which is returned) */
-  virtual std::vector<BusLineStop>& stopsOn(const BusLine& line, int k0, int k1, std::vector<BusLineStop>& out) = 0;
-};
+// ---- src/world/buslines.ts: translated (world/buslines.h) --------------------------------
 
 // --- what other files use of the parts that are not ported ---------------------------
 

@@ -480,6 +480,16 @@ class Hud {
   /** the player's arrangement of the HUD's parts (ui/hudlayout.ts) */
   HudLayout layout;
 
+  // --- the native HUD (ui/sdlhud.h: the SDL window paints these values itself) ---
+  /** what update() was last given (none: nothing driven yet) */
+  const std::optional<HudState>& lastState() const { return last; }
+  /** the notice shown in the street name's place now (null: none) */
+  const std::shared_ptr<const Notice>& noticeNow() const { return noticeShown; }
+  /** the corner map, as update() draws it */
+  const Canvas& cornerMap() const { return mapCanvas; }
+  /** the HUD is shown (setHudVisible) */
+  bool hudShown() const { return hud && hud.style("display") != "none"; }
+
  private:
   std::string t(std::string_view key, const TrParams& p = {}) const;
   /** `(k, v) => this.t(k, v)`, for the panels of other files */

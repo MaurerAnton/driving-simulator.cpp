@@ -7,6 +7,7 @@
 #include "core/random.h"
 #include "game/address.h"
 #include "game/game.h"
+#include "render/drillyard.h"
 #include "game/nav.h"
 #include "game/track.h"
 #include "game/semice.h"
@@ -65,7 +66,7 @@ void Game::endTasks() {
   task = nullptr;
   tasksLeft.clear();
   yardScene->hide();
-  // (later: drillScene.hide – game.ts:1978)
+  drillScene->hide();
   ground->paved = nullptr;
   ground->raise = nullptr;
   rules->yard = false;
@@ -74,7 +75,7 @@ void Game::endTasks() {
 
 void Game::placeAgain() {
   traffic->clear();
-  // (later: rail.clear – game.ts:1988)
+  rail->clear();
   vehicle->vel = {0, 0, 0};
   vehicle->angVel = {0, 0, 0};
   input->c.handbrake = 1;

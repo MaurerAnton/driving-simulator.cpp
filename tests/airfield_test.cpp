@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: render sim engine world core platform geo
+// LINK: render sim game engine world core platform geo
 // Origin: tests/game/airfield.test.ts @ v1.7.7
 /**
  * The airfields as an aeroplane meets them: firm ground on the runway, the

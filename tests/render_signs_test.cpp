@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: render engine world sim core platform geo
+// LINK: render engine world sim game core platform geo
 /**
  * The traffic signs (render/signs, render/signart) and the pedestrian lights (render/pedlights):
  * which signs the program draws itself and how wide their plates are (what
  * tests/game/learn.test.ts asks of artAspect), what is written on them, the sizes of the plates,
  * the layout of the atlas – which cell a sign gets, when a cell is given again –, the plates and
  * posts of a group, and the instances of the lights.  The numbers are the original's: v1.7.7 run
- * on the same signs.  (No pixel is looked at: the native host paints nothing.)
+ * on the same signs.  (The pixels: see testPixels.)
  */
 #include <cassert>
 #include <cmath>
@@ -23,6 +23,7 @@
 #include "platform/canvas.h"
 #include "platform/native/canvas_native.h"
 #include "platform/native/native.h"
+#include "render/detailkit.h"
 #include "render/pedlights.h"
 #include "render/signart.h"
 #include "render/signs.h"
@@ -312,8 +313,8 @@ static void testAtlas() {
     postsOf(c).getMatrixAt(0, m4);
     assert(near(m4.elements[5], 4.570561, 1e-5) && near(m4.elements[13], -0.3, 1e-6));
   }
-  // (the native host decodes no pictures: the graphics count as missing, and the signs are drawn by the program instead)
-  assert(signs.missing == (std::vector<std::string>{"1020-30", "205", "274-50", "262", "133-20", "101"}));
+  // (the native host decodes the pictures as a browser does – the empty ones too: none of them is missing)
+  assert(signs.missing == (std::vector<std::string>{"1020-30", "205", "274-50"}));
   // how a sign is drawn shows in the shape of its plate: a variant as the sign it belongs to (101-12), the graphic of another number
   // (350-10, 1010-51), a value on the plate drawn by the program (262:7.5), a speed limit never as its family's graphic (274-12)
   {
@@ -523,13 +524,73 @@ static void testPedLights() {
   ped.update(signals);
 }
 
-int main() {
+/** how many pixels of a part of a canvas are opaque and how many of them are near this colour */
+static std::pair<int, int> count(const Canvas& c, int x, int y, int w, int h, int r, int g, int b) {
+  std::vector<uint8_t> px;
+  int W = 0, H = 0;
+  assert(canvasNative::pixels(c.el().handle(), px, W, H));
+  int opaque = 0, near = 0;
+  for (int yy = y; yy < y + h && yy < H; yy++)
+    for (int xx = x; xx < x + w && xx < W; xx++) {
+      const uint8_t* p = px.data() + (static_cast<size_t>(yy) * static_cast<size_t>(W) + static_cast<size_t>(xx)) * 4;
+      if (p[3] < 200) continue;
+      opaque++;
+      if (std::abs(p[0] - r) < 40 && std::abs(p[1] - g) < 40 && std::abs(p[2] - b) < 40) near++;
+    }
+  return {opaque, near};
+}
+
+/** the pixels: the sign faces of web/signs (SVG) and of signart, and a number plate, painted by the native canvas */
+static void testPixels(const std::string& outDir) {
+  plat::native::mount("websigns/", "web/signs");
+  SignRenderer signs("websigns/", 1);
+  plat::native::wait(signs.init());
+  // the give-way sign (an SVG of web/signs), the 30 limit (drawn by signart), a panel with text (signart)
+  const std::shared_ptr<Group> g = signs.build({post(0, 0, 0, 0, {"205", "274-30", "1004-30:150"}, 0)}, 0, 0, 0);
+  signs.flush();
+  assert(signs.missing.empty());
+  const Canvas& atlas = signs.texture->canvas;
+  const int W = atlas.width(), H = atlas.height();
+  // each plate's cell: from the uv of its front (v up)
+  const BufferAttribute& uv = *platesOf(g).geometry->uv();
+  // (the plates come in the order of the group, not of the list: the panel is the wide one, the two red signs the square ones)
+  int wide = 0, red = 0;
+  for (size_t k = 0; k < 3; k++) {
+    const int x0 = static_cast<int>(uv.at(k * 16) * W), x1 = static_cast<int>(uv.at(k * 16 + 2) * W);
+    const int y0 = static_cast<int>((1 - uv.at(k * 16 + 5)) * H), y1 = static_cast<int>((1 - uv.at(k * 16 + 1)) * H);
+    const bool panel = x1 - x0 > (y1 - y0) * 3 / 2;
+    const auto [opaque, near] = count(atlas, x0, y0, x1 - x0, y1 - y0, panel ? 255 : 195, panel ? 255 : 20, panel ? 255 : 30);
+    const int share = 100 * near / std::max(1, (x1 - x0) * (y1 - y0));
+    std::printf("  plate %zu: cell %d×%d, %d opaque, %d%% %s\n", k, x1 - x0, y1 - y0, opaque, share, panel ? "white" : "red");
+    assert(opaque > (x1 - x0) * (y1 - y0) / 3);
+    if (panel && share >= 30) wide++;
+    if (!panel && share >= 10) red++;
+  }
+  assert(wide == 1 && red == 2);
+  // the number plate: white ground, dark letters, the blue EU band
+  const TexturePtr plate = plateTexture("KS AB 123", true);
+  const Canvas& pc = plate->canvas;
+  const auto [plateOpaque, white] = count(pc, 0, 0, pc.width(), pc.height(), 240, 240, 236);
+  const auto [unused, dark] = count(pc, 0, 0, pc.width(), pc.height(), 17, 17, 17);
+  std::printf("  plate %d×%d: %d opaque, %d white, %d dark\n", pc.width(), pc.height(), plateOpaque, white, dark);
+  assert(plateOpaque == pc.width() * pc.height() && white > plateOpaque / 3 && dark > plateOpaque / 20);
+  (void)unused;
+  if (!outDir.empty()) {
+    assert(canvasNative::savePng(atlas, outDir + "/signs_atlas.png"));
+    assert(canvasNative::savePng(pc, outDir + "/plate.png"));
+    std::printf("  %s/signs_atlas.png, %s/plate.png\n", outDir.c_str(), outDir.c_str());
+  }
+  signs.release(*g);
+}
+
+int main(int argc, char** argv) {
   testCodes();
   testDrawing();
   testSizes();
   testAtlas();
   testAtlasFull();
   testPedLights();
+  testPixels(argc > 1 ? argv[1] : "");
   std::printf("render_signs_test: ok\n");
   return 0;
 }

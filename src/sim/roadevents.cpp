@@ -11,7 +11,8 @@
 #include "game/clock.h"
 #include "geo/utm.h"
 #include "sim/collision.h"
-#include "sim/kasselclock.h"
+#include "core/date.h"
+#include "sim/timetable.h"
 #include "sim/rail.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
@@ -34,7 +35,7 @@ int32_t imul(double a, int32_t b) { return jsImul(jsInt32(a), b); }
 /** The moment of a time of day in Kassel (minutes after midnight) on a date: ms since 1970. */
 double berlinMs(int y, int m, int d, double minutes) {
   const double guess = utcMs(y, m - 1, d, 0, 0) + minutes * 60000;
-  return guess - kassel::berlinOffset(guess - 3600000) * 1000;
+  return guess - berlinOffset(guess - 3600000) * 1000;
 }
 
 /** May a march walk along this road (and its closure make sense)? */
@@ -258,7 +259,7 @@ const std::vector<DemoPlace>& DEMO_PLACES() {
 std::vector<DemoPlan> demosOn(int y, int m, int d) {
   const int day = dayKey(y, m, d);
   const int weekday = utcFields(utcMs(y, m - 1, d)).day;
-  const bool holiday = kassel::isHoliday(y, m, d);
+  const bool holiday = isHoliday(y, m, d);
   const auto r = [&](int k) { return hash01(jsImul(day + 13, 0x7feb352d) ^ jsImul(k + 1, static_cast<int32_t>(0x846ca68bu)) ^ 0x5bd1e995); };
   // [when it begins (minutes after midnight), how likely]
   std::vector<std::pair<double, double>> slots;
@@ -610,7 +611,7 @@ void RoadEvents::count(const Lane& lane, double mid, double length, double v) {
 
 void RoadEvents::refresh(const PlayerState& player) {
   const double ms = now();
-  const kassel::BerlinClock c = kassel::berlinClock(ms);
+  const BerlinClock c = berlinClock(ms);
   const int today = dayKey(c.y, c.m, c.d);
   if (today != day) {
     day = today;
@@ -1067,7 +1068,7 @@ void RoadEvents::judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& 
 std::vector<RoadEventInfo> RoadEvents::list() {
   std::vector<RoadEventInfo> out;
   const double ms = now();
-  const kassel::BerlinClock c = kassel::berlinClock(ms);
+  const BerlinClock c = berlinClock(ms);
   const double dayFrom = berlinMs(c.y, c.m, c.d, 0);
   const double dayUntil = berlinMs(c.y, c.m, c.d, 24 * 60);
   for (const auto& [id, z] : zones) out.push_back(RoadEventInfo{"works", z->x, z->z, z->street, dayFrom, dayUntil, true, z->control, {}});

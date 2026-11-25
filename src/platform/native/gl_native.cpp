@@ -5,9 +5,12 @@
  * pictures without a browser, for development and for the tests that look at them.
  */
 #include "platform/glhost.h"
+#include "platform/native/canvas_native.h"
+#include "platform/native/gl_native.h"
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 #if defined(FS_NATIVE_GL)
 #include <EGL/egl.h>
@@ -29,6 +32,8 @@ struct Host {
   EGLContext context = EGL_NO_CONTEXT;
   EGLSurface surface = EGL_NO_SURFACE;
   bool ok = false;
+  /** the context is someone else's (a window's: platform/sdl) – no EGL of our own */
+  bool adopted = false;
   GLuint fbo = 0, color = 0, depth = 0;
   int width = 0, height = 0;
 };
@@ -62,6 +67,23 @@ void makeBuffers(int width, int height) {
 }
 
 }  // namespace
+
+namespace native {
+
+void adoptCurrentContext() {
+  Host& h = host();
+  h.adopted = true;
+  h.ok = true;
+}
+
+void drawingBuffer(uint32_t& fbo, int& width, int& height) {
+  const Host& h = host();
+  fbo = h.fbo;
+  width = h.width;
+  height = h.height;
+}
+
+}  // namespace native
 
 bool createContext(const std::string&, int width, int height, const ContextOptions&) {
   Host& h = host();
@@ -121,8 +143,32 @@ void resizeDrawingBuffer(int width, int height) {
 
 uint32_t screenFramebuffer() { return host().fbo; }
 
-bool texImageCanvas(int, bool, bool, int&, int&) { return false; }
-bool texImageImage(int, bool, bool, int&, int&) { return false; }
+namespace {
+/** RGBA pixels (not premultiplied, as WebGL takes a canvas by default) into the bound texture */
+bool upload(const std::vector<uint8_t>& px, bool srgb, int width, int height) {
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  glTexImage2D(GL_TEXTURE_2D, 0, srgb ? GL_SRGB8_ALPHA8 : GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
+  return true;
+}
+}  // namespace
+
+bool texImageCanvas(int canvasElement, bool flipY, bool srgb, int& width, int& height) {
+  std::vector<uint8_t> px;
+  int w = 0, h = 0;
+  // (the 2D canvas of this host paints for real: platform/native/canvas_native.cpp)
+  if (!canvasNative::pixels(canvasElement, px, w, h, false, flipY)) return false;
+  width = w;
+  height = h;
+  return upload(px, srgb, w, h);
+}
+bool texImageImage(int image, bool flipY, bool srgb, int& width, int& height) {
+  std::vector<uint8_t> px;
+  int w = 0, h = 0;
+  if (!canvasNative::imagePixels(image, px, w, h, false, flipY)) return false;
+  width = w;
+  height = h;
+  return upload(px, srgb, w, h);
+}
 
 /** which driver draws ("Mali-G52 (Panfrost)", "llvmpipe" …): for the tools' output */
 std::string rendererName() {
@@ -131,12 +177,12 @@ std::string rendererName() {
   return r ? r : "?";
 }
 
-bool savePng(const std::string& path, int width, int height) {
+bool savePng(const std::string& path, int width, int height, int framebuffer) {
 #if defined(FS_HAVE_PNG)
   Host& h = host();
   if (!h.ok || width <= 0 || height <= 0) return false;
   std::vector<uint8_t> px(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
-  glBindFramebuffer(GL_FRAMEBUFFER, h.fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer >= 0 ? static_cast<GLuint>(framebuffer) : h.fbo);
   glPixelStorei(GL_PACK_ALIGNMENT, 1);
   glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
   FILE* f = std::fopen(path.c_str(), "wb");
@@ -178,6 +224,11 @@ bool savePng(const std::string& path, int width, int height) {
 
 #else  // no OpenGL ES on this machine
 
+namespace native {
+void adoptCurrentContext() {}
+void drawingBuffer(uint32_t& fbo, int& width, int& height) { fbo = 0, width = height = 0; }
+}  // namespace native
+
 bool createContext(const std::string&, int, int, const ContextOptions&) { return false; }
 bool hasContext() { return false; }
 void resizeDrawingBuffer(int, int) {}
@@ -185,7 +236,7 @@ uint32_t screenFramebuffer() { return 0; }
 bool texImageCanvas(int, bool, bool, int&, int&) { return false; }
 bool texImageImage(int, bool, bool, int&, int&) { return false; }
 std::string rendererName() { return "none"; }
-bool savePng(const std::string&, int, int) { return false; }
+bool savePng(const std::string&, int, int, int) { return false; }
 
 #endif
 

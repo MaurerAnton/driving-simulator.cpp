@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: world sim core platform
+// LINK: world sim game core platform
 // Origin: tests/world/signs-extra.test.ts @ v1.7.7
 /**
  * The signs a map was built without (signs.json.gz, tools/build-signs.ts):

@@ -12,6 +12,7 @@
 
 #include "platform/dom.h"
 #include "platform/dom_internal.h"
+#include "platform/native/canvas_native.h"
 #include "platform/native/dom_native.h"
 
 namespace fs::dom {
@@ -453,7 +454,11 @@ void retain(int h) {
   if (Node* n = node(h)) n->refs++;
 }
 void release(int h) {
-  if (Node* n = node(h)) n->refs--;
+  Node* n = node(h);
+  if (!n) return;
+  n->refs--;
+  // (a canvas nobody holds and that is not in the page: its pixels go – handles are never given again)
+  if (n->refs <= 0 && !n->parent && n->tag == "canvas") canvasNative::released(h);
 }
 int special(int which) {
   Page& p = page();
@@ -524,6 +529,8 @@ void setStr(int h, const char* prop, const char* value) {
     clear(h);
     if (*value) n->props[p] = value;
   } else n->props[p] = value;
+  // (a canvas given a size is blank again, its context as new)
+  if ((p == "width" || p == "height") && n->tag == "canvas") canvasNative::resized(h);
 }
 void setNum(int h, const char* prop, double value) {
   char buf[40];
@@ -750,7 +757,8 @@ bool hasPointerCapture(int h, int pointerId) {
 int documentElementOf(const char* which) {
   std::string w = which;
   if (w == "fullscreenElement") return page().fullscreen;
-  if (w == "activeElement") return page().focused ? page().focused : page().body;
+  // (an element taken out of the page has lost the focus, as in a browser: the body has it then)
+  if (w == "activeElement") return page().focused && connected(page().focused) ? page().focused : page().body;
   return 0;
 }
 void exitFullscreen() {
@@ -858,7 +866,9 @@ bool key(const std::string& code, const std::string& keyText, bool down) {
   e.type = down ? "keydown" : "keyup";
   e.code = code;
   e.key = keyText;
-  int target = page().focused ? page().focused : page().body;
+  // (the keys go where the focus is – an element taken out of the page has lost it, as in a browser: then to the body,
+  //  and from there to the document and the window – crane_play_test's keys never reached the crane panel's listener)
+  int target = page().focused && connected(page().focused) ? page().focused : page().body;
   fire(target, e, true);
   return !e.defaultPrevented;
 }

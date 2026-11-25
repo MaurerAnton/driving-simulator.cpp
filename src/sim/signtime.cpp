@@ -10,7 +10,8 @@
 
 #include "core/date.h"
 #include "core/js.h"
-#include "sim/kasselclock.h"
+#include "core/date.h"
+#include "sim/timetable.h"
 
 namespace fs {
 
@@ -147,13 +148,13 @@ Group& groupOf(std::vector<Group>& groups, int days) {
 }  // namespace
 
 SignTime signTimeOf(double ms) {
-  const kassel::BerlinClock c = kassel::berlinClock(ms);
+  const BerlinClock c = berlinClock(ms);
   const DateFields before = utcFields(utcMs(c.y, c.m - 1, c.d) - 86400000);
   SignTime t;
   t.day = c.weekday;
   t.min = c.s / 60;
-  t.holiday = kassel::isHoliday(c.y, c.m, c.d);
-  t.holidayBefore = kassel::isHoliday(before.year, before.month + 1, before.date);
+  t.holiday = isHoliday(c.y, c.m, c.d);
+  t.holidayBefore = isHoliday(before.year, before.month + 1, before.date);
   return t;
 }
 

@@ -24,8 +24,12 @@ fs_run() {
   done
 }
 fs_configure() {
-  # (again when a test or a tool is newer than the build's plan: its "// LINK:" line is read when the plan is made)
-  if [ ! -f "$FS_BUILD/build.ninja" ] || [ -n "$(find "$FS_ROOT/tests" "$FS_ROOT/tools/dev" -maxdepth 1 -name '*.cpp' -newer "$FS_BUILD/build.ninja" 2>/dev/null | head -1)" ]; then
-    fs_locked cmake -S "$FS_ROOT" -B "$FS_BUILD" -G Ninja > "$FS_BUILD.configure.log" 2>&1 || { cat "$FS_BUILD.configure.log"; return 1; }
+  # (again when a test or a tool is newer than the build's plan: its "// LINK:" line is read when the plan is made;
+  #  and when FS_CMAKE_ARGS asks for something the plan was not made with – e.g. FS_CMAKE_ARGS=-DFS_SDL3=ON, docs/SDL.md)
+  if [ ! -f "$FS_BUILD/build.ninja" ] || [ -n "$(find "$FS_ROOT/tests" "$FS_ROOT/tools/dev" -maxdepth 1 -name '*.cpp' -newer "$FS_BUILD/build.ninja" 2>/dev/null | head -1)" ] ||
+     { [ -n "$FS_CMAKE_ARGS" ] && [ "$(cat "$FS_BUILD/.cmake-args" 2>/dev/null)" != "$FS_CMAKE_ARGS" ]; }; then
+    # shellcheck disable=SC2086
+    fs_locked cmake -S "$FS_ROOT" -B "$FS_BUILD" -G Ninja $FS_CMAKE_ARGS > "$FS_BUILD.configure.log" 2>&1 || { cat "$FS_BUILD.configure.log"; return 1; }
+    [ -z "$FS_CMAKE_ARGS" ] || echo "$FS_CMAKE_ARGS" > "$FS_BUILD/.cmake-args"
   fi
 }

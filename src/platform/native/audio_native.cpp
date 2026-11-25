@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /**
- * audio.h on this machine: nothing sounds.  Every context, node, buffer and wave is a
- * record in a table; the calls are written down in them (platform/native/audio_native.h
- * is how a test reads them).  The clock of a context follows plat::nowMs().
+ * audio.h on this machine: every context, node, buffer and wave is a record in a
+ * table; the calls are written down in them (platform/native/audio_native.h is how a
+ * test reads them).  The clock of a context follows plat::nowMs().  Nothing sounds by
+ * itself: a host with loudspeakers (platform/sdl) asks mix() for the samples of the
+ * graphs that were built, and plays them.
  */
+#include <algorithm>
+#include <cmath>
+#include <cstring>
 #include <deque>
 #include <limits>
 #include <map>
 #include <memory>
+#include <unordered_map>
 
 #include "platform/audio.h"
 #include "platform/native/audio_native.h"
@@ -50,6 +56,8 @@ struct ContextRec : Rec {
   std::deque<std::pair<int, int>> nodes;
   /** sources whose end came due while the clock stood (handle, id) */
   std::vector<std::pair<int, int>> waiting;
+  /** the time of the next sample mix() makes (s; < 0: none made yet) */
+  double mixTime = -1;
 };
 
 struct NodeRec : Rec {
@@ -61,6 +69,24 @@ struct NodeRec : Rec {
   long endSerial = 0;
   /** how long its buffer is (s; −1: it has none) */
   double bufferSeconds = -1;
+  // --- what mix() needs ---
+  /** the values it began with (a setting nothing was asked of has these) */
+  std::array<double, audioBackend::PCount> defaults{};
+  /** the samples of its buffer (shared with the buffer: it plays on when the buffer is dropped), their rate */
+  std::shared_ptr<const std::vector<std::vector<float>>> samples;
+  double samplesRate = 0;
+  /** an oscillator's wave of its own: one period, sampled */
+  std::shared_ptr<const std::vector<float>> table;
+  /** createDelay's longest delay (s) */
+  double maxDelay = 1;
+  /** where it is: an oscillator's phase (0…1), a source's place in its buffer (samples; < 0: not begun) */
+  double phase = 0, playhead = -1;
+  /** a filter's memory (per channel: x1 x2 y1 y2), a compressor's gain (dB) */
+  double biq[2][4] = {{0, 0, 0, 0}, {0, 0, 0, 0}};
+  double reduction = 0;
+  /** a delay's memory (per channel) and where it writes next */
+  std::vector<float> ring[2];
+  size_t ringAt = 0;
 };
 
 struct BufferRec : Rec {
@@ -68,11 +94,14 @@ struct BufferRec : Rec {
   int id = 0;
   int length = 0;
   double sampleRate = 0;
-  std::vector<std::vector<float>> data;
+  /** (shared with the sources that play it) */
+  std::shared_ptr<std::vector<std::vector<float>>> data;
 };
 
 struct WaveRec : Rec {
   WaveRec() : Rec(Wave) {}
+  /** one period of the wave, sampled (mix()) */
+  std::shared_ptr<const std::vector<float>> table;
 };
 
 struct Slot {
@@ -296,7 +325,7 @@ int destination(int ctx) {
   return c ? c->destination : 0;
 }
 
-int createNode(int ctx, int kind, double) {
+int createNode(int ctx, int kind, double a) {
   ContextRec* c = ctxOf(ctx);
   if (!c || kind < 0 || kind > KindPanner) return 0;
   if (kind == KindPanner && !host().panner) return 0;
@@ -332,6 +361,9 @@ int createNode(int ctx, int kind, double) {
     default:
       break;
   }
+  NodeRec* rec = nodeOf(h);
+  for (int p = 0; p < PCount; p++) rec->defaults[static_cast<size_t>(p)] = i.params[static_cast<size_t>(p)].value;
+  if (kind == KindDelay && a > 0) rec->maxDelay = a;
   return h;
 }
 
@@ -344,30 +376,47 @@ int createBuffer(int ctx, int channels, int length, double sampleRate) {
   b->id = host().nextBuffer++;
   b->length = length;
   b->sampleRate = sampleRate;
-  b->data.assign(static_cast<size_t>(channels), std::vector<float>(static_cast<size_t>(length), 0.0f));
+  b->data = std::make_shared<std::vector<std::vector<float>>>(static_cast<size_t>(channels), std::vector<float>(static_cast<size_t>(length), 0.0f));
   c->buffers++;
   return put(std::move(b));
 }
 
 void bufferWrite(int buffer, int channel, const float* data, int n, int start) {
   BufferRec* b = bufferOf(buffer);
-  if (!b || channel < 0 || channel >= static_cast<int>(b->data.size()) || start < 0) return;
-  std::vector<float>& d = b->data[static_cast<size_t>(channel)];
+  if (!b || channel < 0 || channel >= static_cast<int>(b->data->size()) || start < 0) return;
+  std::vector<float>& d = (*b->data)[static_cast<size_t>(channel)];
   for (int i = 0; i < n && start + i < b->length; i++) d[static_cast<size_t>(start + i)] = data[i];
 }
 
 void bufferRead(int buffer, int channel, float* out, int n) {
   BufferRec* b = bufferOf(buffer);
-  if (!b || channel < 0 || channel >= static_cast<int>(b->data.size())) return;
-  const std::vector<float>& d = b->data[static_cast<size_t>(channel)];
+  if (!b || channel < 0 || channel >= static_cast<int>(b->data->size())) return;
+  const std::vector<float>& d = (*b->data)[static_cast<size_t>(channel)];
   for (int i = 0; i < n && i < b->length; i++) out[i] = d[static_cast<size_t>(i)];
 }
 
-int createWave(int ctx, const float*, const float*, int n, bool) {
+int createWave(int ctx, const float* real, const float* imag, int n, bool disableNormalization) {
   ContextRec* c = ctxOf(ctx);
   if (!c || n < 2) return 0;
   c->waves++;
-  return put(std::make_unique<WaveRec>());
+  // one period: the sum of the harmonics (the browser's PeriodicWave), the loudest sample at 1 unless asked otherwise
+  const int N = 2048;
+  auto table = std::make_shared<std::vector<float>>(static_cast<size_t>(N), 0.0f);
+  double peak = 0;
+  for (int k = 0; k < N; k++) {
+    double x = 0;
+    for (int m = 1; m < n; m++) {
+      const double w = 2 * M_PI * m * k / N;
+      x += real[m] * std::cos(w) + imag[m] * std::sin(w);
+    }
+    (*table)[static_cast<size_t>(k)] = static_cast<float>(x);
+    peak = std::max(peak, std::abs(x));
+  }
+  if (!disableNormalization && peak > 0)
+    for (float& v : *table) v = static_cast<float>(v / peak);
+  auto w = std::make_unique<WaveRec>();
+  w->table = std::move(table);
+  return put(std::move(w));
 }
 
 void connect(int node, int destination, int param) {
@@ -432,7 +481,9 @@ void setType(int node, const char* type) {
 
 void setWave(int node, int wave) {
   NodeRec* n = nodeOf(node);
-  if (!n || !recOf(wave, Rec::Wave)) return;
+  WaveRec* w = static_cast<WaveRec*>(recOf(wave, Rec::Wave));
+  if (!n || !w) return;
+  n->table = w->table;
   n->info.wave = true;
   n->info.type = "custom";
 }
@@ -443,6 +494,8 @@ void setBuffer(int node, int buffer) {
   BufferRec* b = bufferOf(buffer);
   n->info.buffer = b ? b->id : 0;
   n->bufferSeconds = b && b->sampleRate > 0 ? b->length / b->sampleRate : -1;
+  n->samples = b ? b->data : nullptr;
+  n->samplesRate = b ? b->sampleRate : 0;
 }
 
 void setLoop(int node, bool on) {
@@ -640,6 +693,440 @@ bool failSpeech(const std::string& error) {
 }
 
 void setSpeechPaused(bool on) { host().paused = on; }
+
+}  // namespace audioNative
+
+// --- the loudspeakers: what the graphs sound like (for a host that has some) ---------
+
+namespace {
+
+constexpr int BLOCK = 128;
+
+/** what a node gives in one block: two channels (a mono node gives the same in both) */
+struct Out {
+  float l[BLOCK], r[BLOCK];
+  bool silent = true, mono = true;
+};
+
+/** One setting's automation, put in order of time once per mix() (the events written down by param()). */
+struct Timeline {
+  struct Ev {
+    int op;
+    double value, time, tc;
+    /** the value just after the event took effect (a target: where it begins to move from) */
+    double v = 0;
+  };
+  std::vector<Ev> ev;
+  double def = 0;
+
+  static bool ramp(int op) { return op == audioBackend::OpLinearRamp || op == audioBackend::OpExponentialRamp; }
+
+  /** the value at t of the events before `end` */
+  double at(double t, size_t end) const {
+    // the last event at or before t, and the one after it
+    size_t lo = 0, hi = end;
+    while (lo < hi) {
+      size_t mid = (lo + hi) / 2;
+      if (ev[mid].time <= t) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo == 0) return def;
+    const Ev& a = ev[lo - 1];
+    if (lo < end && ramp(ev[lo].op)) {
+      const Ev& b = ev[lo];
+      const double f = b.time > a.time ? (t - a.time) / (b.time - a.time) : 1;
+      if (b.op == audioBackend::OpLinearRamp) return a.v + (b.value - a.v) * f;
+      if (a.v != 0 && b.value != 0 && (a.v > 0) == (b.value > 0)) return a.v * std::pow(b.value / a.v, f);
+      return a.v;
+    }
+    if (a.op == audioBackend::OpSetTargetAtTime) return a.tc > 0 ? a.value + (a.v - a.value) * std::exp(-(t - a.time) / a.tc) : a.value;
+    return a.v;
+  }
+  double at(double t) const { return at(t, ev.size()); }
+
+  void build(const ParamInfo& p, double initial) {
+    static const std::map<std::string, int> OPS = {{"value", audioBackend::OpSetValueAtTime},   {"set", audioBackend::OpSetValueAtTime},
+                                                   {"linear", audioBackend::OpLinearRamp},       {"exp", audioBackend::OpExponentialRamp},
+                                                   {"target", audioBackend::OpSetTargetAtTime}, {"cancel", audioBackend::OpCancel}};
+    def = initial;
+    ev.clear();
+    for (const ParamEvent& e : p.events) {
+      auto it = OPS.find(e.what);
+      if (it == OPS.end()) continue;
+      if (it->second == audioBackend::OpCancel) {
+        std::erase_if(ev, [&](const Ev& x) { return x.time >= e.time; });
+        continue;
+      }
+      Ev x{it->second, e.value, e.time, e.timeConstant};
+      auto at_ = std::upper_bound(ev.begin(), ev.end(), x.time, [](double t, const Ev& y) { return t < y.time; });
+      ev.insert(at_, x);
+    }
+    for (size_t i = 0; i < ev.size(); i++) ev[i].v = ev[i].op == audioBackend::OpSetTargetAtTime ? at(ev[i].time, i) : ev[i].value;
+    // (nothing was ever scheduled: what it was set to – the browser's default otherwise)
+    if (ev.empty()) def = p.events.empty() ? initial : p.value;
+  }
+};
+
+struct Mixer {
+  ContextRec* c = nullptr;
+  double rate = 48000;
+  /** the time of the block being made, and its number */
+  double t = 0;
+  long block = 0;
+  /** node id → handle; what feeds a node (handles), what moves a setting of it (setting, handle) */
+  std::unordered_map<int, int> handleOf;
+  std::unordered_map<int, std::vector<int>> inputs;
+  std::unordered_map<int, std::vector<std::pair<int, int>>> paramInputs;
+  /** the blocks made (handle → its block, and for which block number) */
+  struct Made {
+    long block = -1;
+    bool busy = false;
+    std::unique_ptr<Out> out = std::make_unique<Out>();
+  };
+  std::unordered_map<int, Made> made;
+  std::unordered_map<long, Timeline> timelines;
+
+  const Timeline& timeline(int handle, NodeRec& n, int which) {
+    const long key = static_cast<long>(handle) * audioBackend::PCount + which;
+    auto it = timelines.find(key);
+    if (it != timelines.end()) return it->second;
+    Timeline& tl = timelines[key];
+    tl.build(n.info.params[static_cast<size_t>(which)], n.defaults[static_cast<size_t>(which)]);
+    return tl;
+  }
+
+  /** a setting through the block: the automation at its start and end (linear between), and what nodes add to it */
+  void param(int handle, NodeRec& n, int which, float* out) {
+    const Timeline& tl = timeline(handle, n, which);
+    const double a = tl.at(t), b = tl.at(t + BLOCK / rate);
+    for (int i = 0; i < BLOCK; i++) out[i] = static_cast<float>(a + (b - a) * i / BLOCK);
+    auto it = paramInputs.find(n.info.id);
+    if (it == paramInputs.end()) return;
+    for (const auto& [w, from] : it->second) {
+      if (w != which) continue;
+      const Out& o = pull(from);
+      if (o.silent) continue;
+      for (int i = 0; i < BLOCK; i++) out[i] += 0.5f * (o.l[i] + o.r[i]);
+    }
+  }
+  /** a setting at the start of the block only (what a filter's coefficients are made of) */
+  double param0(int handle, NodeRec& n, int which) {
+    float v[BLOCK];
+    param(handle, n, which, v);
+    return v[0];
+  }
+
+  /** the sum of what feeds a node */
+  void sum(int id, Out& in) {
+    in.silent = true;
+    in.mono = true;
+    auto it = inputs.find(id);
+    if (it == inputs.end()) return;
+    for (int from : it->second) {
+      const Out& o = pull(from);
+      if (o.silent) continue;
+      if (in.silent) {
+        std::memcpy(in.l, o.l, sizeof in.l);
+        std::memcpy(in.r, o.r, sizeof in.r);
+        in.silent = false;
+        in.mono = o.mono;
+        continue;
+      }
+      for (int i = 0; i < BLOCK; i++) in.l[i] += o.l[i], in.r[i] += o.r[i];
+      in.mono = in.mono && o.mono;
+    }
+  }
+
+  /** what a node gives in this block */
+  const Out& pull(int handle) {
+    static const Out quiet{};
+    Made& m = made[handle];
+    if (m.block == block) return *m.out;
+    // (a cycle without a delay: the browser plays it silent)
+    if (m.busy) return quiet;
+    NodeRec* n = nodeOf(handle);
+    if (!n) return quiet;
+    m.busy = true;
+    Out* o = m.out.get();
+    // (a delay gives what it was fed before: its output first, so that a cycle through it closes)
+    if (n->info.kind == "delay") {
+      delayOut(handle, *n, *o);
+      m.block = block;
+      Out in;
+      sum(n->info.id, in);
+      delayIn(*n, in);
+    } else {
+      make(handle, *n, *o);
+      m.block = block;
+    }
+    m.busy = false;
+    return *o;
+  }
+
+  void make(int handle, NodeRec& n, Out& o) {
+    const std::string& kind = n.info.kind;
+    if (kind == "osc") return oscillator(handle, n, o);
+    if (kind == "source") return source(handle, n, o);
+    sum(n.info.id, o);
+    if (o.silent || kind == "destination") return;
+    if (kind == "gain") {
+      float g[BLOCK];
+      param(handle, n, audioBackend::PGain, g);
+      for (int i = 0; i < BLOCK; i++) o.l[i] *= g[i], o.r[i] *= g[i];
+    } else if (kind == "biquad") biquad(handle, n, o);
+    else if (kind == "panner") panner(handle, n, o);
+    else if (kind == "compressor") compressor(handle, n, o);
+  }
+
+  /** is the source playing at sample i of this block (started, not stopped)? */
+  bool playing(const NodeInfo& i, double at) const { return i.started >= 0 && at >= i.started && (i.stopped < 0 || at < i.stopped || i.stopped < i.started); }
+
+  void oscillator(int handle, NodeRec& n, Out& o) {
+    o.mono = true;
+    o.silent = true;
+    if (n.info.started < 0) return;
+    float f[BLOCK], d[BLOCK];
+    param(handle, n, audioBackend::PFrequency, f);
+    param(handle, n, audioBackend::PDetune, d);
+    const std::string& type = n.info.type;
+    for (int i = 0; i < BLOCK; i++) {
+      float v = 0;
+      if (playing(n.info, t + i / rate)) {
+        const double p = n.phase;
+        if (type == "custom" && n.table) {
+          const std::vector<float>& tb = *n.table;
+          const double x = p * static_cast<double>(tb.size());
+          const size_t k = static_cast<size_t>(x) % tb.size();
+          const double fr = x - std::floor(x);
+          v = static_cast<float>(tb[k] + (tb[(k + 1) % tb.size()] - tb[k]) * fr);
+        } else if (type == "square") v = p < 0.5 ? 1.0f : -1.0f;
+        else if (type == "sawtooth") v = static_cast<float>(2 * (p - std::floor(p + 0.5)));
+        else if (type == "triangle") v = static_cast<float>(p < 0.25 ? 4 * p : p < 0.75 ? 2 - 4 * p : 4 * p - 4);
+        else v = static_cast<float>(std::sin(2 * M_PI * p));
+        n.phase += f[i] * std::exp2(d[i] / 1200.0) / rate;
+        n.phase -= std::floor(n.phase);
+        o.silent = false;
+      }
+      o.l[i] = o.r[i] = v;
+    }
+  }
+
+  void source(int handle, NodeRec& n, Out& o) {
+    o.silent = true;
+    if (n.info.started < 0 || !n.samples || n.samples->empty() || n.samplesRate <= 0) return;
+    const std::vector<std::vector<float>>& ch = *n.samples;
+    const std::vector<float>& L = ch[0];
+    const std::vector<float>& R = ch.size() > 1 ? ch[1] : ch[0];
+    o.mono = ch.size() == 1;
+    const double len = static_cast<double>(L.size());
+    float pr[BLOCK], d[BLOCK];
+    param(handle, n, audioBackend::PPlaybackRate, pr);
+    param(handle, n, audioBackend::PDetune, d);
+    const double endAt = endOf(n);
+    for (int i = 0; i < BLOCK; i++) {
+      const double at = t + i / rate;
+      float l = 0, r = 0;
+      if (at >= n.info.started && at < endAt) {
+        if (n.playhead < 0) n.playhead = n.info.offset * n.samplesRate + (at - n.info.started) * n.samplesRate;
+        double x = n.playhead;
+        if (n.info.loop && len > 0) x = std::fmod(x, len);
+        if (x >= 0 && x < len) {
+          const size_t k = static_cast<size_t>(x);
+          const double fr = x - static_cast<double>(k);
+          const size_t k1 = k + 1 < L.size() ? k + 1 : (n.info.loop ? 0 : k);
+          l = static_cast<float>(L[k] + (L[k1] - L[k]) * fr);
+          r = static_cast<float>(R[k] + (R[k1] - R[k]) * fr);
+          o.silent = false;
+        }
+        n.playhead += pr[i] * std::exp2(d[i] / 1200.0) * n.samplesRate / rate;
+        if (n.info.loop && n.playhead >= len && len > 0) n.playhead = std::fmod(n.playhead, len);
+      }
+      o.l[i] = l;
+      o.r[i] = r;
+    }
+  }
+
+  void biquad(int handle, NodeRec& n, Out& o) {
+    // (the Audio EQ Cookbook, with the Web Audio API's readings of Q and gain)
+    const double f = param0(handle, n, audioBackend::PFrequency) * std::exp2(param0(handle, n, audioBackend::PDetune) / 1200.0);
+    const double Q = param0(handle, n, audioBackend::PQ), G = param0(handle, n, audioBackend::PGain);
+    const double w0 = 2 * M_PI * std::clamp(f, 1.0, rate / 2 - 1) / rate, cw = std::cos(w0), sw = std::sin(w0);
+    const double A = std::pow(10.0, G / 40);
+    const std::string& type = n.info.type;
+    double b0 = 1, b1 = 0, b2 = 0, a0 = 1, a1 = 0, a2 = 0;
+    if (type == "lowpass" || type == "highpass") {
+      const double al = sw / (2 * std::pow(10.0, Q / 20));
+      const double s = type == "lowpass" ? 1 - cw : 1 + cw;
+      b0 = s / 2, b1 = type == "lowpass" ? s : -s, b2 = s / 2, a0 = 1 + al, a1 = -2 * cw, a2 = 1 - al;
+    } else if (type == "lowshelf" || type == "highshelf") {
+      const double al = sw / 2 * std::sqrt(2.0), sa = 2 * std::sqrt(A) * al;
+      if (type == "lowshelf") {
+        b0 = A * ((A + 1) - (A - 1) * cw + sa), b1 = 2 * A * ((A - 1) - (A + 1) * cw), b2 = A * ((A + 1) - (A - 1) * cw - sa);
+        a0 = (A + 1) + (A - 1) * cw + sa, a1 = -2 * ((A - 1) + (A + 1) * cw), a2 = (A + 1) + (A - 1) * cw - sa;
+      } else {
+        b0 = A * ((A + 1) + (A - 1) * cw + sa), b1 = -2 * A * ((A - 1) + (A + 1) * cw), b2 = A * ((A + 1) + (A - 1) * cw - sa);
+        a0 = (A + 1) - (A - 1) * cw + sa, a1 = 2 * ((A - 1) - (A + 1) * cw), a2 = (A + 1) - (A - 1) * cw - sa;
+      }
+    } else {
+      const double al = sw / (2 * std::max(Q, 1e-4));
+      if (type == "bandpass") b0 = al, b1 = 0, b2 = -al, a0 = 1 + al, a1 = -2 * cw, a2 = 1 - al;
+      else if (type == "notch") b0 = 1, b1 = -2 * cw, b2 = 1, a0 = 1 + al, a1 = -2 * cw, a2 = 1 - al;
+      else if (type == "allpass") b0 = 1 - al, b1 = -2 * cw, b2 = 1 + al, a0 = 1 + al, a1 = -2 * cw, a2 = 1 - al;
+      else if (type == "peaking") b0 = 1 + al * A, b1 = -2 * cw, b2 = 1 - al * A, a0 = 1 + al / A, a1 = -2 * cw, a2 = 1 - al / A;
+    }
+    b0 /= a0, b1 /= a0, b2 /= a0, a1 /= a0, a2 /= a0;
+    float* chans[2] = {o.l, o.r};
+    for (int c_ = 0; c_ < 2; c_++) {
+      double* m = n.biq[c_];
+      float* x = chans[c_];
+      for (int i = 0; i < BLOCK; i++) {
+        const double y = b0 * x[i] + b1 * m[0] + b2 * m[1] - a1 * m[2] - a2 * m[3];
+        m[1] = m[0], m[0] = x[i], m[3] = m[2], m[2] = std::abs(y) < 1e-30 ? 0 : y;
+        x[i] = static_cast<float>(y);
+      }
+    }
+  }
+
+  void panner(int handle, NodeRec& n, Out& o) {
+    float p[BLOCK];
+    param(handle, n, audioBackend::PPan, p);
+    for (int i = 0; i < BLOCK; i++) {
+      const double pan = std::clamp(static_cast<double>(p[i]), -1.0, 1.0);
+      if (o.mono) {
+        const double x = (pan + 1) / 2, m = o.l[i];
+        o.l[i] = static_cast<float>(m * std::cos(x * M_PI / 2));
+        o.r[i] = static_cast<float>(m * std::sin(x * M_PI / 2));
+      } else if (pan <= 0) {
+        const double x = pan + 1, l = o.l[i], r = o.r[i];
+        o.l[i] = static_cast<float>(l + r * std::cos(x * M_PI / 2));
+        o.r[i] = static_cast<float>(r * std::sin(x * M_PI / 2));
+      } else {
+        const double l = o.l[i], r = o.r[i];
+        o.l[i] = static_cast<float>(l * std::cos(pan * M_PI / 2));
+        o.r[i] = static_cast<float>(r + l * std::sin(pan * M_PI / 2));
+      }
+    }
+    o.mono = false;
+  }
+
+  void compressor(int handle, NodeRec& n, Out& o) {
+    // (a plain one: the level over the threshold, softened by the knee, divided by the ratio; no make-up gain)
+    const double th = param0(handle, n, audioBackend::PThreshold), knee = std::max(0.0, param0(handle, n, audioBackend::PKnee));
+    const double ratio = std::max(1.0, param0(handle, n, audioBackend::PRatio));
+    const double att = std::exp(-1 / (std::max(1e-4, param0(handle, n, audioBackend::PAttack)) * rate));
+    const double rel = std::exp(-1 / (std::max(1e-4, param0(handle, n, audioBackend::PRelease)) * rate));
+    for (int i = 0; i < BLOCK; i++) {
+      const double level = 20 * std::log10(std::max(1e-6, static_cast<double>(std::max(std::abs(o.l[i]), std::abs(o.r[i])))));
+      const double over = level - th;
+      double want = 0;
+      if (over >= knee / 2) want = over * (1 - 1 / ratio);
+      else if (over > -knee / 2 && knee > 0) want = (1 - 1 / ratio) * (over + knee / 2) * (over + knee / 2) / (2 * knee);
+      const double k = want > n.reduction ? att : rel;
+      n.reduction = want + (n.reduction - want) * k;
+      const float g = static_cast<float>(std::pow(10.0, -n.reduction / 20));
+      o.l[i] *= g;
+      o.r[i] *= g;
+    }
+  }
+
+  void delayOut(int handle, NodeRec& n, Out& o) {
+    const size_t size = static_cast<size_t>(n.maxDelay * rate) + 2 * BLOCK;
+    if (n.ring[0].size() != size) n.ring[0].assign(size, 0.0f), n.ring[1].assign(size, 0.0f), n.ringAt = 0;
+    float d[BLOCK];
+    param(handle, n, audioBackend::PDelayTime, d);
+    o.silent = false;
+    o.mono = false;
+    for (int i = 0; i < BLOCK; i++) {
+      // (at least a block: the delay is what closes a cycle)
+      const double back = std::clamp(d[i] * rate, static_cast<double>(BLOCK), static_cast<double>(size - BLOCK - 1));
+      double x = static_cast<double>(n.ringAt + static_cast<size_t>(i) + size) - back;
+      x = std::fmod(x, static_cast<double>(size));
+      const size_t k = static_cast<size_t>(x), k1 = (k + 1) % size;
+      const float fr = static_cast<float>(x - static_cast<double>(k));
+      o.l[i] = n.ring[0][k] + (n.ring[0][k1] - n.ring[0][k]) * fr;
+      o.r[i] = n.ring[1][k] + (n.ring[1][k1] - n.ring[1][k]) * fr;
+    }
+  }
+  void delayIn(NodeRec& n, const Out& in) {
+    const size_t size = n.ring[0].size();
+    for (int i = 0; i < BLOCK; i++) {
+      const size_t k = (n.ringAt + static_cast<size_t>(i)) % size;
+      n.ring[0][k] = in.silent ? 0.0f : in.l[i];
+      n.ring[1][k] = in.silent ? 0.0f : in.r[i];
+    }
+    n.ringAt = (n.ringAt + BLOCK) % size;
+  }
+
+  /** who feeds whom now (sources that have ended and that nothing names any more are left out) */
+  void wire(double from) {
+    handleOf.clear();
+    inputs.clear();
+    paramInputs.clear();
+    timelines.clear();
+    std::vector<int> live;
+    for (const auto& [handle, id] : c->nodes) {
+      NodeRec* n = nodeOf(handle);
+      if (!n || n->info.id != id) continue;
+      const bool source = n->info.kind == "osc" || n->info.kind == "source";
+      if (source && n->info.released && endOf(*n) < from) continue;
+      handleOf[id] = handle;
+      live.push_back(handle);
+    }
+    for (int handle : live) {
+      NodeRec* n = nodeOf(handle);
+      for (int to : n->info.outputs) inputs[to].push_back(handle);
+      for (const auto& [to, name] : n->info.paramOutputs)
+        for (int p = 0; p < audioBackend::PCount; p++)
+          if (name == PARAM_NAMES[p]) paramInputs[to].emplace_back(p, handle);
+    }
+    // what is no longer kept by anyone (and has no sound left in it) goes
+    for (auto it = made.begin(); it != made.end();) {
+      if (!handleOf.count(nodeOf(it->first) ? nodeOf(it->first)->info.id : -1)) it = made.erase(it);
+      else ++it;
+    }
+  }
+};
+
+std::unordered_map<int, Mixer>& mixers() {
+  static auto* m = new std::unordered_map<int, Mixer>();
+  return *m;
+}
+
+}  // namespace
+
+namespace audioNative {
+
+void mix(float* out, int frames, double sampleRate) {
+  std::fill(out, out + static_cast<size_t>(frames) * 2, 0.0f);
+  Host& h = host();
+  for (size_t handle = 1; handle < h.slots.size(); handle++) {
+    ContextRec* c = ctxOf(static_cast<int>(handle));
+    if (!c) continue;
+    if (!c->running) continue;
+    Mixer& m = mixers()[static_cast<int>(handle)];
+    m.c = c;
+    m.rate = sampleRate;
+    // (the mixer's clock keeps near the context's: what was asked for now is heard now)
+    const double now = timeOf(*c);
+    if (c->mixTime < 0 || c->mixTime < now - 0.2 || c->mixTime > now + 0.5) c->mixTime = now;
+    m.wire(c->mixTime);
+    auto dest = m.handleOf.find(nodeOf(c->destination) ? nodeOf(c->destination)->info.id : -1);
+    if (dest == m.handleOf.end()) continue;
+    for (int done = 0; done < frames; done += BLOCK) {
+      m.t = c->mixTime;
+      m.block++;
+      const Out& o = m.pull(dest->second);
+      const int n = std::min(BLOCK, frames - done);
+      if (!o.silent)
+        for (int i = 0; i < n; i++) {
+          out[(done + i) * 2] += o.l[i];
+          out[(done + i) * 2 + 1] += o.r[i];
+        }
+      c->mixTime += BLOCK / sampleRate;
+    }
+  }
+  for (int i = 0; i < frames * 2; i++) out[i] = std::clamp(out[i], -1.0f, 1.0f);
+}
 
 }  // namespace audioNative
 

@@ -22,7 +22,7 @@
 #include "core/geom.h"
 #include "sim/autodriver.h"
 #include "sim/ground.h"
-#include "sim/kasselclock.h"
+#include "sim/timetable.h"
 #include "sim/rail.h"
 #include "sim/roadevents.h"
 #include "sim/rules.h"
@@ -775,7 +775,7 @@ void demoDays() {
       ok(minutes >= 60 && minutes <= 135, jsStr(minutes) + " min");
       FS_OK(p.size >= 30 && p.size <= 220);
       // between the morning and the evening, by the clocks in Kassel
-      const double h = kassel::berlinClock(p.from).s / 3600;
+      const double h = berlinClock(p.from).s / 3600;
       ok(h >= 9.7 && h <= 17.8, "begins at " + toFixed(h, 2) + " h");
     }
     if (m == 5 && day == 1) {
@@ -787,7 +787,7 @@ void demoDays() {
       if (!list.empty()) saturdayDemos++;
       // around midday, or in the afternoon
       for (const DemoPlan& p : list) {
-        const double h = kassel::berlinClock(p.from).s / 3600;
+        const double h = berlinClock(p.from).s / 3600;
         ok((h >= 10.7 && h <= 12.3) || (h >= 13.7 && h <= 15.3), "on a Saturday at " + toFixed(h, 2) + " h");
       }
     } else if (wd >= 1 && wd <= 5) {

@@ -29,6 +29,7 @@
 #include "core/task.h"
 #include "engine/engine.h"
 #include "game/app.h"
+#include "game/busline.h"
 #include "game/ce.h"
 #include "game/lessonplaces.h"
 #include "game/openplay.h"
@@ -42,8 +43,11 @@
 #include "render/navscreen.h"
 #include "render/walker.h"
 #include "render/tiles.h"
+#include "sim/rail.h"
+#include "sim/tramdrive.h"
 #include "sim/playerstate.h"
 #include "sim/vehicle/types.h"
+#include "ui/bigmap.h"
 #include "world/lanes.h"
 #include "world/regions.h"
 #include "world/routegraph.h"
@@ -61,6 +65,11 @@ class ArcadeDrive;
 class AutoDriver;
 class CraneModel;
 class CraneWork;
+class ForkliftWork;
+class DrillRun;
+class BeamPlay;
+class DrillScene;
+class ForkliftModel;
 /** (sim/crane.h: 'tower' | 'mobile' | 'loader') */
 using CraneType = std::string;
 class DrivenPath;
@@ -86,6 +95,14 @@ class WorldLayer;
 class SignalSystem;
 class SignRenderer;
 class Traffic;
+class BusLines;
+class BusSchedule;
+class RailActors;
+class Stops;
+class TransitSource;
+struct BusStopOnLane;
+struct HudState;
+struct Timetable;
 class TerrainSource;
 class TrafficRenderer;
 class PlayerTruck;
@@ -374,7 +391,7 @@ class Game {
   const std::unique_ptr<ArcadeDrive> arcadeDrive;
   double autoDrive = 0;
   std::string tipText;
-  // (later: beams, the headlights – game/beamplay.ts with sim/beams.ts, game.ts:514)
+  // (beams, the headlights: in the block of the forklift and the drills at the end)
   // (later: wildView – game.ts:516)
   /** every fault of this and of earlier sessions */
   const std::unique_ptr<FaultLog> faultLog;
@@ -534,7 +551,6 @@ class Game {
   /** the last moment the sun was placed for (-1: to be placed, -2: the game's fixed afternoon) */
   double sunPlacedAt = -1;
   void updateSun();
-  // (later: headlights – game/beamplay.ts, game.ts:3538)
   void finish();
   /** (input/input.ts: Action) */
   void onAction(const std::string& a);
@@ -724,6 +740,92 @@ class Game {
   void taskDone(bool ok);
   /** Judge the task on the yard and say what is to be done. */
   void updateTask(double dt);
+  // --- transit ---
+  // trams and trains on the tracks around the player (sim/rail.ts), drawn by render/trams.ts; the lines of the
+  // trams and their timetables, the stops, the lines of the city buses (game.ts:388, 437, 1501, 6075)
+  std::unique_ptr<RailTraffic> rail;
+  const std::unique_ptr<RailActors> railActors;
+  std::vector<RailObstacle> railOthers;
+  /** the lines of the trams (lines.json.gz): which way they run and where they call */
+  std::shared_ptr<const LinesJson> lines;
+  bool lineStopsDirty = false;
+  /** the rail traffic that was given the lines (a new one is made when the tracks are read) */
+  const RailTraffic* linesFor = nullptr;
+  /** the timetables of the trams and buses (null: none for this map) – the trams and buses of the traffic keep to them (src/game/timedtransit.ts) */
+  std::unique_ptr<Timetable> timetable;
+  /** what rail.schedule points to (tramSchedule), and traffic.busSchedule (busSchedule) */
+  std::unique_ptr<RailSchedule> railSchedule;
+  std::unique_ptr<BusSchedule> busTimes;
+  /** the stops of the map (null: a map without the list) */
+  std::unique_ptr<Stops> stops;
+  /** the stops as the big map's search lists them */
+  std::vector<StopSource> stopSources;
+  /** the lines of the city buses (null: none for this map) */
+  std::shared_ptr<BusLines> busLines;
+  /** the names of stops the map does not name (the street they are in), by piece of track and mark */
+  std::map<std::string, std::string> stopNames;
+  /** the bus stops along each lane (worked out when a bus first needs them) */
+  std::map<int, std::vector<BusStopOnLane>> laneStops;
+  /** The maps' trams and buses (spectate.ts transitSource). */
+  std::unique_ptr<TransitSource> transitSrc;
+  /** where trams can go, for the big map: their tracks and stops (made once per set of tracks) */
+  std::optional<BigMapHost::Tramways> tramMap;
+  const RailTraffic* tramMapOf = nullptr;
+  const Stops* tramMapStops = nullptr;
+  /** The tracks were read: the rail traffic on them. */
+  void railsRead(std::shared_ptr<const std::vector<RailJson>> rails);
+  void linesRead(std::shared_ptr<const LinesJson> json);
+  void stopsRead(std::shared_ptr<const StopsJson> json);
+  /** A stop's name: as the map names it – or, on an older map, the street it is in. */
+  std::string stopName(int path, double mark);
+  /**
+   * The bus stops along a lane: the poles of the map's stops at the right of
+   * it (people wait at the kerb on the right), each where the front of a bus
+   * comes to stand – a metre and a half past the pole, the front door at it.
+   */
+  const std::vector<BusStopOnLane>& busStopsOn(const Lane& lane);
+  const BigMapHost::Tramways* tramways();
+  TransitSource* transitData();
+  /** trams and trains step with the player (`others`: the cars of the traffic as circles) – and their cars among the obstacles */
+  void stepRail(double dt, const PlayerState& player, bool withCars);
+  /** the lines given to the rail traffic, and the departure boards (each picture: game.ts:6686) */
+  void updateLines();
+  /** the bus on a line (its lesson): the stops served, the doors, the passengers – and what the HUD says of the next stop */
+  std::unique_ptr<BusService> busService;
+  std::string busNav;
+  /** The stops on the lane the bus is in, with their names. */
+  struct BusStopsHere {
+    double front = 0;
+    std::vector<BusStopAhead> stops;
+  };
+  BusStopsHere busStopsHere();
+  /** The bus on a line: the next stop, the doors and the passengers there, pulling out – five stops, then the lesson is done. */
+  void updateBusLine(double dt);
+  /** the tram the player drives (sim/tramdrive.ts): null when it is not a tram */
+  std::unique_ptr<TramDriver> tram;
+  /** where the player's tram is to stand once the drive is placed (tramStart), and since when the tracks are waited for (-1: not) */
+  std::optional<TramStart> tramAt;
+  double tramWait = -1;
+  /** the stop chosen in the menu to start the tram at ('' : the nearest) */
+  std::string tramStopName;
+  /** the tram drives by itself (its demonstration drive) – and, so asked, from the next start on */
+  bool tramAuto = false;
+  bool tramAutoPending = false;
+  /** how long the controls have been touched while it drives by itself (it is taken over after a moment) */
+  double tramTake = 0;
+  /** the assisted autopilot: the player holds the controls for a moment, it drives on once let go */
+  bool tramHeld = false;
+  double tramFree = 0;
+  /** the line the next tram put on the tracks runs (a tram taken over) */
+  std::string tramLineRef;
+  std::vector<TramEvent> tramEvents;
+  /** The game's vehicle stands where the tram's first car is: the camera, the map, the traffic keep to it. */
+  void placeTramProxy();
+  void noteTram(const std::vector<TramEvent>& events);
+  /** A step of the tram: the controller, the switch asked for, the tram on its track, the traffic around it. */
+  void stepTram(double dt);
+  /** what the HUD shows of the tram (game.ts:7083) */
+  void tramHud(HudState& hs, bool touch);
 
   // --- on foot ---
   // (getting out, walking round the vehicle and in the town, the doors, the cars parked on the map – game.ts:4594 … 5838)
@@ -797,6 +899,34 @@ class Game {
   bool canEnterParked();
   /** Into a vehicle parked on the map: a free drive with it begins where it stands. */
   void enterParked(const Parked& p);
+
+  // --- the forklift and the practice-yard drills ---
+  /** the forklift on the practice yard (game/forkliftplay.ts; null: not driving one) */
+  std::unique_ptr<ForkliftWork> forklift;
+  /** The forklift's work (game/forkliftplay.ts), told what it needs of the game. */
+  std::unique_ptr<ForkliftWork> makeForkliftWork(bool site);
+  /** The forklift's drive ends: its work goes, and the camera is the player's own again (not the forklift's view from the side). */
+  void endForklift();
+  /** The forklift's camera, as chosen with V (game/forkliftplay.ts: from the side at first). */
+  void forkView();
+  /** Off the forklift, beside its seat – or, on foot near it, on again (G, the door button, "Get out"). */
+  void forkliftDoor();
+  /** A step of the forklift: its own simulation drives it (game/forkliftplay.ts) – and the traffic beyond the yard. */
+  void stepForklift(double dt);
+  /** the basic tasks of class B on the practice yard (game/drillplay.ts), while such a lesson runs – kept for its result */
+  std::unique_ptr<DrillRun> drill;
+  const std::unique_ptr<DrillScene> drillScene;
+  std::array<double, 3> drillPos = {0, 0, 0};
+  /** Lay out the first task, stand the car at its start (`ids`: 'exam' – three tasks as in the test: one of group a, two of group b, Anlage 7 FeV Nr. 2.1.4.2). */
+  void drillBegin(const std::vector<std::string>& ids);
+  /** The car to the start of the task now (placed there by placeAgain or at the start of the drive). */
+  void drillPlace();
+  /** Judge the task on the yard; what to do in the street-name block, the instructor's remarks in the tip line. */
+  void updateDrill(double dt);
+  /** the headlights and the main beam (game/beamplay.ts with sim/beams.ts) */
+  const std::unique_ptr<BeamPlay> beams;
+  /** The headlights, once a frame (game/beamplay.ts): `model` the vehicle driven (null: none – a replay, the menu). */
+  void headlights(double dt, VehicleModel* model);
   // --- weather, seasons, the windscreen ---
   /** vertical grass on the ground ("No mercy"): render/grass.h (game.ts:290) */
   std::unique_ptr<GrassRenderer> grass;

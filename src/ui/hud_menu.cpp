@@ -361,6 +361,8 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawnList) {
     cards.append(c);
   };
   card(t(def.kind == "plane" ? "freeFly" : "free"), t(def.kind == "tram" ? "freeTramDesc" : def.kind == "pedestrian" ? "freeWalkDesc" : def.kind == "plane" ? "freeFlyDesc" : "freeDesc"), "free");
+  // the forklift: its work on the forklift yard (game/forkliftplay.ts) – its free drive begins at the place chosen above
+  if (def.kind == "forklift") card(t("forkWork"), t("forkWorkDesc"), "forklift");
   // (the drives the car does by itself, and the tours, are on the roads – and by car)
   if (def.kind == "tram") card(t("demo"), t("demoTramDesc"), "demo");
   if (def.kind == "plane") card(t("demoFly"), t("demoFlyDesc"), "demo");
@@ -370,7 +372,7 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawnList) {
   }
   // the theory lessons: difficult situations shown on the practice yard (game/theorymode.ts)
   if (def.kind != "plane" && world.json.yard) card(t("theory.title"), t("theory.desc"), "theory");
-  // (the forklift's work and the test place are not in this version: no cards for them)
+  // (the test place is not in this version: no card for it)
   // the lessons of the chosen vehicle: the practice yard first, the test last
   auto rank = [](const std::string& kind) { return kind == "yard" ? 0 : kind == "exam" ? 2 : 1; };
   const VehicleKind& kind = def.kind;

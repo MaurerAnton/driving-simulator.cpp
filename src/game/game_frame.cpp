@@ -15,9 +15,13 @@
 #include "game/cockpit.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
+#include "game/forkliftplay.h"
+#include "game/beamplay.h"
+#include "game/game.h"
+#include "render/forklift.h"
 #include "game/outdoors.h"
 #include "game/weather.h"
-#include "game/game.h"
+#include "render/trams.h"
 #include "game/nav.h"
 #include "game/routepresets.h"
 #include "game/theorymode.h"
@@ -157,7 +161,10 @@ void Game::updateLesson(double dt, PlayerState& p) {
   Vehicle& v = *vehicle;
   const std::string& lang = settings.lang;
   if (!l) return;
-  // (later: the bus on a line, updateBusLine – game.ts:6351)
+  if (l->kind == "bus") {
+    updateBusLine(dt);
+    return;
+  }
   if (l->kind == "basics") {
     Controls& c = input->c;
     const bool automatic = v.spec.transmission == "automatic";
@@ -444,7 +451,10 @@ void Game::frame(double now) {
     // a crane posed as it works, the loads of its site where they are
     if (crane)
       if (CraneModel* cm = dynamic_cast<CraneModel*>(&model)) crane->render(*cm, time, state == "drive" && !walker);
-    // (later: forklift.render; the drive written down for its replay – game.ts:6626)
+    // (off the forklift: nobody on its seat, its display and buttons away)
+    if (forklift)
+      if (ForkliftModel* fm = dynamic_cast<ForkliftModel*>(&model)) forklift->render(*fm, time, cameraMode == "cockpit" || walker != nullptr, state == "drive" && !walker);
+    // (later: the drive written down for its replay – game.ts:6627)
   }
   // (later: menuShow, the vehicle chosen behind the menu of rows – game.ts:6632)
   else if (state == "menu" || state == "loading") {
@@ -478,7 +488,10 @@ void Game::frame(double now) {
     actors->update(traffic->cars, traffic->peds(), time, traffic->cyclists ? traffic->cyclists->list : noCyclists);
   }
   lap(frameTimes.scene);
-  // (later: wildView, railActors, transit, the lines of the trams – game.ts:6682)
+  // (later: wildView – game.ts:6682)
+  railActors->update(rail->vehicles, rail->lines);
+  // the lines: the trams run them (later: transit – the stops, the overhead line, the tram signals, the people at the stops; roadworks, crossingView, explosion – game.ts:6685)
+  updateLines();
   {
     const Vector3& cam = app.camera->position;
     // the roadworks and the demonstrations of the day around the camera
@@ -490,7 +503,7 @@ void Game::frame(double now) {
     if (crossingView && levelCrossings) crossingView->update(*levelCrossings, signs.get(), cam.x, cam.z, time);
   }
   // (later: explosion – game.ts:6708)
-  // (later: headlights – game/beamplay.ts, game.ts:6714)
+  headlights(dt, haveCar ? &model : nullptr);
   // (later: online.frame – game.ts:6716)
 
   // (later: the reality view's own picture – game.ts:6718)
@@ -610,8 +623,11 @@ void Game::updateVisuals(double dt) {
   Vehicle& v = *vehicle;
   Controls& c = input->c;
   CarVisualState& s = visual;
-  const double kmh = v.speed * 3.6;
-  // (later: the tram: no steering bar on the screen, its lever – game.ts:6882)
+  const double kmh = (tram ? tram->speed() : v.speed) * 3.6;
+  // (a tram is not steered: no steering bar on the screen – the indicators choose the way at a switch)
+  ui.toggleClass("rail", tram != nullptr);
+  if (tram)
+    if (TramCab* cab = dynamic_cast<TramCab*>(&model())) cab->setLever(tram->emergency ? -1.2 : tram->lever);
   s.speedKmh = std::abs(kmh);
   s.rpm = v.rpm;
   s.gear = v.spec.transmission == "automatic" ? (c.gear == 1 ? v.gear : c.gear) : v.gear;
@@ -619,9 +635,7 @@ void Game::updateVisuals(double dt) {
   s.hazard = c.hazard;
   s.blinkOn = static_cast<long long>(std::floor(time * 3)) % 2 == 0;
   s.lowBeam = c.lowBeam;
-  // (later: beams.high(…, settings.beamAssist): the main beam put on by the assist – game/beamplay.ts, game.ts:6891;
-  //  until then it is lit when it is switched on with the dipped beam, or while the flasher is held)
-  s.highBeam = input->flasher() || (c.lowBeam && c.highBeam);
+  s.highBeam = beams->high(c.lowBeam, c.highBeam, input->flasher(), settings.beamAssist);
   s.handbrake = c.handbrake > 0.5;
   s.ignition = c.ignition;
   s.engineRunning = v.engineRunning;
@@ -669,7 +683,6 @@ void Game::updateVisuals(double dt) {
     rough = std::max(rough, w.grip < 0.75 ? 2.4 : 1.0);
   }
   {
-    // (later: the tram's sounds – game.ts:6941)
     AudioState a;
     a.rpm = v.rpm;
     a.load = v.engineLoad;
@@ -684,6 +697,25 @@ void Game::updateVisuals(double dt) {
     a.braking = driver.brake;
     a.parkingBrake = c.handbrake > 0.5;
     a.reversing = v.gear == -1;
+    if (tram && !aircraft) {
+      // the tram: its motors pulling or braking, the rails, the squeal in tight curves, the bell
+      RailSample at;
+      rail->net.sample(tram->v.path, tram->v.s, at);
+      const double cap = at.cap;
+      a = AudioState();
+      a.rpm = 0;
+      a.load = tram->powered() ? std::max(0.0, tram->lever) : 0;
+      a.braking = tram->emergency ? 1 : std::max(0.0, -tram->lever);
+      a.engineRunning = tram->powered();
+      a.starter = false;
+      a.speed = tram->speed();
+      a.skid = 0;
+      a.indicatorOn = c.indicator != 0 && state == "drive";
+      a.blinkOn = s.blinkOn;
+      a.horn = c.horn;
+      a.rough = 1;
+      a.curve = cap < 90 ? 1.1 / (cap * cap) : 0;
+    }
     if (aircraft) {
       // the aeroplane: its engine and propeller, the wind, the stall warning
       const Aircraft& ac = *aircraft;
@@ -722,8 +754,8 @@ void Game::updateVisuals(double dt) {
     speak(h.what, h.dist, navText);
     // § 9 StVO: get in lane in good time – the route goes on from a particular lane
     if (h.lane != 0) navText += " – " + tr(h.lane < 0 ? "laneLeft" : "laneRight", lang);
-  } else if ((lesson && lesson->kind == "basics") || task) navText = lessonLine;
-  // (later: the drills; the bus on a line: its line – game.ts:6995)
+  } else if ((lesson && lesson->kind == "basics") || task || drill) navText = lessonLine;
+  else if (lesson && lesson->kind == "bus") navText = lessonLine + " · " + busNav;
   std::string tip = time < tipUntil ? tipText : "";
   // on a touch screen the tip says what to tap – and is itself the button for it
   std::string tipAction;
@@ -732,7 +764,13 @@ void Game::updateVisuals(double dt) {
     tip = tr(touch ? key + "Touch" : key, lang);
     tipAction = action;
   };
-  // (later: the bus on a line: the doors at the stop – game.ts:7006)
+  // the bus on a line: the doors at the stop, the people, the indicator to pull out
+  if (tip.empty() && busService && v.engineRunning) {
+    const BusStopsHere here = busStopsHere();
+    if (busService->doorsOpen && busService->passengers() > 0) tip = tr("tramPassengers", lang, {{"n", busService->passengers()}});
+    else if (busService->doorsOpen) say("tramCloseDoors", "KeyG");
+    else if (busService->atStop(here.front, here.stops, v.speed)) say("tramOpenDoors", "KeyG");
+  }
   if (tip.empty()) {
     if (!v.engineRunning) {
       bool stalledNow = false;
@@ -769,8 +807,7 @@ void Game::updateVisuals(double dt) {
   hs.zone = ctx.zone;
   hs.junction = ctx.junction;
   hs.navText = navText;
-  // (later: the drills – game.ts:7041)
-  hs.navSub = task ? taskSub : lesson && lesson->kind != "basics" ? lessonLine : ctx.roadName;
+  hs.navSub = task || drill ? taskSub : lesson && lesson->kind != "basics" ? lessonLine : ctx.roadName;
   hs.navArrow = h.arrow;
   hs.navActive = (lesson || demo) && h.dist >= 0 && h.what != "navFollow" && h.what != "routeDone";
   hs.tip = tip;
@@ -783,7 +820,7 @@ void Game::updateVisuals(double dt) {
   hs.autopilotDriving = autopilotDriving();
   // (the reminder of the keys is the car's: not for the tram – its lesson says how it is driven – nor for the
   // aeroplane, whose keys the tip line names)
-  hs.noKeyHints = aircraft != nullptr;
+  hs.noKeyHints = tram != nullptr || aircraft != nullptr;
   hs.indicator = c.indicator;
   hs.hazard = c.hazard;
   hs.blinkOn = s.blinkOn;
@@ -813,7 +850,8 @@ void Game::updateVisuals(double dt) {
     hs.navSub = tr(touch ? "navSubTouch" : "navSubKeys", lang);
     hs.navArrow = 0;
   }
-  // (later: a lesson watched: the instructor says what the car does – game.ts:7082; the tram's line of the display – game.ts:7083)
+  // (later: a lesson watched: the instructor says what the car does – game.ts:7082)
+  if (tram) tramHud(hs, touch);
   const OnFoot* w = walker.get();
   // (later: on the bus, riding along: the next stop, getting off there – busRide, riding, game.ts:7133)
   if (w && def->kind == "pedestrian") {
@@ -903,7 +941,7 @@ void Game::updateVisuals(double dt) {
   // (later: watching – game.ts:7242; services.hud – game.ts:7247)
   // (on foot below the tower crane: the walker's place)
   if (crane) crane->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
-  // (later: forklift.hud – game.ts:7249)
+  if (forklift) forklift->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
   hud->update(hs, time);
 }
 

@@ -178,12 +178,12 @@ static void numbers() {
 static void countdown() {
   const double t0 = 1'000'000;
   assert(timeLeft(t0, t0) == 45 * 60'000);
-  assert(clockText(timeLeft(t0, t0)) == "45:00");
-  assert(clockText(timeLeft(t0, t0 + 1)) == "45:00");
-  assert(clockText(timeLeft(t0, t0 + 1000)) == "44:59");
-  assert(clockText(timeLeft(t0, t0 + 44 * 60'000 + 50'500)) == "0:10");
+  assert(examClockText(timeLeft(t0, t0)) == "45:00");
+  assert(examClockText(timeLeft(t0, t0 + 1)) == "45:00");
+  assert(examClockText(timeLeft(t0, t0 + 1000)) == "44:59");
+  assert(examClockText(timeLeft(t0, t0 + 44 * 60'000 + 50'500)) == "0:10");
   assert(timeLeft(t0, t0 + 46 * 60'000) == 0);
-  assert(clockText(0) == "0:00");
+  assert(examClockText(0) == "0:00");
 }
 
 static void danger() {

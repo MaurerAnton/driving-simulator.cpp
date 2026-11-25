@@ -268,7 +268,7 @@ class LearnUi : public std::enable_shared_from_this<LearnUi> {
 
   void examShowClock(const std::shared_ptr<ExamRun>& run, const ExamView& v) {
     const double left = timeLeft(run->start, plat::dateMs());
-    v.clock.textContent("⏱ " + clockText(left));
+    v.clock.textContent("⏱ " + examClockText(left));
     v.clock.toggleClass("low", left < 5 * 60'000);
     if (left <= 0) examFinish(run, true);
   }

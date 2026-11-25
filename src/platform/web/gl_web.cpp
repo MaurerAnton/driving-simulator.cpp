@@ -83,7 +83,7 @@ bool texImageImage(int image, bool flipY, bool srgb, int& width, int& height) {
   return true;
 }
 
-bool savePng(const std::string&, int, int) { return false; }
+bool savePng(const std::string&, int, int, int) { return false; }
 
 std::string rendererName() {
   char* s = fsg_renderer_name();
