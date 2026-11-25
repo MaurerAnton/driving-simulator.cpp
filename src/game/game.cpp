@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
+#include "game/weather.h"
 
 #include <algorithm>
 #include <cmath>
@@ -342,7 +343,8 @@ Task<void> Game::boot(URLSearchParams q) {
   if (extraSigns) {
     timedRules = std::make_unique<TimedRules>(extraSigns->rules, [] { return gameNow(); });
     rules->timed = timedRules.get();
-    // (later: "bei Nässe" while the road is wet – weatherNow().wet > 0.3, game/weather – game.ts:653)
+    // ("bei Nässe": while the road is wet – the weather of game/weather, real or chosen)
+    timedRules->wet = [] { return weatherNow().wet > 0.3; };
   }
   progress->step(0.75, 0.98);
   signalHeads = std::make_unique<SignalRenderer>(world, signals.get());
