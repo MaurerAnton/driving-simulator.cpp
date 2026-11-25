@@ -15,7 +15,10 @@
 #include "game/cockpit.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
+#include "game/forkliftplay.h"
+#include "game/beamplay.h"
 #include "game/game.h"
+#include "render/forklift.h"
 #include "game/nav.h"
 #include "game/routepresets.h"
 #include "game/track.h"
@@ -437,7 +440,10 @@ void Game::frame(double now) {
     // a crane posed as it works, the loads of its site where they are
     if (crane)
       if (CraneModel* cm = dynamic_cast<CraneModel*>(&model)) crane->render(*cm, time, state == "drive" && !walker);
-    // (later: forklift.render; the drive written down for its replay – game.ts:6626)
+    // (off the forklift: nobody on its seat, its display and buttons away)
+    if (forklift)
+      if (ForkliftModel* fm = dynamic_cast<ForkliftModel*>(&model)) forklift->render(*fm, time, cameraMode == "cockpit" || walker != nullptr, state == "drive" && !walker);
+    // (later: the drive written down for its replay – game.ts:6627)
   }
   // (later: menuShow, the vehicle chosen behind the menu of rows – game.ts:6632)
   else if (state == "menu" || state == "loading") {
@@ -469,7 +475,7 @@ void Game::frame(double now) {
   }
   lap(frameTimes.scene);
   // (later: wildView, railActors, transit, the lines of the trams, roadworks, crossingView, explosion – game.ts:6682)
-  // (later: headlights – game/beamplay.ts, game.ts:6714)
+  headlights(dt, haveCar ? &model : nullptr);
   // (later: online.frame – game.ts:6716)
 
   // (later: the reality view's own picture – game.ts:6718)
@@ -540,9 +546,7 @@ void Game::updateVisuals(double dt) {
   s.hazard = c.hazard;
   s.blinkOn = static_cast<long long>(std::floor(time * 3)) % 2 == 0;
   s.lowBeam = c.lowBeam;
-  // (later: beams.high(…, settings.beamAssist): the main beam put on by the assist – game/beamplay.ts, game.ts:6891;
-  //  until then it is lit when it is switched on with the dipped beam, or while the flasher is held)
-  s.highBeam = input->flasher() || (c.lowBeam && c.highBeam);
+  s.highBeam = beams->high(c.lowBeam, c.highBeam, input->flasher(), settings.beamAssist);
   s.handbrake = c.handbrake > 0.5;
   s.ignition = c.ignition;
   s.engineRunning = v.engineRunning;
@@ -643,8 +647,8 @@ void Game::updateVisuals(double dt) {
     speak(h.what, h.dist, navText);
     // § 9 StVO: get in lane in good time – the route goes on from a particular lane
     if (h.lane != 0) navText += " – " + tr(h.lane < 0 ? "laneLeft" : "laneRight", lang);
-  } else if ((lesson && lesson->kind == "basics") || task) navText = lessonLine;
-  // (later: the drills; the bus on a line: its line – game.ts:6995)
+  } else if ((lesson && lesson->kind == "basics") || task || drill) navText = lessonLine;
+  // (later: the bus on a line: its line – game.ts:6996)
   std::string tip = time < tipUntil ? tipText : "";
   // on a touch screen the tip says what to tap – and is itself the button for it
   std::string tipAction;
@@ -690,8 +694,7 @@ void Game::updateVisuals(double dt) {
   hs.zone = ctx.zone;
   hs.junction = ctx.junction;
   hs.navText = navText;
-  // (later: the drills – game.ts:7041)
-  hs.navSub = task ? taskSub : lesson && lesson->kind != "basics" ? lessonLine : ctx.roadName;
+  hs.navSub = task || drill ? taskSub : lesson && lesson->kind != "basics" ? lessonLine : ctx.roadName;
   hs.navArrow = h.arrow;
   hs.navActive = (lesson || demo) && h.dist >= 0 && h.what != "navFollow" && h.what != "routeDone";
   hs.tip = tip;
@@ -824,7 +827,7 @@ void Game::updateVisuals(double dt) {
   // (later: watching – game.ts:7242; services.hud – game.ts:7247)
   // (on foot below the tower crane: the walker's place)
   if (crane) crane->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
-  // (later: forklift.hud – game.ts:7249)
+  if (forklift) forklift->hud(hs, touch, w ? std::optional<std::array<double, 2>>(std::array<double, 2>{w->x, w->z}) : std::nullopt);
   hud->update(hs, time);
 }
 

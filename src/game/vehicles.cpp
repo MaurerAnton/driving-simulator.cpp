@@ -18,10 +18,7 @@
 #include "sim/flightspec.h"
 #define FS_VEHICLES_PLANE 1
 #include "sim/crane.h"
-#if __has_include("sim/forklift.h")
 #include "sim/forklift.h"
-#define FS_VEHICLES_FORKLIFT 1
-#endif
 
 namespace fs {
 
@@ -546,7 +543,6 @@ Table build() {
     d.crane = "tower";
     add(d);
   }
-#ifdef FS_VEHICLES_FORKLIFT
   // The forklift (sim/forklift.ts, game/forkliftplay.ts): no licence class – the operator's certificate
   // (DGUV Grundsatz 308-001) –, driven on the practice yard by its own simulation; what is given here is what
   // the rest of the game needs of it (its size, the camera, the sound's engine).
@@ -579,7 +575,6 @@ Table build() {
     d.dash = true;
     add(d);
   }
-#endif
   // On foot there is no vehicle at all (game.ts walks with OnFoot, game/onfoot.ts): what is given here is
   // what the rest of the game needs of "the vehicle" – the camera keeps to the person, the motorway is not
   // for them (§ 18 Abs. 9 StVO).

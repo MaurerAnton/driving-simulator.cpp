@@ -314,6 +314,8 @@ struct WeatherState {
   double wind = 2.5;
   double gust = 5;
   double windFrom = 250;
+  /** how far one sees (m: CLEAR_WEATHER's) – the headlights ask (game/beamplay.ts) */
+  double visibility = 30000;
 };
 
 /** the weather shown now (game/weather.ts weatherNow: CLEAR_WEATHER until it is translated) */

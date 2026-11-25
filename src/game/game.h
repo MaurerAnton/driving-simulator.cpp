@@ -61,6 +61,11 @@ class ArcadeDrive;
 class AutoDriver;
 class CraneModel;
 class CraneWork;
+class ForkliftWork;
+class DrillRun;
+class BeamPlay;
+class DrillScene;
+class ForkliftModel;
 /** (sim/crane.h: 'tower' | 'mobile' | 'loader') */
 using CraneType = std::string;
 class DrivenPath;
@@ -363,7 +368,7 @@ class Game {
   const std::unique_ptr<ArcadeDrive> arcadeDrive;
   double autoDrive = 0;
   std::string tipText;
-  // (later: beams, the headlights – game/beamplay.ts with sim/beams.ts, game.ts:514)
+  // (beams, the headlights: in the block of the forklift and the drills at the end)
   // (later: wildView – game.ts:516)
   /** every fault of this and of earlier sessions */
   const std::unique_ptr<FaultLog> faultLog;
@@ -523,7 +528,6 @@ class Game {
   /** the last moment the sun was placed for (-1: to be placed, -2: the game's fixed afternoon) */
   double sunPlacedAt = -1;
   void updateSun();
-  // (later: headlights – game/beamplay.ts, game.ts:3538)
   void finish();
   /** (input/input.ts: Action) */
   void onAction(const std::string& a);
@@ -786,6 +790,34 @@ class Game {
   bool canEnterParked();
   /** Into a vehicle parked on the map: a free drive with it begins where it stands. */
   void enterParked(const Parked& p);
+
+  // --- the forklift and the practice-yard drills ---
+  /** the forklift on the practice yard (game/forkliftplay.ts; null: not driving one) */
+  std::unique_ptr<ForkliftWork> forklift;
+  /** The forklift's work (game/forkliftplay.ts), told what it needs of the game. */
+  std::unique_ptr<ForkliftWork> makeForkliftWork(bool site);
+  /** The forklift's drive ends: its work goes, and the camera is the player's own again (not the forklift's view from the side). */
+  void endForklift();
+  /** The forklift's camera, as chosen with V (game/forkliftplay.ts: from the side at first). */
+  void forkView();
+  /** Off the forklift, beside its seat – or, on foot near it, on again (G, the door button, "Get out"). */
+  void forkliftDoor();
+  /** A step of the forklift: its own simulation drives it (game/forkliftplay.ts) – and the traffic beyond the yard. */
+  void stepForklift(double dt);
+  /** the basic tasks of class B on the practice yard (game/drillplay.ts), while such a lesson runs – kept for its result */
+  std::unique_ptr<DrillRun> drill;
+  const std::unique_ptr<DrillScene> drillScene;
+  std::array<double, 3> drillPos = {0, 0, 0};
+  /** Lay out the first task, stand the car at its start (`ids`: 'exam' – three tasks as in the test: one of group a, two of group b, Anlage 7 FeV Nr. 2.1.4.2). */
+  void drillBegin(const std::vector<std::string>& ids);
+  /** The car to the start of the task now (placed there by placeAgain or at the start of the drive). */
+  void drillPlace();
+  /** Judge the task on the yard; what to do in the street-name block, the instructor's remarks in the tip line. */
+  void updateDrill(double dt);
+  /** the headlights and the main beam (game/beamplay.ts with sim/beams.ts) */
+  const std::unique_ptr<BeamPlay> beams;
+  /** The headlights, once a frame (game/beamplay.ts): `model` the vehicle driven (null: none – a replay, the menu). */
+  void headlights(double dt, VehicleModel* model);
 };
 
 }  // namespace fs
