@@ -31,7 +31,9 @@ namespace fs {
 void Game::railsRead(std::shared_ptr<const std::vector<RailJson>> json) {
   if (!json || json->empty()) return;
   rail = std::make_unique<RailTraffic>(*json);
-  // (later: roadEvents.setTracks, levelCrossings.setRail – game.ts:715)
+  // (the crossings and the roadworks hold the old one: they are given the new – game.ts:715)
+  if (roadEvents) roadEvents->setTracks(&rail->net);
+  if (levelCrossings) levelCrossings->setRail(rail.get());
   applySettings();
 }
 
