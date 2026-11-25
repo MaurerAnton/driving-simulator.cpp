@@ -50,6 +50,9 @@ struct Host {
   GLuint program = 0, vao = 0, texture = 0;
   uint64_t overlayVersion = 0;
   int overlayW = 0, overlayH = 0;
+  /** --shot: where the next picture shown is written, and whether it was */
+  std::string shotPath;
+  bool shotDone = false;
 };
 
 Host& host() {
@@ -562,6 +565,11 @@ void present() {
     glClear(GL_COLOR_BUFFER_BIT);
   }
   drawOverlay(pw, ph);
+  // (--shot: the window's picture as shown – the game's frame with the display drawn over it – before it is swapped away)
+  if (!h.shotPath.empty()) {
+    h.shotDone = plat::gl::savePng(h.shotPath, pw, ph, 0);
+    h.shotPath.clear();
+  }
   s.restore();
   SDL_GL_SwapWindow(h.window);
 }
@@ -652,11 +660,12 @@ long callbacksRun() { return host().callbacks; }
 long picturesShown() { return host().pictures; }
 
 bool screenshot(const std::string& path) {
-  uint32_t fbo = 0;
-  int w = 0, h = 0;
-  plat::gl::native::drawingBuffer(fbo, w, h);
-  if (!fbo) return false;
-  return plat::gl::savePng(path, w, h);
+  // (the next picture shown is written: present() reads the window's own framebuffer, the display over the game's frame)
+  Host& h = host();
+  h.shotPath = path;
+  h.shotDone = false;
+  present();
+  return h.shotDone;
 }
 
 std::string rendererName() { return plat::gl::rendererName(); }

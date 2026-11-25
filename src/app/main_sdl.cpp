@@ -32,6 +32,7 @@
 #include "core/task.h"
 #include "game/game.h"
 #include "ui/sdlhud.h"
+#include "platform/overlay.h"
 #include "game/settings.h"
 #include "platform/dom.h"
 #include "platform/native/native.h"
@@ -81,8 +82,6 @@ std::vector<std::string> deviceLanguages() {
 Task<void> boot(Game* game, std::string search, std::string* failed) {
   try {
     co_await game->boot(URLSearchParams(search));
-    // the small display drawn over the picture (ui/sdlhud: the street, the speed, the tips, the corner map) – the Hud is made in boot
-    if (game->hud) installSdlHud(*game->hud);
   } catch (const std::exception& e) {
     *failed = e.what();
   }
@@ -165,6 +164,7 @@ int main(int argc, char** argv) {
   int status = 0;
   {
     std::unique_ptr<Game> game;
+    const void* hudShown = nullptr;
     try {
       game = std::make_unique<Game>(canvas, ui);
     } catch (const std::exception& e) {
@@ -181,6 +181,12 @@ int main(int argc, char** argv) {
         status = 1;
         break;
       }
+      // the small display drawn over the picture (ui/sdlhud: the street, the speed, the tips, the corner map):
+      // as soon as boot has made the Hud – boot itself goes on a while after the game is ready
+      if (game->hud && game->hud.get() != (const void*)hudShown) {
+        installSdlHud(*game->hud);
+        hudShown = game->hud.get();
+      }
       if (game->ready && readyAt < 0) {
         readyAt = sdl::picturesShown();
         std::printf("fahrsim-sdl: ready after %ld pictures (%s)\n", readyAt, game->state.c_str());
@@ -191,6 +197,7 @@ int main(int argc, char** argv) {
       }
     }
     // (the game's GL objects go while the context is still there)
+    sdlOverlayHook = nullptr;   // (it reads the Hud that goes with the game)
     game.reset();
   }
   sdl::close();

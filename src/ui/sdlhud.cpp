@@ -15,10 +15,7 @@
 #include "ui/hud.h"
 #include "ui/notices.h"
 
-#if __has_include("platform/overlay.h")
 #include "platform/overlay.h"
-#define FS_SDL_OVERLAY 1
-#endif
 
 namespace fs {
 
@@ -415,7 +412,6 @@ void SdlHud::draw(double scale, int width, int height) {
 }
 
 void installSdlHud(const Hud& hud) {
-#if defined(FS_SDL_OVERLAY)
   // (one HUD a window; a new Hud – a new game – takes the place of the old one)
   static SdlHud* current = nullptr;
   delete current;
@@ -429,9 +425,6 @@ void installSdlHud(const Hud& hud) {
     o.version = p.version;
     return o;
   };
-#else
-  (void)hud;
-#endif
 }
 
 }  // namespace fs

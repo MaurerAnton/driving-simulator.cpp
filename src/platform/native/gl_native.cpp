@@ -177,12 +177,12 @@ std::string rendererName() {
   return r ? r : "?";
 }
 
-bool savePng(const std::string& path, int width, int height) {
+bool savePng(const std::string& path, int width, int height, int framebuffer) {
 #if defined(FS_HAVE_PNG)
   Host& h = host();
   if (!h.ok || width <= 0 || height <= 0) return false;
   std::vector<uint8_t> px(static_cast<size_t>(width) * static_cast<size_t>(height) * 4);
-  glBindFramebuffer(GL_FRAMEBUFFER, h.fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, framebuffer >= 0 ? static_cast<GLuint>(framebuffer) : h.fbo);
   glPixelStorei(GL_PACK_ALIGNMENT, 1);
   glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, px.data());
   FILE* f = std::fopen(path.c_str(), "wb");
@@ -236,7 +236,7 @@ uint32_t screenFramebuffer() { return 0; }
 bool texImageCanvas(int, bool, bool, int&, int&) { return false; }
 bool texImageImage(int, bool, bool, int&, int&) { return false; }
 std::string rendererName() { return "none"; }
-bool savePng(const std::string&, int, int) { return false; }
+bool savePng(const std::string&, int, int, int) { return false; }
 
 #endif
 
