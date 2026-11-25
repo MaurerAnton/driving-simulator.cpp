@@ -280,6 +280,9 @@ struct Settings {
   std::string mapPack;
   /** the region: '' the site's own map, else the id of a region in map-assets (world/regions.ts) – loaded instead of the site's map */
   std::string region;
+  /** 2.0: the region has been chosen once – by the player, or by the first start's guess from the IP address (firstRegionByIp):
+   *  an empty `region` is then the site's own map, chosen, and the guess is not made again */
+  bool regionAsked = false;
   /** a tap on the vehicle's screen in the driver's seat: the big map, or the map back in the corner of the HUD (another tap: on the screen again) ('bigmap' | 'minimap') */
   std::string screenTap = "bigmap";
   /** when a zoomed view (on foot, in the driver's seat) goes back by itself once let go (input/camzoom.ts ZoomRelease: 'auto' | 'release' | '3' | '6' | '12' | 'never') */

@@ -8,6 +8,7 @@
  * the same blending.  How it gets there is this file's own.
  */
 #include "engine/renderer.h"
+#include "platform/plat.h"
 
 #include <algorithm>
 #include <cmath>
@@ -69,6 +70,9 @@ struct Slot {
 struct Program {
   GLuint id = 0;
   bool ok = false;
+  /** the game's own attributes of this program and their locations (FIRST_CUSTOM_ATTRIBUTE on), and a key of them (0: none) */
+  std::vector<std::pair<std::string, int>> attribs;
+  uint64_t attribKey = 0;
   std::vector<Slot> frame, material, object, custom;
   /** the frame (camera, target) its frame uniforms were last set for, and the material after that */
   uint32_t frameStamp = 0;
@@ -234,20 +238,21 @@ Program* linkProgram(const std::string& vs, const std::string& fs, const std::st
   p->id = glCreateProgram();
   glAttachShader(p->id, v);
   glAttachShader(p->id, f);
-  // (the game's own attributes: every name declared in the vertex shader gets its location)
+  // (the game's own attributes: those this vertex shader declares, from FIRST_CUSTOM_ATTRIBUTE on, in their order)
   {
-    size_t at = 0;
-    while ((at = vs.find("attribute ", at)) != std::string::npos) {
-      size_t end = vs.find(';', at);
-      if (end == std::string::npos) break;
-      size_t nameEnd = end;
-      while (nameEnd > at && std::isspace(static_cast<unsigned char>(vs[nameEnd - 1]))) nameEnd--;
-      size_t nameStart = nameEnd;
-      while (nameStart > at && (std::isalnum(static_cast<unsigned char>(vs[nameStart - 1])) || vs[nameStart - 1] == '_')) nameStart--;
-      bool lineStart = at == 0 || vs[at - 1] == '\n' || vs[at - 1] == '\t' || vs[at - 1] == ' ';
-      if (lineStart && nameEnd > nameStart) attributeLocation(vs.substr(nameStart, nameEnd - nameStart));
-      at = end;
+    int next = FIRST_CUSTOM_ATTRIBUTE;
+    uint64_t key = 1469598103934665603ull;
+    for (const std::string& name : customAttributes(vs)) {
+      if (next >= END_CUSTOM_ATTRIBUTES) {
+        plat::warn("[renderer] a vertex shader declares more attributes of its own than there are locations: " + name + " is not fed");
+        break;
+      }
+      p->attribs.emplace_back(name, next);
+      key = (key ^ std::hash<std::string>()(name) ^ static_cast<uint64_t>(next)) * 1099511628211ull;
+      glBindAttribLocation(p->id, static_cast<GLuint>(next), name.c_str());
+      next++;
     }
+    p->attribKey = p->attribs.empty() ? 0 : (key ? key : 1);
   }
   for (const auto& a : attributeLocations()) glBindAttribLocation(p->id, static_cast<GLuint>(a.second), a.first.c_str());
   glLinkProgram(p->id);
@@ -431,11 +436,13 @@ struct Renderer::Impl {
 
   // --- textures ----------------------------------------------------------------
   void bindTexture(int unit, GLuint tex, GLenum target = GL_TEXTURE_2D) {
-    if (curTex[unit] == tex) return;
+    // (the unit is made the active one even when the texture is bound there already: the caller may upload
+    // pixels or set parameters next, and those go to the active unit's texture)
     if (curUnit != unit) {
       glActiveTexture(static_cast<GLenum>(GL_TEXTURE0 + unit));
       curUnit = unit;
     }
+    if (curTex[unit] == tex) return;
     glBindTexture(target, tex);
     curTex[unit] = tex;
   }
@@ -619,12 +626,20 @@ struct Renderer::Impl {
    * own (its geometry's arrays and its instance arrays): several of them often share one geometry – the
    * cars of the traffic – and one array for all would be pointed anew at every switch.
    */
-  void useGeometry(BufferGeometry& g, Object3D* object = nullptr) {
+  /** the game's own attributes each vertex array is set up for (Program::attribKey; 0: none) */
+  std::unordered_map<GLuint, uint64_t> vaoAttribs;
+
+  void useGeometry(BufferGeometry& g, Object3D* object, const Program& prog) {
     InstancedMesh* inst = object && object->type == ObjectType::InstancedMesh ? static_cast<InstancedMesh*>(object) : nullptr;
     uint32_t& vaoOf = inst ? inst->gpuVao : g.gpuVao;
     uint64_t& layoutStored = inst ? inst->gpuLayout : g.gpuLayout;
     uint64_t layout = layoutOf(g);
     bool rebuild = !vaoOf || layoutStored != layout;
+    // (a program with attributes of its own needs them where it has them; one without – the shadow map's – takes the array as it is)
+    if (!rebuild && prog.attribKey != 0) {
+      auto known = vaoAttribs.find(vaoOf);
+      rebuild = known == vaoAttribs.end() || known->second != prog.attribKey;
+    }
     if (!vaoOf) {
       GLuint vao = 0;
       glGenVertexArrays(1, &vao);
@@ -634,6 +649,11 @@ struct Renderer::Impl {
     // (a vertex array made anew, or with other arrays: the instance arrays it held are gone)
     if (rebuild) vaoInstances.erase(vaoOf);
     bindVao(vaoOf);
+    if (rebuild) {
+      // (what another program's own attributes left switched on would be read past its buffer's end)
+      for (int loc = FIRST_CUSTOM_ATTRIBUTE; loc < END_CUSTOM_ATTRIBUTES; loc++) glDisableVertexAttribArray(static_cast<GLuint>(loc));
+      vaoAttribs[vaoOf] = prog.attribKey;
+    }
     for (const auto& kv : g.attributes) {
       const BufferAttribute& a = *kv.second;
       bool changed = !a.gpu || a.gpuVersion != a.version;
@@ -641,6 +661,9 @@ struct Renderer::Impl {
       uploadAttribute(a, GL_ARRAY_BUFFER);
       if (!rebuild) continue;
       int loc = attributeLocation(kv.first);
+      if (loc < 0)
+        for (const auto& [name, at] : prog.attribs)
+          if (name == kv.first) loc = at;
       if (loc < 0) continue;
       glBindBuffer(GL_ARRAY_BUFFER, a.gpu);
       glEnableVertexAttribArray(static_cast<GLuint>(loc));
@@ -1281,7 +1304,7 @@ struct Renderer::Impl {
       setDepth(m.depthTest, m.depthWrite);
       setColorWrite(m.colorWrite);
       setPolygonOffset(m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits);
-      useGeometry(*it.geometry, it.object);
+      useGeometry(*it.geometry, it.object, p);
       GLenum mode = o.type == ObjectType::Points ? GL_POINTS : o.type == ObjectType::LineSegments ? GL_LINES : o.type == ObjectType::Line ? GL_LINE_STRIP : GL_TRIANGLES;
       drawCall(it, mode);
       if (o.onAfterRender) o.onAfterRender(r, *scene, camera);
@@ -1352,7 +1375,7 @@ struct Renderer::Impl {
       // three.js: the back of a front-sided material is what is drawn into the shadow map
       Side side = m.shadowSide ? *m.shadowSide : (m.side == Side::Front ? Side::Back : m.side == Side::Back ? Side::Front : Side::Double);
       setSide(side, o.matrixWorld.determinant() < 0);
-      useGeometry(*it.geometry, it.object);
+      useGeometry(*it.geometry, it.object, p);
       BufferGeometry& g = *it.geometry;
       int total = g.index ? static_cast<int>(g.index->count()) : (g.position() ? static_cast<int>(g.position()->count()) : 0);
       it.start = std::max(0, g.drawRange.start);
@@ -1408,19 +1431,20 @@ int Renderer::bufferHeight() const { return std::max(1, static_cast<int>(std::fl
 
 void Renderer::setRenderTarget(const RenderTargetPtr& target) { target_ = target; }
 
+// (in CSS pixels, as three.js: multiplied by the pixel ratio and rounded for the drawing buffer)
 void Renderer::setViewport(int x, int y, int width, int height) {
   d_->viewportSet = true;
-  d_->vp[0] = x;
-  d_->vp[1] = y;
-  d_->vp[2] = width;
-  d_->vp[3] = height;
+  d_->vp[0] = static_cast<int>(std::lround(x * pixelRatio_));
+  d_->vp[1] = static_cast<int>(std::lround(y * pixelRatio_));
+  d_->vp[2] = static_cast<int>(std::lround(width * pixelRatio_));
+  d_->vp[3] = static_cast<int>(std::lround(height * pixelRatio_));
 }
 void Renderer::resetViewport() { d_->viewportSet = false; }
 void Renderer::setScissor(int x, int y, int width, int height) {
-  d_->scissor[0] = x;
-  d_->scissor[1] = y;
-  d_->scissor[2] = width;
-  d_->scissor[3] = height;
+  d_->scissor[0] = static_cast<int>(std::lround(x * pixelRatio_));
+  d_->scissor[1] = static_cast<int>(std::lround(y * pixelRatio_));
+  d_->scissor[2] = static_cast<int>(std::lround(width * pixelRatio_));
+  d_->scissor[3] = static_cast<int>(std::lround(height * pixelRatio_));
 }
 void Renderer::setScissorTest(bool on) { d_->scissorTest = on; }
 

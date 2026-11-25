@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -35,11 +36,12 @@ class CanvasGradient {
  public:
   CanvasGradient() = default;
   void addColorStop(double offset, const std::string& color) const;
-  int handle() const { return h_; }
+  int handle() const { return h_ ? *h_ : 0; }
 
  private:
   friend class Ctx2D;
-  int h_ = 0;
+  /** the host's gradient, given back when the last copy goes (a gradient made every frame would pile up otherwise) */
+  std::shared_ptr<const int> h_;
 };
 
 /** what measureText answers */
@@ -215,6 +217,8 @@ void polyline(int ctx, const double* xy, int n, bool close);
 void drawImage(int ctx, bool fromCanvas, int source, const double* v, int n);
 void measure(int ctx, const char* text, double out[5]);
 int gradient(int ctx, bool radial, double a, double b, double c, double d, double e, double f);
+/** the gradient is no longer used */
+void gradientFree(int g);
 void getImageData(int ctx, int x, int y, int w, int h, uint8_t* out);
 void putImageData(int ctx, const uint8_t* data, int w, int h, int x, int y);
 std::string toDataURL(int canvasElement, const char* type, double quality);

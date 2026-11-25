@@ -54,6 +54,7 @@
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
 #include "game/startat.h"   // 2.0
+#include "ui/stage.h"   // 2.0: startFromSpot
 #include "ui/bigmap.h"
 #include "ui/geoip.h"
 #include "ui/hud.h"
@@ -356,6 +357,8 @@ Task<void> Game::boot(URLSearchParams q) {
   loading.remove();
 
   hud = std::make_unique<Hud>(ui, settings, world);
+  // (a place tapped on the menu's map becomes the next start: ui/stage.ts, which hud.ts calls directly)
+  hud->startFromSpot = startFromSpot;
   if (app.map->pieces) {
     // the airfields: drawn on the ground, firm under an aeroplane's wheels, and the ends of their runways to take off from
     // (2.0: asked for once the display is there, which is given the ends of the runways – game.ts:721 asks with the tracks)
@@ -459,6 +462,7 @@ Task<void> Game::boot(URLSearchParams q) {
     host.region = [this] { return this->app.regionId; };
     host.onOpenRegion = [this](const Region& r) {
       settings.region = r.id;
+      settings.regionAsked = true;   // 2.0: chosen (also the site's own map, id "")
       saveSettings(settings);
       plat::reload();
     };
@@ -466,6 +470,7 @@ Task<void> Game::boot(URLSearchParams q) {
     host.startInRegion = [this](const Region& r, const SpawnJson& spot) {
       saveStartAt(r.id, spot);
       settings.region = r.id;
+      settings.regionAsked = true;   // 2.0: chosen (also the site's own map, id "")
       saveSettings(settings);
       plat::reload();
     };
@@ -505,7 +510,8 @@ Task<void> Game::boot(URLSearchParams q) {
   }
   const std::optional<std::string> qm = q.get("mirrors");
   if (qm && (*qm == "off" || *qm == "alternate" || *qm == "full")) settings.mirrors = *qm;
-  if (q.get("traffic") && !q.get("traffic")->empty()) settings.traffic = jsNumber(*q.get("traffic"));
+  // (a number that is none – ?traffic=x – is left out: cast to a whole number later, NaN would be undefined)
+  if (q.get("traffic") && !q.get("traffic")->empty() && std::isfinite(jsNumber(*q.get("traffic")))) settings.traffic = jsNumber(*q.get("traffic"));
   // ?vehicle=truck|car chooses the vehicle for this visit
   const std::optional<std::string> qv = q.get("vehicle");
   const std::optional<VehicleKind> kind = vehicleKind(qv.value_or(""));
@@ -569,13 +575,30 @@ Task<void> Game::boot(URLSearchParams q) {
     test.kind = "street";
     world.json.spawns.insert(world.json.spawns.begin(), test);
   }
-  if (startAt) world.json.spawns.insert(world.json.spawns.begin(), *startAt);   // 2.0
+  // 2.0: the place chosen on another region: an address of the drive (as 1.7.7's places chosen on the menu's map,
+  // ui/stage.ts startFromSpot) – the spawns keep their numbers.  "Put the car here" is a road vehicle's: the aeroplane
+  // or a crane chosen before goes back to the car.
+  std::optional<AddressHit> startHit;
+  if (startAt) {
+    if (const VehicleDef* d = VEHICLES.find(settings.vehicle); !d || d->model == "plane" || d->crane) {
+      settings.vehicle = "car";
+      saveSettings(settings);
+    }
+    AddressHit hit;
+    hit.label = startAt->name.empty() ? tr("mapPlace", settings.lang) : startAt->name;
+    hit.street = startAt->name;
+    hit.x = startAt->x;
+    hit.z = startAt->z;
+    hit.exact = false;
+    startHit = hit;
+  }
   last = plat::nowMs();
   looping = true;
   plat::requestAnimationFrame([this](double t) { frame(t); });
   const std::optional<std::string> start = q.get("start");
   const std::optional<std::string> addr = q.get("addr");
-  const int spawnIdx = static_cast<int>(numberOf(q.get("spawn")));
+  const double spawnAsked = numberOf(q.get("spawn"));
+  const int spawnIdx = std::isfinite(spawnAsked) ? static_cast<int>(std::max(-1e6, std::min(1e6, spawnAsked))) : 0;
   if (start && !start->empty() && addr && !addr->empty()) {
     [](Game* self, std::string start, std::string addr, int spawnIdx) -> Task<void> {
       AddressIndex* ix = co_await self->loadAddresses();
@@ -585,7 +608,7 @@ Task<void> Game::boot(URLSearchParams q) {
       const std::vector<AddressHit> hits = ix ? ix->search(addr, 1, near) : std::vector<AddressHit>();
       self->begin(start, spawnIdx, true, hits.empty() ? nullptr : &hits[0]);
     }(this, *start, *addr, spawnIdx).detach();
-  } else if (startAt) begin("free", 0, true);   // 2.0
+  } else if (startHit) begin("free", settings.lastStart.spawn, true, &*startHit);   // 2.0
   else if (start && !start->empty()) begin(*start, spawnIdx, true);
   else {
     toMenu();
@@ -732,10 +755,18 @@ void Game::applySettings() {
  * refusing service leaves the choice as it was.
  */
 Task<void> Game::firstRegionByIp() {
-  if (!settings.region.empty()) co_return;   // (a region is chosen: it stays)
+  // (a region is chosen: it stays – 2.0: also the site's own map, once chosen, and the guess is made once only)
+  if (!settings.region.empty() || settings.regionAsked) co_return;
+  settings.regionAsked = true;
+  saveSettings(settings);
   const std::optional<RegionIndex> index = co_await loadRegionIndex(plat::locationBase());
   if (!index || index->regions.empty()) co_return;
-  const auto place = co_await ipPlace();
+  // (a slow or silent service does not hold the loading screen: 2.5 s, then the site's map – the doc's "never blocks")
+  Task<IpPlace> asked = ipPlace();
+  const double until = plat::nowMs() + 2500;
+  while (!asked.done() && plat::nowMs() < until) co_await plat::sleep(100);
+  if (!asked.done()) co_return;
+  const auto place = co_await asked;
   const Region* region = ipRegion(&*index, place);
   if (!region || region->id == settings.region) co_return;
   settings.region = region->id;

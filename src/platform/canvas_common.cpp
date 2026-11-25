@@ -19,7 +19,7 @@ Ctx2D Canvas::getContext2D() const {
 
 std::string Canvas::toDataURL(const std::string& type, double quality) const { return el_ ? canvasBackend::toDataURL(el_.handle(), type.c_str(), quality) : std::string(); }
 
-void CanvasGradient::addColorStop(double offset, const std::string& color) const { str(h_, AddColorStop, color.c_str(), offset); }
+void CanvasGradient::addColorStop(double offset, const std::string& color) const { str(handle(), AddColorStop, color.c_str(), offset); }
 
 void Ctx2D::fillStyle(const std::string& css) const { str(h_, FillStyle, css.c_str()); }
 void Ctx2D::fillStyle(const CanvasGradient& g) const { num(h_, FillGradient, g.handle()); }
@@ -128,14 +128,23 @@ void Ctx2D::putImageData(const ImageData& d, int x, int y) const {
   if (!d.data.empty()) canvasBackend::putImageData(h_, d.data.data(), d.width, d.height, x, y);
 }
 
+namespace {
+std::shared_ptr<const int> ownGradient(int id) {
+  return std::shared_ptr<const int>(new int(id), [](const int* p) {
+    canvasBackend::gradientFree(*p);
+    delete p;
+  });
+}
+}  // namespace
+
 CanvasGradient Ctx2D::createLinearGradient(double x0, double y0, double x1, double y1) const {
   CanvasGradient g;
-  g.h_ = gradient(h_, false, x0, y0, x1, y1, 0, 0);
+  g.h_ = ownGradient(gradient(h_, false, x0, y0, x1, y1, 0, 0));
   return g;
 }
 CanvasGradient Ctx2D::createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1) const {
   CanvasGradient g;
-  g.h_ = gradient(h_, true, x0, y0, r0, x1, y1, r1);
+  g.h_ = ownGradient(gradient(h_, true, x0, y0, r0, x1, y1, r1));
   return g;
 }
 

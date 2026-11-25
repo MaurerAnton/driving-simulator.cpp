@@ -183,7 +183,9 @@ void AerialCache::trim(Inner& in) {
   std::vector<std::string> old;
   for (const std::string& key : in.order) {
     const Entry& e = in.tiles.at(key);
-    if (e.ready || e.failed) old.push_back(key);
+    // (2.0: not one asked for in this picture – a wide view over a border needs more than the cache holds,
+    //  and dropping what is on the screen fetched it again at every redraw)
+    if ((e.ready || e.failed) && e.used < in.frameStart) old.push_back(key);
   }
   std::stable_sort(old.begin(), old.end(), [&](const std::string& a, const std::string& b) { return in.tiles.at(a).used < in.tiles.at(b).used; });
   const size_t n = std::min(old.size(), in.tiles.size() - static_cast<size_t>(in.max));
@@ -397,6 +399,7 @@ std::string aerialLayerName() { return "Luftbilder der Länder (DOP) · " + S2_S
 double aerialStatesAlpha(int level) { return level <= 6 ? 1 : level == 7 ? 0.5 : 0; }
 
 std::vector<std::string> drawAerial(const Ctx2D& g, AerialCache& cache, const AerialView& v) {
+  cache.newFrame();
   std::vector<const AerialSource*> used;
   const auto credit = [&](const AerialSource* s) {
     if (std::find(used.begin(), used.end(), s) == used.end()) used.push_back(s);

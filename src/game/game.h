@@ -424,6 +424,10 @@ class Game {
   std::unique_ptr<AddressIndex> addresses;
   std::optional<std::unordered_set<int>> mainSet;
   bool netAsked = false;
+  /** 2.0: failed reads of the whole map's network so far, when the next may be, and whether the game gave up on it */
+  int netTries = 0;
+  double netRetryAt = 0;
+  bool netGaveUp = false;
 
   // ---- game_map.cpp, game_trips.cpp (hub-b) ----
   void wantNet();

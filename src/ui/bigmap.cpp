@@ -1925,7 +1925,8 @@ void BigMap::drawForeign(const Ctx2D& g, const MapView& v, double dpr, const Map
   const auto overlap = [](double x0, double z0, double x1, double z1, double a0, double b0, double a1, double b1) {
     return std::max(0.0, std::min(x1, a1) - std::max(x0, a0)) * std::max(0.0, std::min(z1, b1) - std::max(z0, b0));
   };
-  std::vector<MapOverview*> shown;
+  // (held here for the frame: a region the cache lets go of below may already be drawn, and its names come later)
+  std::vector<std::shared_ptr<Foreign>> shown;
   std::string loading;
   // (where a region overlaps the loaded map, the loaded map's own roads are drawn: the other's are kept out of its box)
   g.save();
@@ -1947,7 +1948,9 @@ void BigMap::drawForeign(const Ctx2D& g, const MapView& v, double dpr, const Map
     const double x0 = std::max(v.wx(0), r.box[0]), x1 = std::min(v.wx(v.width), r.box[2]);
     const double z0 = std::max(v.wz(0), r.box[1]), z1 = std::min(v.wz(v.height), r.box[3]);
     if (x1 <= x0 || z1 <= z0) continue;
-    Foreign* f = foreignOf(r.id);
+    std::shared_ptr<Foreign> f;
+    for (const std::shared_ptr<Foreign>& c : foreign)
+      if (c->id == r.id) f = c;
     if (!f) {
       // fetched once it fills enough of the picture – beside the loaded map – and its main roads are drawn at that scale
       const double share = ((x1 - x0) * (z1 - z0) - overlap(x0, z0, x1, z1, m.minX, m.minZ, m.maxX, m.maxZ)) * v.scale * v.scale / std::max(1.0, v.width * v.height);
@@ -1965,7 +1968,7 @@ void BigMap::drawForeign(const Ctx2D& g, const MapView& v, double dpr, const Map
       nf->id = r.id;
       foreign.push_back(nf);
       loadForeign(nf, base).detach();
-      f = nf.get();
+      f = nf;
     }
     f->used = plat::nowMs();
     if (f->loading) {
@@ -1974,9 +1977,9 @@ void BigMap::drawForeign(const Ctx2D& g, const MapView& v, double dpr, const Map
     }
     if (!f->ov) continue;
     f->ov->drawRoads(g, v, dpr, st);
-    shown.push_back(f->ov.get());
+    shown.push_back(f);
   }
-  for (MapOverview* ov : shown) ov->drawNames(g, v, st, taken);
+  for (const std::shared_ptr<Foreign>& s : shown) s->ov->drawNames(g, v, st, taken);
   g.restore();
   if (!loading.empty()) {
     // a small note while a region's roads are on their way

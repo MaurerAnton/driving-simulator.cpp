@@ -50,6 +50,8 @@ std::vector<OnlinePlace> parsePhoton(const std::string& text) {
 
 Task<std::vector<OnlinePlace>> searchPhoton(std::string q, std::optional<std::pair<double, double>> near, int limit, std::string lang) {
   plat::Response res = co_await plat::fetch(photonUrl(q, near, limit, lang));
+  // (a language the server does not know is refused with an error: then once more without asking for one)
+  if (!res.ok() && res.status >= 400 && res.status < 500 && !lang.empty()) res = co_await plat::fetch(photonUrl(q, near, limit, ""));
   if (!res.ok()) co_return std::vector<OnlinePlace>();
   co_return parsePhoton(res.text());
 }

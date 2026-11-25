@@ -123,7 +123,7 @@ const char* const KNOWN[] = {"lang",         "vehicle",        "transmission", "
                              "signalTimers", "queueLabels",    "hudGear",      "voice",        "volume",       "traffic",         "drawDistance",     "wheel",
                              "invertLookY",  "reality",        "touchControls", "touchOpacity", "tiltSteer",   "keyHints",        "showFps",          "startOutside",
                              "startHere",    "placeExact",     "mapOnScreen",  "mapPack",      "region",       "screenTap",       "zoomRelease",      "insideMirror",
-                             "lessonPlace",  "lessonPlaceAsked", "lessonArea", "lessonWatch",  "wasm",         "server",          "version",          "speech",
+                             "lessonPlace",  "lessonPlaceAsked", "regionAsked", "lessonArea", "lessonWatch",  "wasm",         "server",          "version",          "speech",
                              "power"};
 
 /** Defaults, overlaid with what was stored – whatever is missing or implausible keeps its default. */
@@ -186,6 +186,7 @@ Settings merge(const Json& parsed) {
   take(parsed, "mapOnScreen", s.mapOnScreen);
   take(parsed, "mapPack", s.mapPack);
   take(parsed, "region", s.region);
+  take(parsed, "regionAsked", s.regionAsked);   // 2.0
   take(parsed, "screenTap", s.screenTap);
   take(parsed, "zoomRelease", s.zoomRelease);
   take(parsed, "lessonPlace", s.lessonPlace);
@@ -508,6 +509,7 @@ std::string textOf(const Settings& s) {
   flag("mapOnScreen", s.mapOnScreen);
   str("mapPack", s.mapPack);
   str("region", s.region);
+  if (s.regionAsked) flag("regionAsked", s.regionAsked);   // 2.0 (only when set: settings stored before stay as they were)
   str("screenTap", s.screenTap);
   str("zoomRelease", s.zoomRelease);
   o.key("insideMirror");
@@ -565,6 +567,7 @@ Settings resetSettings(const Settings& s) {
   r.server = s.server;
   r.reality.mapillaryToken = s.reality.mapillaryToken;
   r.lessonPlaceAsked = s.lessonPlaceAsked;
+  r.regionAsked = s.regionAsked;   // 2.0
   return r;
 }
 

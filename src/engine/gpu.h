@@ -21,8 +21,10 @@ struct Freed {
 
 /** the handles waiting to be freed (the renderer empties it) */
 inline std::vector<Freed>& freed() {
-  static std::vector<Freed> list;
-  return list;
+  // (never destroyed: a material or a geometry held by a static object is let go while the program ends, after a
+  // static list would be gone already – that wrote into freed memory, crane_play_test's "double free")
+  static auto* list = new std::vector<Freed>();
+  return *list;
 }
 
 /** hand a handle back (0 is ignored) */

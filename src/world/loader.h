@@ -135,6 +135,8 @@ class MapLoader : public std::enable_shared_from_this<MapLoader> {
 
   /** Every road of the map in a few numbers (for routes and the big map) – null for a map in one piece. */
   const Task<std::shared_ptr<const NetData>>& net();
+  /** 2.0: forget a read of the network that failed, so that net() reads it anew */
+  void forgetNet() { netData_ = Task<std::shared_ptr<const NetData>>(); }
 
   /** The tracks trams and trains run on. */
   const Task<std::shared_ptr<const std::vector<RailJson>>>& rails();

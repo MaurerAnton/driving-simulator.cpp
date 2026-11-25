@@ -40,6 +40,9 @@ in play (translated, need walking), the finer trucks (fleetdetail), rear opening
 material in the engine).  Known-failing tests at 2.0.0: `render_actors_test` (its reference dump of the original was
 made without the people renderer; to be made anew), `game_bike_test` (the motorcycle starts in a car park and stands
 after ~29 m, so the bend that should show the lean is ridden at walking pace – the scenario needs a street start).
+`crane_play_test` (since the crash at exit is fixed – engine/gpu.h – it runs to its end: the keys A and W do not
+reach the tower crane's controls – the jib does not slew, the hook does not rise; the crane panel reads the keys
+itself, as in 1.7.7: to be found in 2.1).
 
 ## Who does what (branches `w/<name>`, worktrees `/home/user/ds2w/<name>`)
 

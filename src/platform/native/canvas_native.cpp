@@ -24,12 +24,12 @@ struct Ctx {
 };
 
 std::vector<Ctx>& contexts() {
-  static std::vector<Ctx> c(1);
-  return c;
+  static auto* c = new std::vector<Ctx>(1);   // (never destroyed: canvases of static objects go while the program ends)
+  return *c;
 }
 std::map<int, int>& byCanvas() {
-  static std::map<int, int> m;
-  return m;
+  static auto* m = new std::map<int, int>();
+  return *m;
 }
 int gradients = 0;
 
@@ -100,6 +100,7 @@ void measure(int ctx, const char* text, double out[5]) {
   out[4] = out[0];
 }
 int gradient(int, bool, double, double, double, double, double, double) { return ++gradients; }
+void gradientFree(int) {}
 void getImageData(int, int, int, int, int, uint8_t*) {}
 void putImageData(int ctx, const uint8_t*, int, int, int, int) {
   if (Ctx* c = ctxOf(ctx)) c->calls++;

@@ -192,6 +192,13 @@ void Game::updateLesson(double dt, PlayerState& p) {
       goal = nullptr;
       RouteGraph* g = routeGraphNow();
       if (!g) {
+        // (2.0: the roads of the whole map could not be read at all: a free drive, as when no destination is found)
+        if (netGaveUp) {
+          lesson = nullptr;
+          hud->canTeleport = true;
+          hud->message(tr("lessonNoRoute", lang));
+          return;
+        }
         // (the roads of the whole map are still being read)
         wantNet();
         return;
@@ -221,7 +228,8 @@ void Game::updateLesson(double dt, PlayerState& p) {
     }
     visited.insert(goal);
     nav->setGoal(goal, lane);
-    hudRouteLanes = nav->routeLanes;
+    // (2.0: the route is not marked as seen here – the check below then sets the roads the rules allow for it too;
+    //  1.7.7 set them only when the route changed later, so a new target's own roads counted as forbidden)
     hud->routeLanes = *nav->routeLanes;
   }
   const NavHint& h = nav->update(dt, lane, laneFront(), p.x, p.z);
@@ -360,6 +368,8 @@ void Game::frame(double now) {
       autoDemo.clear();
       startTrip(stops, autoSelf, nullptr);
     }
+    // (2.0: never, when the roads of the whole map could not be read)
+    if (netGaveUp) presetPending.clear(), autoTour = 0;
     if (!presetPending.empty() && time - startTime > 0.3 && currentLane() && routeGraphNow()) {
       const std::string id = presetPending;
       presetPending = "";

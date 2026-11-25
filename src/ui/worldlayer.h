@@ -65,7 +65,7 @@ class WorldLayer {
   bool ready() const { return ready_; }
   /** finished when the layer is ready (the big map waits for it and draws itself again) */
   Task<void> whenReady() const { return readied_.task(); }
-  bool hasRegions() const { return !regions_.empty(); }
+  bool hasRegions() const { return regions_.size() > (siteListed_ ? 1u : 0u); }
   /** every region, the site's own map first */
   const std::vector<Region>& regions() const { return regions_; }
   const Region* byId(const std::string& id) const;
@@ -98,6 +98,8 @@ class WorldLayer {
 
  private:
   bool ready_ = false;
+  /** the site's own map is the first of regions_ (not when its map.json could not be read: no name, no box) */
+  bool siteListed_ = false;
   Resolver<void> readied_;
   WorldOutline outline_;
   /** what there is to download for a region (by its id), where known */

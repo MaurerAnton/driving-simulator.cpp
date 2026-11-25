@@ -141,6 +141,8 @@ class AerialCache {
     std::vector<std::string> order;
     int loading = 0;
     double tick = 0;
+    /** 2.0: the tick a picture of the map began at – the tiles asked for since are on the screen and are not let go */
+    double frameStart = 1e300;   // (no picture begun yet: nothing is kept for one)
     std::vector<AerialTile> queue;
     std::function<void()> onLoad;
     int max = 90;
@@ -149,6 +151,12 @@ class AerialCache {
   static void pump(const std::shared_ptr<Inner>& in, const std::function<Task<Image>(std::string)>& load);
   static Task<void> fetchOne(std::shared_ptr<Inner> in, std::string key, Task<Image> picture, std::function<Task<Image>(std::string)> load);
   static void trim(Inner& in);
+
+ public:
+  /** 2.0: a new picture of the map begins (drawAerial says so): what it asks for is kept, however many tiles that is */
+  void newFrame() { in->frameStart = in->tick + 1; }
+
+ private:
 };
 
 // ---- 2.0: Germany and beyond ------------------------------------------------------------------

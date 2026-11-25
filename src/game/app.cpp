@@ -141,9 +141,20 @@ Task<void> App::loadWorld(std::function<void(std::string)> onProgress, std::opti
       }
     }
     if (co_await parts->open(partFiles)) {
-      regionTiles = parts;
-      regionId = region->id;
-      map = co_await MapLoader::open(std::make_shared<RegionFiles>(MAP_ASSETS_URL, region->id), options);
+      // (the region's own index or network unreadable – offline, a file missing: the site's map, as when its parts are)
+      std::string why;
+      try {
+        map = co_await MapLoader::open(std::make_shared<RegionFiles>(MAP_ASSETS_URL, region->id), options);
+      } catch (const std::exception& e) {
+        why = e.what();
+      }
+      if (why.empty() && map) {
+        regionTiles = parts;
+        regionId = region->id;
+      } else {
+        map = nullptr;
+        plat::warn("[region] " + region->id + ": its map could not be opened (" + why + "): the site's map is loaded");
+      }
     } else {
       plat::warn("[region] " + region->id + ": the index of its tiles could not be read: the site's map is loaded");
     }

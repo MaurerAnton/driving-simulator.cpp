@@ -9,15 +9,15 @@ namespace fs {
 namespace {
 
 std::unordered_map<int, std::function<void()>>& endedTable() {
-  static std::unordered_map<int, std::function<void()>> t;
-  return t;
+  static auto* t = new std::unordered_map<int, std::function<void()>>();   // (never destroyed: see engine/gpu.h freed())
+  return *t;
 }
 int nextEnded = 1;
 
 /** the listeners of speechSynthesis's 'voiceschanged', in the order they were added */
 std::vector<std::pair<int, std::function<void()>>>& voiceListeners() {
-  static std::vector<std::pair<int, std::function<void()>>> l;
-  return l;
+  static auto* l = new std::vector<std::pair<int, std::function<void()>>>();
+  return *l;
 }
 int nextVoiceListener = 1;
 int nextUtterance = 1;
@@ -38,8 +38,8 @@ namespace {
 
 /** the utterances handed to speak() that have neither ended nor failed yet */
 std::unordered_map<int, std::shared_ptr<SpeechSynthesisUtterance::State>>& utterances() {
-  static std::unordered_map<int, std::shared_ptr<SpeechSynthesisUtterance::State>> t;
-  return t;
+  static auto* t = new std::unordered_map<int, std::shared_ptr<SpeechSynthesisUtterance::State>>();
+  return *t;
 }
 
 }  // namespace

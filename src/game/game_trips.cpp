@@ -109,21 +109,31 @@ void eachLane(const LaneGraph::EdgeLanes& el, Visit&& visit) {
  * the car are known.
  */
 void Game::wantNet() {
-  if (netAsked || !app.map->pieces) return;
+  if (netAsked || netGaveUp || !app.map->pieces || plat::nowMs() < netRetryAt) return;
   netAsked = true;
   [](Game* self) -> Task<void> {
+    std::string why;
     try {
       std::shared_ptr<const NetData> net = co_await self->app.map->net();
       std::shared_ptr<NetIndex> index = net ? co_await NetIndex::build(net) : nullptr;
-      if (!index) co_return;
-      // (the index is the game's alone from here on: what `build` made moves into the game's own)
-      self->netIndex = std::make_unique<NetIndex>(std::move(*index));
-      self->nav->net = &self->netIndex->graph;
+      if (index) {
+        // (the index is the game's alone from here on: what `build` made moves into the game's own)
+        self->netIndex = std::make_unique<NetIndex>(std::move(*index));
+        self->nav->net = &self->netIndex->graph;
+        co_return;
+      }
+      why = "no network in the map";
     } catch (const std::exception& err) {
-      // (asked again the next time they are needed)
-      self->netAsked = false;
-      plat::warn(std::string("the road network of the whole map could not be read ") + err.what());
+      why = err.what();
     }
+    // 2.0: asked again after a pause (10, 20, 30 s), read anew each time; after four tries the game gives up on it –
+    // what waits for it ends then (the lesson's way, the demonstration drive) instead of waiting for ever
+    self->app.map->forgetNet();
+    self->netAsked = false;
+    self->netTries++;
+    self->netRetryAt = plat::nowMs() + 10000.0 * self->netTries;
+    if (self->netTries >= 4) self->netGaveUp = true;
+    plat::warn("the road network of the whole map could not be read (" + why + ")" + (self->netGaveUp ? ": given up" : ": asked again later"));
   }(this).detach();
 }
 
@@ -547,8 +557,11 @@ void Game::updateDemo(double dt, PlayerState& p) {
     bool found = false;
     std::optional<Demo::Tour>& tour = demo.tour;
     const RouteGraph* gNow = routeGraphNow();
-    // (the roads of the whole map are still being read: a moment)
-    if (!gNow) return;
+    // (the roads of the whole map are still being read: a moment – 2.0: or never, when they could not be read)
+    if (!gNow) {
+      if (netGaveUp) endDemo("lost");
+      return;
+    }
     const RouteGraph& g = *gNow;
     // (a search that finds no way runs through the roads of the whole map: not every picture, then)
     if (time < demo.searchAt) return;

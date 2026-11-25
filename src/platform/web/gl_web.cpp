@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 /** platform/glhost.h in the browser: a WebGL 2 context on the page's canvas. */
+#include <emscripten.h>
 #include <emscripten/html5.h>
 
 #include <cstdlib>
@@ -11,6 +12,19 @@ extern "C" {
 int fsg_tex_image(int fromCanvas, int source, int flipY, int srgb, int* sizeOut);
 char* fsg_renderer_name();
 }
+
+/**
+ * The graphics context lost (a reset of the graphics chip, a phone taking the memory back): the browser is told
+ * the page wants it back (preventDefault), and when it is there again the page is loaded anew – everything
+ * drawn would have to be made again, and a fresh start does that.  (Before, the picture stayed black.)
+ */
+EM_JS(void, fsg_watch_context, (const char* id), {
+  const el = document.getElementById(UTF8ToString(id));
+  if (!el || el.__fsWatched) return;
+  el.__fsWatched = true;
+  el.addEventListener('webglcontextlost', function (e) { e.preventDefault(); console.warn('[gl] the graphics context was lost'); });
+  el.addEventListener('webglcontextrestored', function () { location.reload(); });
+});
 
 namespace fs::plat::gl {
 
@@ -38,6 +52,7 @@ bool createContext(const std::string& canvasId, int width, int height, const Con
   if (context <= 0) return false;
   emscripten_webgl_make_context_current(context);
   emscripten_set_canvas_element_size(canvasSelector.c_str(), width, height);
+  fsg_watch_context(canvasId.c_str());
   return true;
 }
 

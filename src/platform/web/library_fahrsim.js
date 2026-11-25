@@ -123,6 +123,12 @@ addToLibrary({
     FSD.ids.delete(el);
     FSD.els[h] = null;
     FSD.free.push(h);
+    // a canvas the program has let go of and that is not in the page: its 2D context (and its pixels) go too
+    const c = FSD.ctxOf.get(el);
+    if (c && !el.isConnected) {
+      FSD.ctxs[c] = null;
+      FSD.ctxOf.delete(el);
+    }
   },
   fsd_create__deps: ['$FSD'],
   fsd_create: function (tag) {
@@ -528,12 +534,19 @@ addToLibrary({
   fsc_gradient__deps: ['$FSD'],
   fsc_gradient: function (c, radial, a, b, d, e, f, g) {
     const x = FSD.ctxs[c];
-    FSD.grads.push(radial ? x.createRadialGradient(a, b, d, e, f, g) : x.createLinearGradient(a, b, d, e));
-    return FSD.grads.length - 1;
+    const grad = radial ? x.createRadialGradient(a, b, d, e, f, g) : x.createLinearGradient(a, b, d, e);
+    // (a slot given back is used again: gradients made every frame do not pile up)
+    if (!FSD.gradFree) FSD.gradFree = [];
+    const at = FSD.gradFree.length ? FSD.gradFree.pop() : FSD.grads.push(null) - 1;
+    FSD.grads[at] = grad;
+    return at;
   },
   fsc_gradient_free__deps: ['$FSD'],
   fsc_gradient_free: function (g) {
+    if (g <= 0 || !FSD.grads[g]) return;
     FSD.grads[g] = null;
+    if (!FSD.gradFree) FSD.gradFree = [];
+    FSD.gradFree.push(g);
   },
   fsc_get_image_data__deps: ['$FSD'],
   fsc_get_image_data: function (c, x, y, w, h, out) {

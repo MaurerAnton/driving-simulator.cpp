@@ -54,7 +54,7 @@ class Renderer {
   /** draw to this target from now on (null: the screen) */
   void setRenderTarget(const RenderTargetPtr& target);
   const RenderTargetPtr& getRenderTarget() const { return target_; }
-  /** the part of the target that is drawn to (real pixels; unset: all of it) */
+  /** the part of the target that is drawn to, in CSS pixels as three.js (× the pixel ratio for the buffer; unset: all of it) */
   void setViewport(int x, int y, int width, int height);
   void resetViewport();
   void setScissor(int x, int y, int width, int height);

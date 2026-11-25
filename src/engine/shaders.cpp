@@ -6,6 +6,10 @@
  */
 #include "engine/shaders.h"
 
+#include <algorithm>
+#include <cctype>
+#include <string_view>
+
 #include <cstdio>
 #include <cstring>
 #include <unordered_map>
@@ -424,15 +428,38 @@ std::vector<std::pair<std::string, int>>& registry() {
 }  // namespace
 
 int attributeLocation(const std::string& name) {
-  auto& r = registry();
-  int next = 9;
-  for (const auto& e : r) {
+  for (const auto& e : registry())
     if (e.first == name) return e.second;
-    if (e.second >= next) next = e.second + 1;
+  return -1;
+}
+
+std::vector<std::string> customAttributes(const std::string& vs) {
+  std::vector<std::string> out;
+  size_t line = 0;
+  while (line < vs.size()) {
+    size_t end = vs.find('\n', line);
+    if (end == std::string::npos) end = vs.size();
+    size_t a = line;
+    while (a < end && (vs[a] == ' ' || vs[a] == '\t')) a++;
+    // a declaration of its own line: "attribute vec4 auvd;" (three's) or "in vec4 auvd;" – not "#define attribute in"
+    std::string_view l(vs.data() + a, end - a);
+    const bool attr = l.rfind("attribute ", 0) == 0, in = l.rfind("in ", 0) == 0;
+    const size_t semi = l.find(';');
+    if ((attr || in) && semi != std::string_view::npos && l.find('(') == std::string_view::npos) {
+      size_t ne = semi;
+      while (ne > 0 && std::isspace(static_cast<unsigned char>(l[ne - 1]))) ne--;
+      size_t ns = ne;
+      while (ns > 0 && (std::isalnum(static_cast<unsigned char>(l[ns - 1])) || l[ns - 1] == '_')) ns--;
+      // (the type sits between the keyword and the name: there must be one)
+      const size_t typeStart = attr ? 10 : 3;
+      if (ne > ns && ns > typeStart) {
+        std::string name(l.substr(ns, ne - ns));
+        if (attributeLocation(name) < 0 && std::find(out.begin(), out.end(), name) == out.end()) out.push_back(name);
+      }
+    }
+    line = end + 1;
   }
-  if (next > 15) return -1;
-  r.emplace_back(name, next);
-  return next;
+  return out;
 }
 
 const std::vector<std::pair<std::string, int>>& attributeLocations() { return registry(); }

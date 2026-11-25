@@ -72,12 +72,25 @@ addToLibrary({
     }
   },
   /** what the page has fetched so far (bytes over the wire: the browser's resource timing) */
+  // (added up as the entries come: the browser's own list keeps only the first ~250 of them)
   fsx_downloaded: function () {
-    let n = 0;
-    try {
-      for (const e of performance.getEntriesByType('navigation')) n += e.transferSize || 0;
-      for (const e of performance.getEntriesByType('resource')) n += e.transferSize || 0;
-    } catch (e) {}
-    return n;
+    const w = window;
+    if (w.__fsBytes === undefined) {
+      w.__fsBytes = 0;
+      try {
+        const add = (list) => {
+          for (const e of list.getEntries()) w.__fsBytes += e.transferSize || 0;
+        };
+        new PerformanceObserver(add).observe({ type: 'resource', buffered: true });
+        new PerformanceObserver(add).observe({ type: 'navigation', buffered: true });
+      } catch (e) {
+        // (no observer: what the list holds)
+        try {
+          for (const e of performance.getEntriesByType('navigation')) w.__fsBytes += e.transferSize || 0;
+          for (const e of performance.getEntriesByType('resource')) w.__fsBytes += e.transferSize || 0;
+        } catch (e2) {}
+      }
+    }
+    return w.__fsBytes;
   },
 });

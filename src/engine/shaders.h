@@ -63,13 +63,18 @@ void buildDepthShader(bool instancing, bool alphaTestedMap, std::string& vertex,
 
 /**
  * The attribute locations every program is linked with: 'position' 0, 'normal' 1,
- * 'uv' 2, 'color' 3, 'instanceMatrix' 4…7, 'instanceColor' 8, and the game's own
- * attributes ('amat', 'astyle' …) from 9 on in the order they are first seen.
- * Returns -1 when there is no location left for a new name.
+ * 'uv' 2, 'color' 3, 'instanceMatrix' 4…7, 'instanceColor' 8 (-1: not one of these).
+ * The game's own attributes ('amat', 'astyle' …) take 9, 10 … in the order one program's
+ * vertex shader declares them: each program has its own (customAttributes).
  */
 int attributeLocation(const std::string& name);
-/** the names that have a location, for glBindAttribLocation */
+/** the built-in names with their locations, for glBindAttribLocation */
 const std::vector<std::pair<std::string, int>>& attributeLocations();
+/** the first location of the game's own attributes, and one past the last one there is */
+inline constexpr int FIRST_CUSTOM_ATTRIBUTE = 9;
+inline constexpr int END_CUSTOM_ATTRIBUTES = 16;
+/** the attributes a vertex shader declares that are not built in, in their order (lines "attribute <type> <name>;" / "in …") */
+std::vector<std::string> customAttributes(const std::string& vertexSource);
 
 namespace shaderText {
 /** `#include <chunk>` lines replaced by the chunks (and theirs) */

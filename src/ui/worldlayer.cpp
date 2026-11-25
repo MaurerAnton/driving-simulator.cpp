@@ -42,11 +42,16 @@ Task<void> WorldLayer::load(std::string siteBase, std::array<double, 4> siteMap,
 void WorldLayer::set(WorldOutline outline, const RegionIndex* index, std::array<double, 4> siteMap, std::string siteName) {
   outline_ = std::move(outline);
   regions_.clear();
-  Region site;
-  site.id = SITE;
-  site.name = std::move(siteName);
-  site.box = siteMap;
-  regions_.push_back(site);
+  // (the site's own map, when it is known: offline its map.json may be missing – no name, no box – and a dot at the
+  // frame's origin would then take taps meant for the real region there)
+  siteListed_ = !siteName.empty() && siteMap[2] > siteMap[0] && siteMap[3] > siteMap[1];
+  if (siteListed_) {
+    Region site;
+    site.id = SITE;
+    site.name = std::move(siteName);
+    site.box = siteMap;
+    regions_.push_back(site);
+  }
   if (index)
     for (const Region& r : index->regions) regions_.push_back(r);
   country_.assign(regions_.size(), -1);
