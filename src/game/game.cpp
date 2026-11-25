@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
-#include "game/theorymode.h"
 #include "game/weather.h"
 
 #include <algorithm>
@@ -23,6 +22,7 @@
 #include "game/releases.h"
 #include "game/routepresets.h"
 #include "game/spawncar.h"
+#include "game/theorymode.h"
 #include "game/track.h"
 #include "geo/utm.h"
 #include "i18n/index.h"
