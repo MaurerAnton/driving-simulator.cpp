@@ -2,6 +2,7 @@
 // Origin: src/game/game.ts @ v1.7.7 (the headlights: headlights – game.ts:3537–3570)
 #include "game/beamplay.h"
 #include "game/game.h"
+#include "game/weather.h"
 #include "game/onfoot.h"
 #include "game/openplay.h"
 #include "i18n/index.h"
