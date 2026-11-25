@@ -77,7 +77,7 @@ inline const std::vector<Release> RELEASES = {
     {
         .version = "2.1.0",
         .date = "2026-11-25",
-        .at = "",
+        .at = "2026-11-25T22:15:24Z",
         .intro = "news.2_1_0.intro",
         .items = {"news.2_1_0.walk", "news.2_1_0.weather", "news.2_1_0.transit", "news.2_1_0.roads", "news.2_1_0.traffic",
                   "news.2_1_0.fuel", "news.2_1_0.learn", "news.2_1_0.watch", "news.2_1_0.regions", "news.2_1_0.sdl"},
