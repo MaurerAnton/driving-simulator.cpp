@@ -67,10 +67,12 @@ class DrivenPath;
 class FarTerrain;
 class FaultLog;
 class FlyCam;
+class GrassRenderer;
 class GameAudio;
 struct LessonDef;
 struct MapFollowers;
 class Navigator;
+class Outdoors;
 class NetIndex;
 class ParkedCarRenderer;
 class PedLightRenderer;
@@ -100,6 +102,7 @@ class LevelCrossingRenderer;
 class YardTask;
 class Trailer;
 class Vehicle;
+class WindscreenView;
 class WorldGround;
 // (src/ui and src/input)
 class BigMap;
@@ -192,7 +195,7 @@ class Game {
   /** who follows the road network as it comes in pieces (sim/follow.h) */
   std::unique_ptr<MapFollowers> followers;
   const std::unique_ptr<PropRenderer> props;
-  // (later: grass – game.ts:290)
+  // (grass: below, '--- weather, seasons, the windscreen ---' – game.ts:290)
   std::unique_ptr<SignRenderer> signs;
   PlayerCar car;
   const std::unique_ptr<TrafficRenderer> actors;
@@ -300,7 +303,7 @@ class Game {
   // (later: the aeroplane: aircraft … flightControls – game.ts:416)
   // (later: lines, lineStopsDirty, linesFor – game.ts:437)
   const std::unique_ptr<SceneryCollider> collider;
-  // (later: outdoors, shelterOf, explosion, wrecked – game.ts:443)
+  // (outdoors, shelterOf: below, '--- weather, seasons, the windscreen ---'; later: explosion, wrecked – game.ts:443)
   const std::unique_ptr<GameAudio> audio;
   // (later: sirens, services – game.ts:452)
   State state = "loading";
@@ -313,7 +316,7 @@ class Game {
   int fpsFrames = 0;
   double fpsSince = 0;
   int mirrorTurn = 0;
-  // (later: windscreen, mirrorZoom, hudMirror – game.ts:466)
+  // (windscreen: below, '--- weather, seasons, the windscreen ---'; later: mirrorZoom, hudMirror – game.ts:466)
   /** a tap on the vehicle's screen: the big map or the corner map (ui/screentap.ts) */
   std::unique_ptr<ScreenTap> screenTap;
   std::optional<SpawnJson> spawn;
@@ -597,7 +600,7 @@ class Game {
   bool ready = false;
   void frame(double now);
   CarVisualState visual;
-  // (later: updateOutdoors, soundAt – game.ts:6842)
+  // (updateOutdoors: below, '--- weather, seasons, the windscreen ---'; later: soundAt – game.ts:6842)
   void updateVisuals(double dt);
   void speak(const std::string& what, double dist, const std::string& text);
   /** on foot: how far the head is turned by the glance keys (smoothed) */
@@ -793,6 +796,21 @@ class Game {
   bool canEnterParked();
   /** Into a vehicle parked on the map: a free drive with it begins where it stands. */
   void enterParked(const Parked& p);
+  // --- weather, seasons, the windscreen ---
+  /** vertical grass on the ground ("No mercy"): render/grass.h (game.ts:290) */
+  std::unique_ptr<GrassRenderer> grass;
+  /** the weather and the season (game/outdoors.h): made once the map is read (game.ts:443) */
+  std::unique_ptr<Outdoors> outdoors;
+  /** what the rain is kept out of now: the vehicle's model, a crane's cab (the camera), nothing (game.ts:445) */
+  Object3D* shelterOf = nullptr;
+  /** the windscreen in rain and snow, and the wiper stalk (render/windscreen.h, game/wipers.h; game.ts:466) */
+  std::unique_ptr<WindscreenView> windscreen;
+  /**
+   * The weather and the season, once a picture: the real weather (or the
+   * one chosen) where the player is, rain and snow round the camera but not
+   * in the cab, the grip of the road.
+   */
+  void updateOutdoors(double dt, VehicleModel& model);
   // --- roadworks, narrowings, level crossings, signs with times ---
   /** the signs the map was built without (signs.json.gz, world/extrasigns): added to each tile – and the rules of those with a time on them (`rules.timed`) */
   std::shared_ptr<ExtraSigns> extraSigns;

@@ -6,12 +6,11 @@
  * Of the original's settings, those of parts that are not in 2.0.0 (docs/STATUS.md,
  * "Later") have no row here: the main-beam assist, the flight assist, the running
  * speed and the way of walking, beginning a drive on foot, the menu's style (stage,
- * rows), the vehicles' finer detail, real water, the weather on the vehicle and the
- * roads, the weather and the season with their credit, the key for the fuel prices,
+ * rows), the vehicles' finer detail, real water, the key for the fuel prices,
  * the developer's map modes, and WebAssembly on or off (all of this port is).  The
  * version picker and the map packs come through their hooks (hud.h).  In the table of
  * the controls the sections of walking, the tram, the aeroplane, the cranes, the
- * forklift and the articulated lorry are left out, and the rows of the wipers, the
+ * forklift and the articulated lorry are left out, and the rows of the
  * service, the doors, the reality view, replays and following one's real position.
  */
 #include <algorithm>
@@ -20,6 +19,7 @@
 
 #include "audio/speech.h"
 #include "core/js.h"
+#include "game/weather.h"
 #include "input/camzoom.h"
 #include "platform/intl.h"
 #include "platform/plat.h"
@@ -243,18 +243,52 @@ void Hud::showSettings(std::function<void()> back) {
         sp->quality = "custom";
       });
     }
+    // the weather on the vehicle and the roads, and the seasons by the date (on "No mercy")
+    check(t("gfxWeatherFx"), g.weatherFx, [this, sp, back](bool v) {
+      // (what makes "No mercy": the same warning first)
+      if (v && !plat::confirm(t("noMercyAsk"))) {
+        plat::soon([this, back] { showSettings(back); });
+        return;
+      }
+      sp->graphics.weatherFx = v;
+      sp->quality = "custom";
+    });
     // (the rows were added to the panel: into the folded box with them)
     while (target.childElementCount() > at) box.append(target.child(at));
     target.append(box);
   }
   select(t("mirrors"), s.mirrors, {{"off", t("mOff")}, {"alternate", t("mAlt")}, {"full", t("mFull")}}, [sp](const std::string& v) { sp->mirrors = v; });
   range(t("traffic"), s.traffic, [sp](double v) { sp->traffic = v; });
-  // --- sound ---
+  // --- sound & weather ---
   goTab("sound");
   range(t("volume"), s.volume, [sp](double v) { sp->volume = v; });
   // music made as it plays: off unless asked for
   select(t("music"), s.music, {{"off", t("musicOff")}, {"quiet", t("musicQuiet")}, {"on", t("musicOn")}}, [sp](const std::string& v) { sp->music = v; });
   range(t("musicVolume"), s.musicVolume, [sp](double v) { sp->musicVolume = v; });
+  // the weather – the real one comes from Open-Meteo (CC BY 4.0), which learns the IP address and the area – and the season
+  {
+    Options weathers;
+    for (const std::string& k : WEATHER_CHOICES)
+      for (const auto& [key, name] : WEATHER_KEYS)
+        if (key == k) weathers.emplace_back(k, t(name));
+    select(t("weather"), s.weather, weathers, [sp](const std::string& v) { sp->weather = v; });
+    El credit = el("p", "note");
+    El link = el("a", "", t("weatherCredit"));
+    link.setAttribute("href", WEATHER_ATTRIBUTION.url);
+    link.setAttribute("target", "_blank");
+    link.setAttribute("rel", "noopener");
+    El lic = el("a", "", WEATHER_ATTRIBUTION.licence);
+    lic.setAttribute("href", WEATHER_ATTRIBUTION.licenceUrl);
+    lic.setAttribute("target", "_blank");
+    lic.setAttribute("rel", "noopener");
+    credit.append(link, " (", lic, ") – ", t("weatherNote"));
+    target.append(credit);
+    Options seasons;
+    for (const std::string& k : SEASON_CHOICES)
+      for (const auto& [key, name] : SEASON_KEYS)
+        if (key == k) seasons.emplace_back(k, t(name));
+    select(t("season"), s.season, seasons, [sp](const std::string& v) { sp->season = v; });
+  }
   // --- display (the on-screen controls, the hints, the picture's aids) ---
   goTab("display");
   select(t("touchControls"), s.touchControls, {{"auto", t("tcAuto")}, {"on", t("tcOn")}, {"off", t("tcOff")}}, [sp](const std::string& v) { sp->touchControls = v; });
@@ -399,6 +433,7 @@ void Hud::showControls(std::function<void()> back) {
            {all({k({"KeyL"}), word(" / "), k({"KeyO"})}), "ctl.lights"},
            {k({"KeyO"}), "beam.ctlFlasher"},
            {k({"KeyH"}), "ctl.horn"},
+           {all({k({"Digit8"}), word(" / "), k({"Digit7"})}), "ctl.wipers"},
            {k({"KeyV"}), "ctl.camera"},
            {k({"KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"}), "ctl.freeCam"},
            {k({"KeyT"}), "ctl.reset"},

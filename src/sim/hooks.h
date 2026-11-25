@@ -212,29 +212,6 @@ inline constexpr int EM_STYLE = 8;
 /** which emergency vehicle a style is (0 …), −1: none (src/sim/emergency.ts emKind) */
 inline int emKind(int style) { return style >= EM_STYLE && style < EM_STYLE + 8 ? (style - EM_STYLE) >> 1 : -1; }
 
-// ---- src/game/weather.ts ------------------------------------------------------------------
-// (what the cranes ask of the weather: its wind.  Until game/weather is translated the weather shown is
-//  always CLEAR_WEATHER – what 1.7.7 shows with the weather switched off – so these give its wind.)
-
-/** the part of a WeatherState the cranes read: mean wind 10 m above the ground (m/s), the strongest gusts (m/s), where it comes from (degrees) */
-struct WeatherState {
-  double wind = 2.5;
-  double gust = 5;
-  double windFrom = 250;
-};
-
-/** the weather shown now (game/weather.ts weatherNow: CLEAR_WEATHER until it is translated) */
-inline WeatherState weatherNow() { return WeatherState{}; }
-
-/** Where the wind blows to, and how hard (m/s): x east, z south (game/weather.ts windVector). */
-template <typename Out>
-Out& windVector(const WeatherState& s, Out& out) {
-  const double a = (s.windFrom * 3.14159265358979323846) / 180;
-  const double v = s.wind > 0 ? s.wind : 0;
-  // from the north (0°) it blows to the south, +z
-  out.x = -std::sin(a) * v;
-  out.z = std::cos(a) * v;
-  return out;
-}
+// ---- src/game/weather.ts: translated (game/weather.h) ----------------------------------------
 
 }  // namespace fs

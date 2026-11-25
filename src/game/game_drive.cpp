@@ -52,6 +52,7 @@
 #include "sim/vehicle/index.h"
 #include "ui/bigmap.h"
 #include "ui/geolocate.h"
+#include "render/windscreen.h"
 #include "ui/hud.h"
 #include "ui/lessonstart.h"
 #include "ui/pathdraw.h"
@@ -597,7 +598,13 @@ void Game::onAction(const std::string& a) {
     // F3, or "Turn around" in the ⋯ sheet: into the lane of the other direction, or on the spot
     turnAround();
   }
-  // (later: 'wiper', 'service' – game.ts:3933)
+  else if (a == "wiper" && state == "drive" && !walker && !aircraft) {
+    // the wiper stalk one place on: off → intermittent → normal → fast
+    const WiperMode m = windscreen->cycle();
+    audio->click("tick");
+    hud->message(tr("wipers.title", settings.lang), tr("wipers." + m, settings.lang));
+  }
+  // (later: 'service' – game.ts:3943)
   else if (a == "help") {
     if (state == "drive") {
       state = "pause";

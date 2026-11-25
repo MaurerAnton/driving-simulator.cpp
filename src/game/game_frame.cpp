@@ -15,6 +15,8 @@
 #include "game/cockpit.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
+#include "game/outdoors.h"
+#include "game/weather.h"
 #include "game/game.h"
 #include "game/nav.h"
 #include "game/routepresets.h"
@@ -28,6 +30,7 @@
 #include "render/actors.h"
 #include "render/crane.h"
 #include "render/far.h"
+#include "render/grass.h"
 #include "render/mirrors.h"
 #include "render/pedlights.h"
 #include "render/plane.h"
@@ -37,6 +40,7 @@
 #include "render/yard.h"
 #include "render/signs.h"
 #include "render/truck.h"
+#include "render/windscreen.h"
 #include "sim/autodriver.h"
 #include "sim/autopilot.h"
 #include "sim/flight.h"
@@ -434,7 +438,7 @@ void Game::frame(double now) {
     const std::array<double, 2> f = focus();
     tiles.update(f[0], f[1]);
     props->update(f[0], f[1]);
-    // (later: grass.update – game.ts:6621)
+    grass->update(f[0], f[1], dt);
     updateVisuals(dt);
     // a crane posed as it works, the loads of its site where they are
     if (crane)
@@ -449,7 +453,7 @@ void Game::frame(double now) {
     const double cz = menuFocus.z + std::sin(a) * 260;
     tiles.update(menuFocus.x, menuFocus.z);
     props->update(cx, cz);
-    // (later: grass.update – game.ts:6641)
+    grass->update(cx, cz, dt);
     const double gy = tiles.heightAt(menuFocus.x, menuFocus.z);
     const double base = std::isnan(gy) ? 230 : gy;
     app.camera->position.set(cx, base + 95, cz);
@@ -492,7 +496,7 @@ void Game::frame(double now) {
   // (later: the replay's camera – game.ts:6723)
   else if (haveCar) {
     updateCamera(dt);
-    // (later: updateOutdoors – game.ts:6729)
+    updateOutdoors(dt, model);
     // the player's own figure: on foot, when the camera is not their eyes (not on the way in or out, not on a seat)
     // (later: riding, busRide – game.ts:6733)
     const OnFoot* fw = walker.get();
@@ -519,7 +523,34 @@ void Game::frame(double now) {
     // (later: the watcher's place as the middle of the picture – game.ts:6748)
     app.render(model.root->position);
     lap(frameTimes.render);
-    // (later: windscreen.frame, hud.setWipers, the fault noView – game.ts:6750)
+    // rain and snow on the windscreen, the wipers ("No mercy" graphics – 1.7.0: "very high" –, from the driver's seat): after the picture, which it keeps for its blur
+    {
+      const WeatherState& wn = weatherNow();
+      struct {
+        double x = 0, z = 0;
+      } wind;
+      windVector(wn, wind);
+      WindscreenView& ws = *windscreen;
+      // (later: not while watching – game.ts:6753)
+      ws.frame({.renderer = &app.renderer,
+                .scene = app.scene.get(),
+                .camera = app.camera.get(),
+                .model = &model,
+                .detail = settings.graphics.vehicleDetail && settings.graphics.weatherFx && !aircraft,
+                .cockpit = cameraMode == "cockpit" && !walker && doorT < 0,
+                .dt = state == "drive" ? dt : 0,
+                .rain = rainIntensity(wn),
+                .snow = snowIntensity(wn),
+                .temperature = wn.temperature,
+                .roadWet = wn.wet,
+                .windX = wind.x,
+                .windZ = wind.z,
+                .heater = vehicle->engineRunning,
+                .washer = input->washer(),
+                .light = app.sky.hemi->intensity / 1.2});
+      hud->setWipers(walker || aircraft ? std::nullopt : std::optional<std::string>(ws.mode));
+      if (ws.blindFor > 4 && state == "drive") rules->note("noView", "minor", {}, 60);
+    }
   } else {
     app.render(menuFocus);
   }
@@ -538,6 +569,37 @@ void Game::frame(double now) {
     frameTimes.frames++;
   }
   if (looping) plat::requestAnimationFrame([this](double t) { frame(t); });
+}
+
+void Game::updateOutdoors(double dt, VehicleModel& model) {
+  Outdoors* od = outdoors.get();
+  if (!od) return;
+  // the cab keeps the rain out: the vehicle's outline, as high as it is (the tram's and the aeroplane's cabs: none) –
+  // a crane's cab, high up on its tower or turntable, round the eye (the loader crane is worked standing beside the truck)
+  // (later: not in a replay, in the tram – game.ts:6847)
+  const bool craneCab = crane && cameraMode == "cockpit" && def->kind != "loaderCrane";
+  const bool inside = !craneCab && !walker && !aircraft;
+  Object3D* shelter = craneCab ? static_cast<Object3D*>(app.camera.get()) : inside ? static_cast<Object3D*>(model.root.get()) : nullptr;
+  if (shelter != shelterOf) {
+    shelterOf = shelter;
+    const Outline& o = def->outline;
+    const double high = def->model == "car" ? 1.7 : def->model == "motorcycle" ? 0 : 3.6;
+    if (craneCab) od->view.setShelter(app.camera.get(), Box3(Vector3(-1.6, -1.6, -1.6), Vector3(1.6, 1.6, 1.6)));
+    else if (shelter && high > 0) od->view.setShelter(shelter, Box3(Vector3(-o.hw - 0.1, 0, -o.front - 0.1), Vector3(o.hw + 0.1, high, o.rear + 0.1)));
+    else od->view.setShelter(nullptr);
+  }
+  const OnFoot* w = walker.get();
+  const double x = w && walkerAway() ? w->x : mpos[0];
+  const double z = w && walkerAway() ? w->z : mpos[2];
+  od->update(dt, app.camera->position, Vector3(x, app.tiles->heightAt(x, z), z), {.weather = settings.weather, .season = settings.season, .weatherFx = settings.graphics.weatherFx},
+             lanes.get());
+  // (later: today's fuel prices – game.ts:6862)
+  ground->weatherGrip = od->grip;
+  // (the road physics switched off in the arcade options: every surface as dry asphalt)
+  ground->even = settings.evenRoads;
+  ground->evenTerrain = settings.evenTerrain;
+  // (bare winter crowns throw no full shadows: the trees' shadows go while they are bare)
+  props->setShadows(settings.graphics.propShadows && !od->look.thinCrowns());
 }
 
 void Game::updateVisuals(double dt) {

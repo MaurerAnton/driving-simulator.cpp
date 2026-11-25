@@ -15,6 +15,7 @@
 #include "render/cranesite.h"
 #include "sim/collision.h"
 #include "sim/ground.h"
+#include "game/weather.h"
 #include "sim/hooks.h"
 #include "sim/vehicle/vehicle.h"
 #include "ui/cranepanel.h"
