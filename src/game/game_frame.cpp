@@ -35,6 +35,8 @@
 #include "render/pedlights.h"
 #include "render/plane.h"
 #include "render/props.h"
+#include "render/levelcrossings.h"
+#include "render/roadworks.h"
 #include "render/yard.h"
 #include "render/signs.h"
 #include "render/truck.h"
@@ -472,7 +474,18 @@ void Game::frame(double now) {
     actors->update(traffic->cars, traffic->peds(), time, traffic->cyclists ? traffic->cyclists->list : noCyclists);
   }
   lap(frameTimes.scene);
-  // (later: wildView, railActors, transit, the lines of the trams, roadworks, crossingView, explosion – game.ts:6682)
+  // (later: wildView, railActors, transit, the lines of the trams – game.ts:6682)
+  {
+    const Vector3& cam = app.camera->position;
+    // the roadworks and the demonstrations of the day around the camera
+    if (roadworks) {
+      roadworks->crowdCap = settings.quality == "low" ? 70 : settings.quality == "medium" ? 140 : 220;
+      roadworks->update(roadEvents.get(), signs.get(), cam.x, cam.z, time, dt);
+    }
+    // the level crossings around the camera: their lights, barriers and bells
+    if (crossingView && levelCrossings) crossingView->update(*levelCrossings, signs.get(), cam.x, cam.z, time);
+  }
+  // (later: explosion – game.ts:6708)
   // (later: headlights – game/beamplay.ts, game.ts:6714)
   // (later: online.frame – game.ts:6716)
 

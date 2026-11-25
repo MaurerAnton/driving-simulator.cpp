@@ -13,6 +13,7 @@
 #include "game/ce.h"
 #include "game/clock.h"
 #include "game/craneplay.h"
+#include "game/exam/learnstore.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/yardtask.h"
@@ -514,7 +515,9 @@ void Game::finish() {
   lastResult->points = rules->points();
   lastResult->distanceKm = (vehicle->odometer - startOdo) / 1000;
   lastResult->minutes = (time - startTime) / 60;
-  // (later: noteLessonEnd, the lesson log – game/exam/learnstore.ts, game.ts:3604; offerReplay)
+  // how the lesson ended, for the lesson log (game/exam/learnstore.ts – ui/learn.ts)
+  // (later: the basic tasks finished in it, drill.results – game/drills.ts; offerReplay)
+  if (l) noteLessonEnd(l->id, !failed, rules->points(), {});
   hud->showResult(*lastResult);
 }
 
@@ -1056,7 +1059,13 @@ void Game::stepDrive(double dt) {
   // (a passenger does not drive: nothing to judge)
   if (!opens.passenger()) rules->update(dt, snap, traffic->events);
   signalTips(dt);
-  // (later: traffic.emergency.judging, its tip; roadEvents.takeTip – game.ts:4374)
+  // (later: traffic.emergency.judging, its tip – game.ts:4374)
+  // (what the roadworks or a closure ahead ask: said once as they come up)
+  const std::string roadTip = roadEvents ? roadEvents->takeTip() : "";
+  if (!roadTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {
+    tipText = tr(roadTip, settings.lang);
+    tipUntil = time + 7;
+  }
   if (!flyParked) rememberGoodSpot(player);
   if (task) updateTask(dt);
   // (later: updateDrill – game.ts:4388)

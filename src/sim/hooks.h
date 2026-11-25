@@ -32,6 +32,10 @@
 #include "world/lanes.h"
 #include "world/types.h"
 #include "world/world.h"
+#include "world/extrasigns.h"
+#include "sim/narrowings.h"
+#include "sim/roadevents.h"
+#include "sim/levelcrossing.h"
 
 namespace fs {
 
@@ -148,85 +152,6 @@ class Emergencies {
   virtual const std::vector<EmergencyFault>& judge(double dt, const PlayerSnapshot& p) = 0;
 };
 
-// ---- src/sim/roadevents.ts ----------------------------------------------------------------
-
-/** What roadworks ask of a vehicle (interface Gate). */
-struct Gate {
-  /** stop this far ahead of the front (m; Infinity: no need) */
-  double stop = JS_INF;
-  /** at most this fast (m/s; Infinity: as the road allows) */
-  double cap = JS_INF;
-  /** the lane ends ahead (closed): the one to move over to */
-  Lane* move = nullptr;
-  /** the road the vehicle meant to turn into next is closed: choose another way */
-  bool reroute = false;
-  /** why it stops: '' | 'light' | 'oncoming' | 'lane' | 'closed' */
-  std::string why;
-};
-
-/** The roadworks and closures of the day (class RoadEvents). */
-class RoadEvents {
- public:
-  virtual ~RoadEvents() = default;
-  virtual void step(double dt, const std::vector<TrafficCar*>& cars, const PlayerState& player) = 0;
-  virtual Gate gate(const Lane& lane, double front, double v, const Connector* next) = 0;
-  /** null: nothing ahead of this car */
-  virtual const Gate* gateCar(TrafficCar& car) = 0;
-  virtual Lane* openLane(const Lane& lane) = 0;
-  virtual bool laneOpen(const Lane& lane, double front) = 0;
-  /** how far left (+) of its lane a vehicle passes a closed side there (m) */
-  virtual double shift(const Lane& lane, double mid) = 0;
-  virtual void offset(const Lane& lane, double d, PolySample& p) = 0;
-  virtual bool closed(const Lane& lane) = 0;
-  virtual bool blocked(const Lane& lane, double s) = 0;
-  /** the obstacles with the fences, barriers and crowds of the zones near the player added */
-  virtual const std::vector<PlayerState*>& withBlocks(const std::vector<PlayerState*>& obstacles, const PlayerState& player) = 0;
-  virtual double limitAt(const Edge& edge, double s, int dir, double limit) = 0;
-  virtual bool passing(const Edge& edge, double s, int dir) = 0;
-  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, double off, int dir, double dt) = 0;
-};
-
-// ---- src/sim/narrowings.ts ----------------------------------------------------------------
-
-struct NarrowGate {
-  double stop = JS_INF;
-  double cap = JS_INF;
-  /** '' | 'oncoming' */
-  std::string why;
-};
-
-/** The narrowings kerb build-outs make (class Narrowings). */
-class Narrowings {
- public:
-  virtual ~Narrowings() = default;
-  const PlayerState* player = nullptr;
-  virtual double shift(const Lane& lane, double mid, double hw = 0.95, double hl = 2.3) = 0;
-  virtual void offset(const Lane& lane, double d, PolySample& p, double hw = 0.95, double hl = 2.3) = 0;
-  virtual bool passing(const Edge& edge, double s, int dir) = 0;
-  virtual NarrowGate gate(const Lane& lane, double front, double v, double length, const TrafficCar* self) = 0;
-  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, int dir) = 0;
-};
-
-// ---- src/sim/levelcrossing.ts -------------------------------------------------------------
-
-struct LxGate {
-  double stop = JS_INF;
-  double cap = JS_INF;
-  /** '' | 'light' | 'barrier' | 'train' | 'queue' */
-  std::string why;
-};
-
-/** The level crossings (class LevelCrossings). */
-class LevelCrossings {
- public:
-  virtual ~LevelCrossings() = default;
-  const PlayerState* player = nullptr;
-  virtual void update(double dt, double x, double z) = 0;
-  /** `self`: the car of the traffic that asks – or, with `isPlayer`, the player's vehicle (the original's 'player') */
-  virtual LxGate gate(const Lane& lane, double front, double v, double length, const Connector* next, const TrafficCar* self, bool isPlayer = false) = 0;
-  virtual void judge(RuleMonitor& rules, const PlayerSnapshot& p, const Edge& edge, double s, int dir, double dt) = 0;
-};
-
 // ---- src/sim/wildlife.ts ------------------------------------------------------------------
 
 /** Deer and wild boar crossing the country roads at dusk (class Wildlife). */
@@ -277,24 +202,6 @@ class BusLines {
   virtual bool has(int w) = 0;
   /** the stops of `line` on its ways k0 … k1 (written into `out`, which is returned) */
   virtual std::vector<BusLineStop>& stopsOn(const BusLine& line, int k0, int k1, std::vector<BusLineStop>& out) = 0;
-};
-
-// ---- src/world/extrasigns.ts --------------------------------------------------------------
-
-/** The signs with a time on them: which hold now, by the game's clock (class TimedRules). */
-class TimedRules {
- public:
-  virtual ~TimedRules() = default;
-  struct Limit {
-    /** km/h */
-    double v = 0;
-    /** what the sign's panel says ("22–6 h") */
-    std::string when;
-  };
-  /** the limit of a timed sign on a road in a direction that holds now – none: the road's own */
-  virtual std::optional<Limit> limit(int edge, int dir, bool heavy) = 0;
-  /** shut now to motor vehicles (or lorries): what the panel says – '' when it is not */
-  virtual std::string shut(int edge, int dir, bool heavy) = 0;
 };
 
 // --- what other files use of the parts that are not ported ---------------------------

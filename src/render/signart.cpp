@@ -13,10 +13,6 @@
 
 namespace fs {
 
-// (src/sim/signtime.ts: see the header)
-std::function<std::optional<TimeWindow>(const std::string& raw)> parseTimeWindow;
-std::function<std::vector<std::string>(const TimeWindow& w)> windowLines;
-
 namespace {
 
 const char* const FONT =
@@ -708,9 +704,8 @@ const std::unordered_map<std::string, Danger> DANGER = {
 std::optional<Lines> panelLinesOf(const std::string& base, const std::string& arg) {
   if (startsWith(base, "1040-") || startsWith(base, "1042-")) {
     if (!arg.empty()) {
-      // (sim/signtime: while it is not there no time is read, as if it were one the original does not understand)
-      const std::optional<TimeWindow> w = parseTimeWindow ? parseTimeWindow(arg) : std::nullopt;
-      Lines lines = w && windowLines ? windowLines(*w) : Lines{arg};
+      const std::optional<TimeWindow> w = parseTimeWindow(arg);
+      Lines lines = w ? windowLines(*w) : Lines{arg};
       if (base == "1040-35") lines.insert(lines.begin(), "Lärmschutz");
       else if (base == "1040-36" || base == "1042-53") lines.insert(lines.begin(), "Schulweg");
       return lines;

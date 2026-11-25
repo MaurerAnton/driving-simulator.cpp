@@ -268,8 +268,8 @@ class Traffic {
   RoadEvents* roadEvents = nullptr;
   /** getting past what blocks a lane: a car standing behind something that does not move goes round it (src/sim/pastblock) */
   PastBlocks pastBlocks;
-  /** the narrowings kerb build-outs make: through the gap, slowly, one direction after the other (src/sim/narrowings) – a hook: null until that is translated */
-  Narrowings* narrowings = nullptr;
+  /** the narrowings kerb build-outs make: through the gap, slowly, one direction after the other (src/sim/narrowings) */
+  const std::unique_ptr<Narrowings> narrowings;
   /** the level crossings: waiting while their lights are on or a train comes, never stopping on the tracks (src/sim/levelcrossing – null: none) */
   LevelCrossings* levelCrossings = nullptr;
   /** deer and wild boar crossing the country roads at dusk: the cars brake for them (src/sim/wildlife – null: none) */

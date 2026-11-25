@@ -16,6 +16,7 @@
 #include "ui/closex.h"
 #include "ui/hud.h"
 #include "ui/hud_parts.h"
+#include "ui/learn.h"
 
 namespace fs {
 
@@ -388,7 +389,7 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawnList) {
   for (const LessonDef* l : lessons) card(lessonTitle(l->id, lang()), l->id == "exam" ? t("examDesc") : (l->kind == "route" ? note : "") + lessonIntro(l->id, lang()), l->id);
   p.append(cards);
   // the learning modes (ui/learn.ts): the theory exam, the sign trainer, spotting dangers, the lesson log
-  if (openLearn) {
+  {
     El learnHead = el("h2");
     learnHead.textContent(t("learn.title"));
     p.append(learnHead);
@@ -426,8 +427,7 @@ void Hud::showMenu(const std::vector<SpawnJson>& spawnList) {
 }
 
 void Hud::showLearn(const std::string& screen, std::function<void()> back) {
-  if (!openLearn) return;
-  run(openLearn, screen, [this](const El& panel) { setOverlay(panel); }, std::move(back));
+  openLearn(LearnContext{.t = tFn(), .lang = lang(), .screen = screen, .show = [this](const El& page) { setOverlay(page); }, .back = std::move(back), .signBase = plat::locationBase() + "signs/"}).detach();
 }
 
 std::vector<Hud::LearnMode> Hud::learnModes(std::function<void()> back) {
