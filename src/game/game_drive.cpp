@@ -22,6 +22,7 @@
 #include "game/lessonplaces.h"
 #include "game/nav.h"
 #include "game/routepresets.h"
+#include "game/spawncar.h"
 #include "game/spawnplace.h"
 #include "game/track.h"
 #include "game/vehicles.h"
@@ -192,13 +193,18 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     }
   demo = nullptr;
   routeWatch = nullptr;
+  // (later: wrecked, explosion – game.ts:2815)
+  if (walker) leaveWalk();
+  footAfterJump = false;
+  // (later: clearPreview, menuPreview, recorder.clear, riding, busRide – game.ts:2820)
   // (the bus on a line: its stops from here on)
   busService = lesson && lesson->kind == "bus" ? std::make_unique<BusService>() : nullptr;
   busNav = "";
   railActors->hidden = nullptr;
-  // (later: wrecked, explosion, leaveWalk, footAfterJump, clearPreview, menuPreview, recorder.clear, riding, busRide,
-  //  railActors.hidden, passengerView, doorT, fadeEl, planeDemoPending – game.ts:2818)
+  // (later: passengerView – game.ts:2835)
+  doorT = -1;
   opens.reset(&car);
+  fadeEl.removeClass("on");
   // ("demo" and "tour" are free drives that begin with the map open, for planning – the tram's drives by itself at once)
   {
     const VehicleDef* asked = VEHICLES.find(settings.vehicle);
@@ -223,10 +229,9 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   }
   // (a tractor may not go on the motorway: its lesson is driven with the car)
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
-  // (the vehicles whose models are not in this build yet – the tram, on foot,
-  //  the forklift: Game::makeModel – are driven as the car meanwhile)
+  // (the vehicles whose models are not in this build yet – the tram, the forklift: Game::makeModel – are driven as the car meanwhile)
   {
-    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor", "motorcycle", "tram"};
+    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor", "motorcycle", "walker", "tram"};
     if (!drawn.count(def->model) && def->model != "plane" && !def->crane) def = &VEHICLES.at("car");
   }
   // the tram: at the stop nearest to the place chosen (on the tracks of Kassel and Baunatal)
@@ -425,8 +430,9 @@ void Game::tryPlace() {
   if (task && !task->laid) task->laid = yardScene->show(*yardFrame, task->run->layout, [this](double x, double z) { return app.tiles->heightAt(x, z); });
   Place place{sp.x, sp.z, sp.yaw};
   // (never into a wall or onto a post: then the nearest free place in a lane instead)
-  // (later: drill; … or inside a building: inBuilding with spawnCars.footprints – game/spawncar.ts, game.ts:3040)
-  if (!task && collider->blocked(sp.x, y, sp.z, sp.yaw, 0.05)) {
+  // (later: drill, forklift.siteOn – game.ts:3040)
+  if (!task && (collider->blocked(sp.x, y, sp.z, sp.yaw, 0.05) ||
+                (!crane && inBuilding(sp.x, sp.z, sp.yaw, def->outline, [this](double x, double z) { return spawnCars->footprints.inside(x, z); })))) {
     const std::optional<Spot> freeAt = freeSpot(sp.x, sp.z, sp.yaw, 0);
     if (freeAt) {
       place = Place{freeAt->x, freeAt->z, freeAt->yaw};
@@ -436,7 +442,11 @@ void Game::tryPlace() {
   vehicle->teleport(place.x, y + 0.02, place.z, place.yaw);
   if (trailer) trailer->coupleBehind(*vehicle);
   lastGood = GoodSpot{{place.x, y, place.z, place.yaw}, 0};
-  // (later: walkPending, intoParked, footPending: on foot first – game.ts:3051)
+  // (on foot first – not on the yard of the class CE tasks, not when the car is to drive by itself)
+  // (later: drill, lessonWatch, forklift – game.ts:3051)
+  walkPending = settings.startOutside && !task && !planDemo && !walker && def->kind != "tram" && def->kind != "pedestrian" && !crane && !intoParked;
+  intoParked = false;
+  footPending = def->kind == "pedestrian";
   if (tramAt) {
     // the player's tram, its front at the stop's mark (the other way round if it does not fit behind it there)
     const TramStart at = *tramAt;
@@ -495,7 +505,19 @@ void Game::resume() {
   audio->start();
   state = "drive";
   app.canvas.focus();
-  // (later: walkPending, footPending, footAfterJump: the drive begins on foot – game.ts:3110)
+  // the drive begins on foot beside the vehicle (once, when it is first placed)
+  if (walkPending) {
+    walkPending = false;
+    startOnFoot();
+  }
+  if (footPending) {
+    footPending = false;
+    startPedestrian();
+  }
+  if (footAfterJump) {
+    footAfterJump = false;
+    if (!walker) enterWalk();
+  }
 }
 
 /** Where the world loads round: the vehicle – or somebody who walked away from it. */
@@ -505,8 +527,8 @@ std::array<double, 2> Game::focus() {
   if (cameraMode == "dev") return {free.pos.x, free.pos.z};
   // (the flying camera: the world loads round it – game/flycam.ts)
   if (flyFree() && fly->ready) return {fly->x, fly->z};
-  // (later: the walker who is well away from the vehicle – game.ts:3138)
-  return {mpos[0], mpos[2]};
+  const OnFoot* w = walker.get();
+  return w && walkerAway() ? std::array<double, 2>{w->x, w->z} : std::array<double, 2>{mpos[0], mpos[2]};
 }
 
 void Game::pause() {
@@ -592,42 +614,69 @@ void Game::onAction(const std::string& a) {
     else if (state == "map") closeMap();
     // (later: the reality view, the replay, the theory – game.ts:3844)
   }
-  // (later: 'open', 'door': on foot – game.ts:3847)
-  else if (a == "door" && state == "drive" && aircraft) {
+  else if (a == "open" && state == "drive") {
+    // on foot beside the vehicle: open or shut what is there (game/openplay.ts)
+    opens.toggleAt(walker.get());
+  } else if (a == "door" && state == "drive" && def->kind == "pedestrian") {
+    footAction();
+  } else if (a == "door" && state == "drive" && aircraft) {
     // the flap lever, a notch at a time: 0°, 10°, 20°, 30° – and back up
     flight.flaps = (flight.flaps + 1) % 4;
     audio->click("tick");
   }
-  else if (a == "door" && state == "drive" && busService) {
-    // the bus on a line: its doors  (later: not while on foot – game.ts:3857)
+  else if (a == "door" && state == "drive" && busService && !walker) {
+    // the bus on a line: its doors
     std::vector<BusEvent> ev;
     const BusStopsHere here = busStopsHere();
     busService->toggleDoors(here.front, here.stops, vehicle->speed, ev);
     audio->click("airDoor");
     for (const BusEvent& e : ev) rules->noteAt(e.fault, e.severity, mpos[0], mpos[2], {}, 8);
   }
-  else if (a == "door" && state == "drive" && tram) {
-    // the tram's doors  (later: aircraft, on foot – game.ts:3880)
-    std::vector<TramEvent>& ev = tramEvents;
-    ev.clear();
-    tram->toggleDoors(ev);
-    audio->click("door");
-    noteTram(ev);
-  } else if (a == "panto" && state == "drive" && tram && !tramAuto) {
+  // (later: 'door': the forklift – game.ts:3864)
+  else if (a == "door" && state == "drive" && crane && crane->type == "tower") {
+    // the tower crane: its operator climbs down, and up again
+    towerDoor();
+  } else if (a == "door" && state == "drive" && crane && !walker) {
+    // the crane: from driving to working it, and back
+    craneToggle();
+  }
+  // (later: 'door': on the test place beside one of the models, into it – showBeside, enterShow, game.ts:3873)
+  else if (a == "door" && state == "drive") {
+    // (later: out of the tram's cab: the door key gets one in again at its door – after a vehicle went up in flames, a new one – game.ts:3877)
+    Parked* parked = walker ? spawnCars->near(walker->x, walker->z) : nullptr;
+    if (parked && canEnterParked()) enterParked(*parked);
+    // (later: wrecked: newVehicle – game.ts:3880; the aeroplane: boardPlane – game.ts:3881)
+    else if (walker) getIn();
+    else if (aircraft && !aircraft->onGround()) {
+      // (no stepping out in flight by a slip of the finger: the pause menu's "Get out" does that)
+      tipText = tr("planeOutMenu", settings.lang);
+      tipUntil = time + 4;
+    }
+    else if (tram) {
+      // the tram's doors
+      std::vector<TramEvent>& ev = tramEvents;
+      ev.clear();
+      tram->toggleDoors(ev);
+      audio->click("door");
+      noteTram(ev);
+    } else getOut();
+  }
+  // (later: 'view' in the replay – game.ts:3893)
+  else if (a == "panto" && state == "drive" && tram && !tramAuto) {
     // the tram's pantograph: up to the wire, or down
     std::vector<TramEvent> ev;
     tram->togglePanto(ev);
     audio->click("tick");
     noteTram(ev);
   }
-  // (later: 'door': the forklift – game.ts:3887;
-  //  the tower crane's: its operator climbs down and up again, on foot – towerDoor, game.ts:3867)
-  else if (a == "door" && state == "drive" && crane && crane->type != "tower") {
-    // the crane: from driving to working it, and back  (later: not while on foot – game.ts:3870)
-    craneToggle();
+  else if (a == "view" && state == "drive" && walker) {
+    // on foot: through one's own eyes ↔ seen from behind  (later: riding, busRide – game.ts:3904)
+    settings.footView = settings.footView == "eyes" ? "behind" : "eyes";
+    saveSettings(settings);
+    hud->message(tr(settings.footView == "behind" ? "footViewBehind" : "footViewEyes", settings.lang));
   }
-  // (later: 'door': the test place, getting out – game.ts:3873; 'view' in the replay, on foot, on the forklift; 'panto' – game.ts:3893)
-  else if (a == "view" && state == "drive") {
+  // (later: 'view' on the forklift – game.ts:3909)
+  else if (a == "view" && state == "drive" && !walker) {
     // the driver's seat → behind the car → the free camera → …
     cameraMode = cameraMode == "cockpit" ? "chase" : cameraMode == "chase" ? "free" : "cockpit";
     input->resetLook(cameraMode == "chase", cameraMode == "free");
@@ -641,7 +690,7 @@ void Game::onAction(const std::string& a) {
       settings.view = cameraMode;
       saveSettings(settings);
     }
-  } else if (a == "reset" && state == "drive") {
+  } else if (a == "reset" && state == "drive" && !walker) {
     // (in the aeroplane there is no road to be put back on: the key is its autopilot)
     if (aircraft) toggleFlightAuto();
     else resetToRoad();
@@ -789,8 +838,8 @@ void Game::toAutomatic() {
 
 /** Arcade driving for the road vehicle driven now (not the tram, the aeroplane, the forklift, a crane at work, nor on foot or watching). */
 bool Game::arcadeNow() {
-  // (later: … !watcher, !forklift, not on foot, !wrecked – game.ts:4068)
-  return settings.arcadeDrive && !tram && !aircraft && !(crane && crane->operating);
+  // (later: … !watcher, !forklift, !wrecked – game.ts:4068)
+  return settings.arcadeDrive && !tram && !aircraft && !(crane && crane->operating) && def->kind != "pedestrian" && !walker;
 }
 
 void Game::stepOpen(double dt) {
@@ -798,8 +847,13 @@ void Game::stepOpen(double dt) {
   const BoardStep r = opens.step(dt, [this](const std::string& k) { audio->click(k); });
   const Boarding* b = opens.board.get();
   if (r.start && b) {
-    // (later: the camera goes from where it is to the seat, or to the place beside the door: doorFrom; leaveWalk, enterWalk – game/onfoot.ts)
-    if (b->way == "in") opens.setSeat(c, b->seat);
+    // the camera goes from where it is to the seat, or to the place beside the door
+    doorFrom.pos.copy(app.camera->position);
+    doorFrom.quat.copy(app.camera->quaternion);
+    if (b->way == "in") {
+      leaveWalk();
+      opens.setSeat(c, b->seat);
+    } else enterWalk();
   }
   // (later: a truck's box, the trailer's back – render/truck.ts, render/rearopen.ts)
   opens.pose(c);
@@ -819,7 +873,10 @@ void Game::stepDrive(double dt) {
     stepTram(dt);
     return;
   }
-  // (later: stepFoot – game.ts:4088)
+  if (def->kind == "pedestrian") {
+    stepFoot(dt);
+    return;
+  }
   if (aircraft) {
     // (later: out of the parked aeroplane, on foot beside it: stepFoot – game.ts:4094)
     stepFlight(dt);
@@ -850,9 +907,18 @@ void Game::stepDrive(double dt) {
   }
   // a look back over the left shoulder: that is what is asked for before the door is opened
   if (c.lookYaw > 0.9) lookedBackAt = time;
-  // (later: stepDoor, the walker beside the vehicle – game.ts:4126)
+  stepDoor(dt);
   stepOpen(dt);
-  opens.idle(c, d, demo && demo->active, parkedSteer);
+  if (walker) {
+    // nobody in the seat: the vehicle stands as it was left (the keys W S A D walk)
+    c.steer = d.steer = parkedSteer;
+    c.throttle = d.throttle = 0;
+    c.brake = d.brake = 0;
+    c.clutch = d.clutch = 0;
+    d.starter = false;
+    // (not while getting into the car)
+    if (!opens.busy()) stepWalk(dt);
+  } else opens.idle(c, d, demo && demo->active, parkedSteer);
   // Speed limiter: a key or a pedal on the screen is all or nothing, which makes it hard to hold
   // 30 or 50 km/h.  With the limiter the throttle eases off just below the current limit – the
   // driver still has to brake when the limit drops.
@@ -975,8 +1041,21 @@ void Game::stepDrive(double dt) {
   car.speed = v.speed;
   car.length = v.spec.length.value_or(4.28);
   car.width = v.spec.width.value_or(1.79);
-  // (later: somebody who walked away from the vehicle: the traffic comes and goes round them – game.ts:4286)
-  PlayerState& player = car;
+  // (somebody who walked away from the vehicle: the traffic comes and goes round them, and the parked vehicle is in its way)
+  const bool away = walkerAway();
+  const OnFoot* wk = walker.get();
+  PlayerState walkerState;
+  if (away && wk) {
+    walkerState.x = wk->x;
+    walkerState.y = wk->y;
+    walkerState.z = wk->z;
+    walkerState.yaw = wk->yaw;
+    walkerState.speed = wk->speed;
+    walkerState.length = 0.6;
+    walkerState.width = 0.6;
+    walkerState.onFoot = true;
+  }
+  PlayerState& player = away && wk ? walkerState : car;
   // (the lane the vehicle was on in the last step, and where its middle was along it: the cyclists are sent along by it)
   player.lane = rules->context.onRoad ? currentLane() : nullptr;
   player.s = laneFront() - player.length / 2;
@@ -1019,11 +1098,35 @@ void Game::stepDrive(double dt) {
       boxes.push_back(b);
     }
   }
-  // (later: the walker beside the vehicle, the vehicle left standing, the other players' vehicles – game.ts:4310)
+  if (walker && !away) {
+    PlayerState b;
+    b.x = walker->x;
+    b.y = walker->y;
+    b.z = walker->z;
+    b.yaw = walker->yaw;
+    b.speed = 0;
+    b.length = 0.6;
+    b.width = 0.6;
+    boxes.push_back(b);
+  }
+  // (later: !wrecked – game.ts:4311)
+  if (away) {
+    PlayerState b;
+    b.x = car.x;
+    b.y = car.y;
+    b.z = car.z;
+    b.yaw = car.yaw;
+    b.speed = 0;
+    b.length = car.length;
+    b.width = car.width;
+    b.parked = true;
+    boxes.push_back(b);
+  }
+  // (later: the other players' vehicles, when playing together – game.ts:4313)
   traffic->obstacles.clear();
   for (PlayerState& b : boxes) traffic->obstacles.push_back(&b);
   // (the horn: the people on foot near it start)
-  player.horn = c.horn;
+  player.horn = c.horn && !away;
   traffic->update(dt, player);
   // run into a tram (or hit by one): pushed clear – it does not give way
   if (const std::optional<RailTraffic::Touch> tram = rail->touching(RailPlayer{player.x, player.y, player.z, player.yaw, player.length, player.width})) {
@@ -1114,9 +1217,9 @@ Lane* Game::currentLane() { return rules->laneNow(); }
  */
 void Game::changeVehicle(const VehicleKind& kind) {
   if (lesson || (state != "pause" && state != "drive")) return;
-  // (later: from where the walker stands – game.ts:4847)
-  const double x = mpos[0];
-  const double z = mpos[2];
+  const OnFoot* w = walker.get();
+  const double x = w ? w->x : mpos[0];
+  const double z = w ? w->z : mpos[2];
   // (later: endWatch – game.ts:4850)
   if (demo) endDemo("ended");
   settings.vehicle = kind;
@@ -1169,9 +1272,8 @@ std::optional<SpawnJson> Game::startSpot(const AddressHit& hit) { return setting
 Game::Place Game::fitExact(const Place& sp, const Outline& o) {
   const std::optional<SpawnJson> road = findRoadSpot(*app.world, *lanes, sp.x, sp.z, "", 30, usableLane());
   const double yaw = road ? road->yaw : sp.yaw;
-  // (later: freeNear(…, spawnCars.free …, 40): the nearest free place round it – game/spawncar.ts, game.ts:4971)
-  (void)o;
-  return Place{sp.x, sp.z, yaw};
+  const std::optional<FreePlace> at = freeNear(sp.x, sp.z, yaw, [this, &o](double x, double z, double y) { return spawnCars->free(x, z, y, &o, false); }, 40);
+  return at ? Place{at->x, at->z, at->yaw} : Place{sp.x, sp.z, yaw};
 }
 
 /**

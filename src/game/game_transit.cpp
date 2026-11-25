@@ -7,6 +7,7 @@
 #include "core/geom.h"
 #include "game/clock.h"
 #include "game/nav.h"
+#include "game/onfoot.h"
 #include "sim/vehicle/index.h"
 #include "game/game.h"
 #include "game/timedtransit.h"
@@ -274,8 +275,13 @@ void Game::stepTram(double dt) {
     }
     if (tramAuto && !tramHeld) t.drive(ev);
   }
-  // (later: the walker, the cab's door – nobody in the cab: the tram stands braked, and the keys walk – game.ts:6135)
-  if (!tramAuto || tramHeld) {
+  if (walker || doorT >= 0) {
+    // nobody in the cab: the tram stands braked, and the keys walk
+    t.lever = -0.6;
+    t.emergency = false;
+    stepDoor(dt);
+    stepWalk(dt);
+  } else if (!tramAuto || tramHeld) {
     t.lever = std::max(-1.0, std::min(1.0, c.throttle - c.brake));
     t.emergency = c.handbrake > 0.5;
   }

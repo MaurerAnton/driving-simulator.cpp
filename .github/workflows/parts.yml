@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   index:
@@ -18,12 +19,21 @@ jobs:
           node-version: 24
       - name: Read every part that has no index yet
         run: node tools/build-part-index.mjs
+      - name: Which parts hold each region's tiles (web/parts/regions.json)
+        run: node tools/build-region-parts.mjs
       - name: Commit
         run: |
           git config user.name "MaurerAnton"
           git config user.email "MaurerAnton@users.noreply.github.com"
           git add web/parts
-          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          if git diff --cached --quiet; then echo "nothing new"; echo "NEW=0" >> "$GITHUB_ENV"; exit 0; fi
+          echo "NEW=1" >> "$GITHUB_ENV"
           git commit -q -m "web/parts: where the tiles lie in the regional maps' parts ($(ls web/parts | wc -l) files)"
           git pull -q --rebase origin main
           git push -q origin HEAD:main
+      # (a push by the workflow's token starts no other workflow – a dispatch does: the site is built and published anew)
+      - name: Publish the site with the new parts
+        if: env.NEW == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build.yml -R "$GITHUB_REPOSITORY" --ref main

@@ -164,7 +164,10 @@ void Game::teleportSpot(const SpawnJson& spot_) {
   }
   // on foot: on the pavement there (and nobody rides a tram or a bus any more) – somebody who got out of the
   // vehicle gets out again beside it there (before, they stayed behind, tied to a vehicle far away)
-  // (later: walker, leaveWalk, footAfterJump – game.ts:2192)
+  if (walker && def->kind != "pedestrian") {
+    leaveWalk();
+    footAfterJump = true;
+  }
   // (later: riding, busRide, railActors, passengerView – game.ts:2196)
   vehicle->vel.fill(0);
   vehicle->angVel.fill(0);
@@ -235,8 +238,8 @@ void Game::closeMap() {
 
 /** The free camera flies, apart from the vehicle (not from the aeroplane, the tram or the forklift, nor on foot or watching: there it goes with them as before). */
 bool Game::flyFree() {
-  // (later: walker, watcher, tram, forklift, doorT – game.ts:5183)
-  return cameraMode == "free" && state == "drive" && !aircraft && !(crane && crane->operating);
+  // (later: watcher, tram, forklift – game.ts:5183)
+  return cameraMode == "free" && state == "drive" && !walker && !aircraft && !(crane && crane->operating) && doorT < 0;
 }
 
 /** The flying camera (game/flycam.ts): from where the camera was – or from behind the vehicle – wherever it is flown. */
@@ -280,8 +283,9 @@ bool Game::flyHold() {
 bool Game::canTeleport() {
   // (later: watcher, showOn – game.ts:5285)
   if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
-  // (later: doorT, opens, riding, busRide, wrecked – game.ts:5286)
-  // (later: walker – game.ts:5287)
+  // (later: riding, busRide, wrecked – game.ts:5286)
+  if (doorT >= 0 || opens.busy()) return false;
+  if (walker) return true;
   // (later: forklift – game.ts:5288)
   return !aircraft && !tram && !(crane && crane->operating);
 }
@@ -295,8 +299,9 @@ bool Game::canTeleport() {
 bool Game::canDrive() {
   // (later: watcher, showOn – game.ts:5298)
   if (!settings.teleportTap || state != "drive" || lesson || task || (demo && demo->active)) return false;
-  // (later: doorT, opens, riding, busRide, wrecked – game.ts:5299)
-  // (later: walker – game.ts:5300)
+  // (later: riding, busRide, wrecked – game.ts:5299)
+  if (doorT >= 0 || opens.busy()) return false;
+  if (walker) return true;
   // (later: forklift – game.ts:5301)
   return !tram && !(crane && crane->operating);
 }
@@ -304,7 +309,16 @@ bool Game::canDrive() {
 /** "Teleport here": somebody on foot to that very place; a vehicle into the lane of the road nearest it, facing along it (the way the camera looked, where it may). */
 void Game::teleportHere(double x, double y, double z, double yaw) {
   if (!canTeleport()) return;
-  // (later: walker – somebody on foot is put at that very place, walkCtl – game.ts:5307)
+  if (OnFoot* w = walker.get()) {
+    const double gy = footGround(x, z, y + 1.5);
+    if (!std::isfinite(gy)) return;
+    walkCtl.cancel();
+    w->x = x;
+    w->y = gy;
+    w->z = z;
+    camSnap = true;
+    return;
+  }
   std::optional<Spot> spot = freeSpot(x, z, yaw, 0);
   if (!spot || jsHypot(spot->x - x, spot->z - z) > 30) {
     // (no lane within a few metres: the road nearest within 150 m)
@@ -366,10 +380,11 @@ void Game::turnAround() {
 bool Game::canTurnAround() {
   // (later: watcher, showOn – game.ts:5373)
   if (state != "drive" || lesson || task || (demo && demo->active)) return false;
-  // (later: doorT, opens, riding, busRide – game.ts:5374)
+  // (later: riding, busRide – game.ts:5374)
+  if (doorT >= 0 || opens.busy()) return false;
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane
-  // (later: walker, forklift – game.ts:5376)
-  return !aircraft && !tram && !crane;
+  // (later: forklift – game.ts:5376)
+  return !walker && !aircraft && !tram && !crane;
 }
 
 }  // namespace fs

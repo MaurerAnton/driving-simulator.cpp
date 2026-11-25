@@ -34,12 +34,14 @@
 #include "game/lessonplaces.h"
 #include "game/openplay.h"
 #include "game/settings.h"
+#include "game/walkmodes.h"
 #include "game/vehicles.h"
 #include "platform/dom.h"
 #include "render/bike.h"
 #include "render/car.h"
 #include "render/fleet.h"
 #include "render/navscreen.h"
+#include "render/walker.h"
 #include "render/tiles.h"
 #include "sim/rail.h"
 #include "sim/tramdrive.h"
@@ -97,6 +99,8 @@ struct Timetable;
 class TerrainSource;
 class TrafficRenderer;
 class PlayerTruck;
+class SpawnCars;
+struct Parked;
 class YardScene;
 class YardTask;
 class Trailer;
@@ -129,6 +133,8 @@ struct TramStopChoice;
 struct AutopilotState;
 /** What the aeroplane's autopilot is doing, in a few words a pilot would use (a text key) – game_plane.cpp. */
 std::string apPhaseKey(const AutopilotState& st);
+/** The text key of a thing to check round the vehicle (game.ts CHECK_TEXT) – game_foot.cpp. */
+const std::string& checkTextKey(const CheckId& id);
 
 /** 'loading' | 'menu' | 'intro' | 'placing' | 'drive' | 'pause' | 'reality' | 'map' | 'result' | 'replay' | 'theory' */
 using State = std::string;
@@ -401,7 +407,7 @@ class Game {
   Quaternion tmpQ;
   Matrix4 tmpM;
   Vector3 headV;
-  // (later: figure, recorder, replay, replayFrom, replayLive, replayShown, replayHidden, replayCam – game.ts:553)
+  // (figure: below, "on foot")  (later: recorder, replay, replayFrom, replayLive, replayShown, replayHidden, replayCam – game.ts:553)
   std::unique_ptr<ResultSummary> lastResult;
   Vector3 eyeWorld;
 
@@ -518,10 +524,12 @@ class Game {
   void tryPlace();
   void resume();
   std::array<double, 2> focus();
-  // (later: footAfterJump – game.ts:3477)
+  /** the vehicle was put elsewhere while somebody stood beside it: they get out again there once it stands (game.ts:3477) */
+  bool footAfterJump = false;
   /** "What's new" is to be shown when the menu first comes up */
   bool showNewsOnce;
-  // (later: walkPending – game.ts:3483)
+  /** the drive is to begin on foot beside the vehicle once it is placed (game.ts:3483) */
+  bool walkPending = false;
   void pause();
   void clockJumped();
   /** the last moment the sun was placed for (-1: to be placed, -2: the game's fixed afternoon) */
@@ -549,14 +557,14 @@ class Game {
   double tipUntil = 0;
   void rememberGoodSpot(const PlayerState& p);
   Lane* currentLane();
-  // (later: walker, markers, fadeEl, walkStart, doorT, doorWay, doorFrom – game.ts:4596; opens: below, "bikes")
+  // (walker, markers, fadeEl, walkStart, doorT, doorWay, doorFrom: below, "on foot"; opens: below, "bikes")
   /** when the driver last looked back over the shoulder */
   double lookedBackAt = -100;
-  // (later: walkSince – game.ts:4610; parkedSteer: below, "bikes")
+  // (walkSince: below, "on foot"; parkedSteer: below, "bikes")
   void changeVehicle(const VehicleKind& kind);
   /** where the next start puts the car: a car of the traffic taken over (takeOverCar) – null: as usual */
   std::optional<Place> parkedAt;
-  // (later: spawnCars, intoParked, makeSpawnCars, canSpawnCar, canEnterParked, enterParked – game.ts:4865)
+  // (spawnCars, intoParked, makeSpawnCars, canSpawnCar, canEnterParked, enterParked: below, "on foot")
   SpawnJson exactSpot(const std::string& name, double x, double z);
   /** the places `exactSpot` made (x, z): a start place is a value here, the mark is kept beside it (the original's WeakSet exactSpots) */
   std::vector<std::array<double, 2>> exactSpots;
@@ -568,14 +576,14 @@ class Game {
   // (later: newVehicle, a new vehicle after one went up in flames – game.ts:5017)
   void signsBesideRoad(std::vector<SignPost>& signs);
   double footGround(double x, double z, double yRef);
-  // (later: walkCtl – game.ts:5162)
+  // (walkCtl: below, "on foot")
   const std::unique_ptr<FlyCam> fly;
   std::unique_ptr<TouchStick> touchStick;
   std::unique_ptr<WorldTap> worldTap;
   // (later: parts, regionParts, versioned, partIndex, labelTile, pendingParts – game.ts:5167)
   /** the free camera flies and the vehicle stands where it was left */
   bool flyParked = false;
-  // (later: on foot, in the tram, the bus line, the aeroplane, the tram driven – game.ts:5418 … 6247)
+  // (on foot: below, "on foot")  (later: in the tram, the bus line, the tram driven – game.ts:5418 … 6247)
 
   // ---- game_frame.cpp ----
   void footFlyFrame();
@@ -597,7 +605,8 @@ class Game {
   // (later: updateOutdoors, soundAt – game.ts:6842)
   void updateVisuals(double dt);
   void speak(const std::string& what, double dist, const std::string& text);
-  // (later: footGlance – game.ts:7265)
+  /** on foot: how far the head is turned by the glance keys (smoothed) */
+  double footGlance = 0;
   /** the chase camera's place relative to the point it circles (smoothed) */
   Vector3 chaseOff;
   void updateCamera(double dt);
@@ -802,6 +811,79 @@ class Game {
   void stepTram(double dt);
   /** what the HUD shows of the tram (game.ts:7083) */
   void tramHud(HudState& hs, bool touch);
+
+  // --- on foot ---
+  // (getting out, walking round the vehicle and in the town, the doors, the cars parked on the map – game.ts:4594 … 5838)
+  /** somebody on foot beside the vehicle (null: in the driver's seat) */
+  std::unique_ptr<OnFoot> walker;
+  /** the rings on the ground round the vehicle: what there is to check */
+  const std::unique_ptr<CheckMarkers> markers = std::make_unique<CheckMarkers>();
+  /** the picture going dark while getting into or out of a vehicle other than the car */
+  dom::El fadeEl;
+  /** the player's own figure, seen when the camera is not their eyes */
+  const std::unique_ptr<PlayerFigure> figure = std::make_unique<PlayerFigure>();
+  /** the drive began on foot: the check round the vehicle counts */
+  bool walkStart = false;
+  /** getting in or out: seconds into it, which way ('in' | 'out'), and the camera at its start */
+  double doorT = -1;
+  std::string doorWay = "in";
+  struct DoorFrom {
+    Vector3 pos;
+    Quaternion quat;
+  } doorFrom;
+  double walkSince = 0;
+  /** the ways of walking, a way being walked after a tap (game/walkmodes.ts) */
+  WalkControl walkCtl;
+  /** the cars put down on the map, the vehicle left standing, the button and the taps for them (game/spawncar.ts) */
+  std::unique_ptr<SpawnCars> spawnCars;
+  /** the drive begins in a parked vehicle: the player in it rather than beside it (tryPlace) */
+  bool intoParked = false;
+  /** the drive of a pedestrian is to begin once the start point is placed */
+  bool footPending = false;
+  /** the crossing the person is on (to judge its light once, when stepping onto the road), whether they were on the road a moment ago, and how far they have walked along it */
+  const CrossingJson* footCrossing = nullptr;
+  bool footOnRoad = false;
+  double footAlong = 0;
+  /** the pole whose button is within reach */
+  const PedPole* footPole = nullptr;
+  // (later: riding, footBoard, busService, busNav, busRide, footBus: riding a tram or a bus as a passenger – transit, game.ts:5422)
+  /** The vehicle as somebody on foot meets it: its parts in the plan, the driver's door, the coupling. */
+  WalkVehicle walkVehicle();
+  /** Out of the vehicle (it stands): after a look back, the vehicle left secured. */
+  void getOut();
+  /** In again: from beside the driver's door. */
+  void getIn();
+  /** Begin on foot beside the vehicle (the start "beside the vehicle"): engine off, belt off. */
+  void startOnFoot();
+  void enterWalk();
+  void leaveWalk();
+  void startDoor(const std::string& way);
+  /** Getting in or out: the picture goes dark while the door is opened, the seat taken or left, the door closed. */
+  void stepDoor(double dt);
+  /** On foot and well away from the vehicle (not riding a tram or bus): the world is to come and go round the person. */
+  bool walkerAway();
+  /** Tap to walk (game/walkmodes.ts): off to the place tapped, along the pavements of the roads round there. */
+  void tapToWalk(double x, double z);
+  void stepWalk(double dt);
+  /** On foot, as a pedestrian: on the pavement beside the start point (to the right of the road), looking along it. */
+  void startPedestrian();
+  /** A step on foot: walking (or running), the traffic around – which sees a person, not a car – and what the rules ask of somebody on foot. */
+  void stepFoot(double dt);
+  /** What the rules ask of somebody on foot (§ 25, § 37 Abs. 2 Nr. 5 StVO). */
+  void footRules(double dt, OnFoot& w);
+  /** The door key on foot: press the button of a pedestrian light (later: get into a tram or a bus, out of it). */
+  void footAction();
+  /** The tower crane: its operator climbs down, and up again. */
+  void towerDoor();
+  /** On foot here (down from the tower crane): the person's own eyes, the keys and the controls walk. */
+  void leaveOnFoot(double x, double z, double yaw, double yRef);
+  std::unique_ptr<SpawnCars> makeSpawnCars();
+  /** May a car be put down now: on foot, or at the controls of a crane – in a free drive (`fromMap`: the large map opened from it). */
+  bool canSpawnCar(bool fromMap = false);
+  /** May the player get into a parked vehicle now: on foot, at a crane, or standing still in a vehicle – in a free drive. */
+  bool canEnterParked();
+  /** Into a vehicle parked on the map: a free drive with it begins where it stands. */
+  void enterParked(const Parked& p);
 };
 
 }  // namespace fs
