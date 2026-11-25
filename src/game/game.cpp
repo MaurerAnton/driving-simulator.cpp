@@ -30,6 +30,7 @@
 #include "render/actors.h"
 #include "render/crane.h"
 #include "render/far.h"
+#include "render/grass.h"
 #include "render/pedlights.h"
 #include "render/plane.h"
 #include "render/props.h"
@@ -37,6 +38,8 @@
 #include "render/semitruck.h"
 #include "render/signs.h"
 #include "render/truck.h"
+#include "render/weather.h"
+#include "render/windscreen.h"
 #include "render/yard.h"
 #include "sim/airfield.h"
 #include "sim/arrows.h"
@@ -53,6 +56,7 @@
 #include "sim/trailer.h"
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
+#include "game/outdoors.h"
 #include "game/startat.h"   // 2.0
 #include "ui/stage.h"   // 2.0: startFromSpot
 #include "ui/bigmap.h"
@@ -171,6 +175,8 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       yardScene(std::make_unique<YardScene>()) {
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
   flightControls->engineOn = true;
+  grass = std::make_unique<GrassRenderer>();
+  windscreen = std::make_unique<WindscreenView>();
   driver.steer = 0;
   driver.throttle = 0;
   driver.brake = 0;
@@ -291,7 +297,24 @@ Task<void> Game::boot(URLSearchParams q) {
   }
   progress->step(0.45, 0.75);
   World& world = *app.world;
-  // (later: outdoors, the weather and the season: setMaterialHook, props.setSeason, far.setSeason – game.ts:622)
+  // the weather and the season: the tiles', the trees' and the far hills' materials learn them before the first tile is drawn
+  {
+    const SkyParts sky = skyParts(app.sky);
+    outdoors = std::make_unique<Outdoors>(*app.scene, &sky, WEATHER_PARTICLES(settings.quality == "custom" ? "medium" : settings.quality));
+  }
+  outdoors->view.roadWater = settings.graphics.weatherFx;
+  app.tiles->setMaterialHook([this](Material& m, TileMaterialKind k) {
+    if (!outdoors) return;
+    outdoors->patch(m, k == TileMaterialKind::Terrain ? "terrain" : k == TileMaterialKind::Ground ? "ground" : k == TileMaterialKind::Paint ? "paint"
+                       : k == TileMaterialKind::Struct  ? "struct"
+                                                        : "building");
+  });
+  props->setSeason([this](Material& m, TreeMaterialKind k) {
+    if (outdoors) outdoors->patch(m, k == TreeMaterialKind::Deciduous ? "deciduous" : k == TreeMaterialKind::Evergreen ? "evergreen" : "orchard");
+  });
+  far->setSeason([this](Material& m) {
+    if (outdoors) outdoors->patch(m, "far");
+  });
   co_await plat::sleep(0);
   lanes = std::make_unique<LaneGraph>(world);
   signals = std::make_unique<SignalSystem>(world.signals, world.lightsOut);
@@ -646,7 +669,7 @@ void Game::onTile(LoadedTile& tile, bool loaded) {
     }
     signsBesideRoad(tile.header.signs);
     props->add(tile);
-    // (later: grass.add – game.ts:1195)
+    grass->add(tile);
     signs->add(tile);
     std::vector<double> discs;
     for (const SignPost& s : tile.header.signs) discs.insert(discs.end(), {s.x, s.y, s.z, 0.06});
@@ -683,7 +706,7 @@ void Game::onTile(LoadedTile& tile, bool loaded) {
     } else collider->add({.key = tile.key, .rings = rings, .ringCounts = ringCounts, .ringSkip = u8("collSkip"), .segments = segments, .discs = discs});
   } else {
     props->remove(tile);
-    // (later: grass.remove – game.ts:1217)
+    grass->remove(tile.key);
     signs->remove(tile);
     collider->remove(tile.key);
   }
@@ -721,7 +744,15 @@ void Game::applySettings() {
   app.camera->updateProjectionMatrix();
   props->density = gx.propDensity;
   props->setShadows(gx.propShadows);
-  // (later: grass, outdoors, services.dirtShown, railActors.detail – game.ts:1256)
+  // (vertical grass on the ground: the "No mercy" graphics only – many blades, only that pays for them)
+  grass->setEnabled(gx.weatherFx);
+  grass->density = gx.propDensity;
+  // as many raindrops and snowflakes as the graphics allow
+  if (outdoors) outdoors->view.quality(WEATHER_PARTICLES(s.quality == "custom" ? "medium" : s.quality));
+  // (later: outdoors.water.enabled – render/water.ts)
+  // the weather on the vehicle and the roads ("No mercy"): water on the roads (the windscreen: in the frame)
+  if (outdoors) outdoors->view.roadWater = gx.weatherFx;
+  // (later: services.dirtShown, railActors.detail – game.ts:1263)
   ui.style("zoom", jsStr(s.uiScale));
   app.resize();
   for (const std::unique_ptr<Mirror>& m : car.mirrors) m->setEnabled(s.mirrors != "off");

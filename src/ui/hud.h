@@ -12,7 +12,6 @@
  * "Later") is left out here, and so are the public functions that serve only those
  * parts:
  *
- *   setWipers                                  (wipers)
  *   showReplay, updateReplay, hideReplay,
  *   ReplayBar, ReplayState                     (replays; `onReplay` stays, as the hook it is)
  *   showAssetProgress, setAssetProgress,
@@ -309,6 +308,11 @@ class Hud {
 
   /** The world's moment in the HUD (null: the real one – nothing shown). */
   void setClock(const std::optional<std::string>& text);
+  /**
+   * The wiper stalk's place as a lamp beside the speed (off: none) – "int",
+   * "1", "2" under a wiper sign.  Without a dashboard (null) it is hidden.
+   */
+  void setWipers(const std::optional<std::string>& mode);
 
   /** The vehicle went up in flames (true) – the button for a new one – or there is one again (false). */
   void setWrecked(bool on);
@@ -413,6 +417,8 @@ class Hud {
   dom::El dashV;
   dom::El lampBrake;
   dom::El lampBelt;
+  /** the wiper stalk's place (setWipers): made the first time it is asked for */
+  dom::El lampWipers;
   /** the fuel gauge of the dashboard strip (ui/fuelgauge.ts) */
   std::unique_ptr<FuelGauge> fuelGauge;
   dom::El dashG;
