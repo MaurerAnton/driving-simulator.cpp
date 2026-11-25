@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: render engine world sim core platform geo
+// LINK: render engine world sim game core platform geo
 /**
  * The traffic signs (render/signs, render/signart) and the pedestrian lights (render/pedlights):
  * which signs the program draws itself and how wide their plates are (what

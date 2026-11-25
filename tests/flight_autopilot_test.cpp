@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 // Origin: tests/vehicle/autopilot.test.ts @ v1.7.7
 /**
  * The autopilot and the assist of the light aeroplane (src/sim/autopilot),

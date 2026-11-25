@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 // Origin: tests/sim/queues.test.ts @ v1.7.7
 /**
  * Queues in the traffic and getting past what blocks the way, on made-up

@@ -93,7 +93,7 @@ ExamScore scoreExam(const std::vector<const ExamQuestion*>& qs, const ExamAnswer
 double timeLeft(double start, double now, double minutes = EXAM_MINUTES);
 
 /** A time left as the clock shows it: "44:59" (rounded up to the second, as a countdown does). */
-std::string clockText(double ms);
+std::string examClockText(double ms);
 
 /** Has this answer been given at all (something ticked or typed)? */
 bool answered(const ExamAnswer* a);

@@ -187,7 +187,7 @@ ExamScore scoreExam(const std::vector<const ExamQuestion*>& qs, const ExamAnswer
 
 double timeLeft(double start, double now, double minutes) { return std::max(0.0, start + minutes * 60'000 - now); }
 
-std::string clockText(double ms) {
+std::string examClockText(double ms) {
   const double s = std::max(0.0, std::ceil(ms / 1000));
   return jsStr(std::floor(s / 60)) + ":" + padStart(jsStr(std::fmod(s, 60)), 2, '0');
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 // Origin: tests/vehicle/truck.test.ts @ v1.7.7
 /**
  * The truck and its trailer.  Expectations from how a 12 t distribution

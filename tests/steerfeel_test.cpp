@@ -1,4 +1,4 @@
-// LINK: input sim world core platform geo
+// LINK: input sim game world core platform geo
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: tests/vehicle/steerfeel.test.ts @ v1.7.7
 /**

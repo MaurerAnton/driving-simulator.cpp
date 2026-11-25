@@ -5,7 +5,7 @@
  *
  * Origin: tests/game/tram.test.ts @ v1.7.7
  */
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 #include <cassert>
 #include <cmath>
 #include <cstdio>
