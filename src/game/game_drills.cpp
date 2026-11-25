@@ -39,7 +39,7 @@ void Game::drillBegin(const std::vector<std::string>& ids) {
 void Game::drillPlace() {
   DrillRun& d = *drill;
   const Pose at = d.start();
-  spawn = SpawnJson{.name = "", .x = at.x, .z = at.z, .yaw = at.yaw, .kind = "street"};
+  spawn = SpawnJson{.name = "", .x = at.x, .z = at.z, .yaw = at.yaw, .kind = "street", .rough = false, .g = ""};
   input->c.lookZoom = d.layout().zoom > 0 ? d.layout().zoom : def->zoom;
 }
 

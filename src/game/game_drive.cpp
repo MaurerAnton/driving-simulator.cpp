@@ -273,7 +273,7 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     const bool work = mode == FORK_WORK_MODE && !lesson;
     forklift = makeForkliftWork(work);
     const std::optional<ForkPlace> at = work ? forkliftStart(yardFrame ? &*yardFrame : nullptr) : std::nullopt;
-    if (at) spawn = SpawnJson{.name = tr("forkPlace", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street"};
+    if (at) spawn = SpawnJson{.name = tr("forkPlace", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street", .rough = false, .g = ""};
     if (work) {
       // (later: showOn – game.ts:2920)
       rules->yard = true;
