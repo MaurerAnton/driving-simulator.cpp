@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 // Origin: tests/vehicle/fleet.test.ts @ v1.7.7
 /**
  * The vehicles of the other licence classes in the physics: they pull away,

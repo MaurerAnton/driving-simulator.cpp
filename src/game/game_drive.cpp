@@ -17,7 +17,11 @@
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/yardtask.h"
+#include "game/forkliftmodes.h"
+#include "game/forkliftplay.h"
 #include "game/game.h"
+#include "game/drillplay.h"
+#include "game/beamplay.h"
 #include "game/timedtransit.h"
 #include "render/trams.h"
 #include "game/lessonplaces.h"
@@ -233,7 +237,7 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
   // (the vehicles whose models are not in this build yet – the tram, the forklift: Game::makeModel – are driven as the car meanwhile)
   {
-    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor", "motorcycle", "walker", "tram"};
+    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor", "motorcycle", "walker", "forklift", "tram"};
     if (!drawn.count(def->model) && def->model != "plane" && !def->crane) def = &VEHICLES.at("car");
   }
   // the tram: at the stop nearest to the place chosen (on the tracks of Kassel and Baunatal)
@@ -279,7 +283,9 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   taskCount = static_cast<int>(tasksLeft.size());
   if (!tasksLeft.empty()) nextTask();
   else if (def->long_ && !address && spawn) spawn = truckSpot(*spawn);
-  // (later: drill, drillBegin – game.ts:2897)
+  // the basic tasks of class B: on the practice yard, one after the other (game/drillplay.ts)
+  drill = nullptr;
+  if (lesson && lesson->drills && yardFrame) drillBegin(*lesson->drills);
   // a crane: its free drive is the work on the construction site (game/craneplay.ts) – from the depot, the tower crane on its base
   if (crane) crane->dispose();
   crane = nullptr;
@@ -291,7 +297,21 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
     rules->yard = true;
     hud->canTeleport = false;
   }
-  // (later: forklift – game.ts:2912)
+  // the forklift (game/forkliftplay.ts): "Forklift work" on its place on the practice yard – any other way to play
+  // a free drive where the menu put it (the place, the address, the test place); its camera from the side at first
+  endForklift();
+  if (def->kind == "forklift") {
+    const bool work = mode == FORK_WORK_MODE && !lesson;
+    forklift = makeForkliftWork(work);
+    const std::optional<ForkPlace> at = work ? forkliftStart(yardFrame ? &*yardFrame : nullptr) : std::nullopt;
+    if (at) spawn = SpawnJson{.name = tr("forkPlace", settings.lang), .x = at->x, .z = at->z, .yaw = at->yaw, .kind = "street", .rough = false, .g = ""};
+    if (work) {
+      // (later: showOn – game.ts:2920)
+      rules->yard = true;
+    }
+    hud->canTeleport = false;
+    forkView();
+  }
   input->setSteering(spec.wheelbase, spec.maxWheelAngle, SteerSpec(spec));
   input->setAutomatic(spec.transmission == "automatic");
   Controls& c = input->c;
@@ -432,9 +452,8 @@ void Game::tryPlace() {
   if (task && !task->laid) task->laid = yardScene->show(*yardFrame, task->run->layout, [this](double x, double z) { return app.tiles->heightAt(x, z); });
   Place place{sp.x, sp.z, sp.yaw};
   // (never into a wall or onto a post: then the nearest free place in a lane instead)
-  // (later: drill, forklift.siteOn – game.ts:3040)
-  if (!task && (collider->blocked(sp.x, y, sp.z, sp.yaw, 0.05) ||
-                (!crane && inBuilding(sp.x, sp.z, sp.yaw, def->outline, [this](double x, double z) { return spawnCars->footprints.inside(x, z); })))) {
+  if (!task && !drill && (collider->blocked(sp.x, y, sp.z, sp.yaw, 0.05) ||
+                (!crane && !(forklift && forklift->siteOn) && inBuilding(sp.x, sp.z, sp.yaw, def->outline, [this](double x, double z) { return spawnCars->footprints.inside(x, z); })))) {
     const std::optional<Spot> freeAt = freeSpot(sp.x, sp.z, sp.yaw, 0);
     if (freeAt) {
       place = Place{freeAt->x, freeAt->z, freeAt->yaw};
@@ -445,8 +464,8 @@ void Game::tryPlace() {
   if (trailer) trailer->coupleBehind(*vehicle);
   lastGood = GoodSpot{{place.x, y, place.z, place.yaw}, 0};
   // (on foot first – not on the yard of the class CE tasks, not when the car is to drive by itself)
-  // (later: drill, lessonWatch, forklift – game.ts:3051)
-  walkPending = settings.startOutside && !task && !planDemo && !walker && def->kind != "tram" && def->kind != "pedestrian" && !crane && !intoParked;
+  // (later: lessonWatch – game.ts:3051)
+  walkPending = settings.startOutside && !task && !drill && !planDemo && !walker && def->kind != "tram" && def->kind != "pedestrian" && !crane && !forklift && !intoParked;
   intoParked = false;
   footPending = def->kind == "pedestrian";
   if (tramAt) {
@@ -565,11 +584,11 @@ void Game::updateSun() {
     const SunPlace sun = sunAt(ms);
     // (below the horizon the night is not black: the sky keeps some light, as on a clear night in town)
     app.sky.setSun(std::max(sun.elevation, -6.0), sun.azimuth);
-    // (later: beams.sunElevation – game/beamplay.ts, game.ts:3532)
+    beams->sunElevation = sun.elevation;
   } else if (sunPlacedAt != -2) {
     sunPlacedAt = -2;
     app.sky.setSun(52, 215);
-    // (later: beams.sunElevation = 52 – game.ts:3536)
+    beams->sunElevation = 52;
   }
 }
 
@@ -580,18 +599,21 @@ void Game::finish() {
   const LessonDef* l = lesson;
   const bool exam = l && l->kind == "exam";
   const bool failed = rules->failed() || rules->points() >= 10 || taskFailed;
-  // (later: drill – game.ts:3587)
-  const bool judged = taskCount > 0;
+  const bool judged = taskCount > 0 || drill != nullptr;
   endTasks();
   state = "result";
   input->enabled = false;
   audio->suspend();
   hud->setHudVisible(false);
   lastResult = std::make_unique<ResultSummary>();
-  // (later: forkWork as the title; forklift, drill: their resultNode – game.ts:3594)
-  lastResult->title = l ? lessonTitle(l->id, settings.lang) : tr(crane ? "craneWork" : "free", settings.lang);
-  if (crane)
+  lastResult->title = l ? lessonTitle(l->id, settings.lang) : tr(crane ? "craneWork" : forklift ? "forkWork" : "free", settings.lang);
+  if (crane) {
     if (std::optional<dom::El> extra = crane->resultNode()) lastResult->extra = *extra;
+  } else if (forklift) {
+    if (std::optional<dom::El> extra = forklift->resultNode()) lastResult->extra = *extra;
+  } else if (drill) {
+    if (std::optional<dom::El> extra = drill->resultNode()) lastResult->extra = *extra;
+  }
   lastResult->exam = exam || judged;
   lastResult->passed = !failed;
   lastResult->log = rules->log;
@@ -599,8 +621,13 @@ void Game::finish() {
   lastResult->distanceKm = (vehicle->odometer - startOdo) / 1000;
   lastResult->minutes = (time - startTime) / 60;
   // how the lesson ended, for the lesson log (game/exam/learnstore.ts – ui/learn.ts)
-  // (later: the basic tasks finished in it, drill.results – game/drills.ts; offerReplay)
-  if (l) noteLessonEnd(l->id, !failed, rules->points(), {});
+  // (later: offerReplay)
+  if (l) {
+    std::vector<DrillTry> tries;
+    if (drill)
+      for (const DrillResult& r : drill->results) tries.push_back(DrillTry{.id = r.id, .stars = double(r.stars), .failed = r.failed});
+    noteLessonEnd(l->id, !failed, rules->points(), tries);
+  }
   hud->showResult(*lastResult);
 }
 
@@ -636,8 +663,10 @@ void Game::onAction(const std::string& a) {
     audio->click("airDoor");
     for (const BusEvent& e : ev) rules->noteAt(e.fault, e.severity, mpos[0], mpos[2], {}, 8);
   }
-  // (later: 'door': the forklift – game.ts:3864)
-  else if (a == "door" && state == "drive" && crane && crane->type == "tower") {
+  else if (a == "door" && state == "drive" && forklift) {
+    // the forklift: the operator gets off beside the seat, and on again
+    forkliftDoor();
+  } else if (a == "door" && state == "drive" && crane && crane->type == "tower") {
     // the tower crane: its operator climbs down, and up again
     towerDoor();
   } else if (a == "door" && state == "drive" && crane && !walker) {
@@ -679,8 +708,12 @@ void Game::onAction(const std::string& a) {
     saveSettings(settings);
     hud->message(tr(settings.footView == "behind" ? "footViewBehind" : "footViewEyes", settings.lang));
   }
-  // (later: 'view' on the forklift – game.ts:3909)
-  else if (a == "view" && state == "drive" && !walker) {
+  else if (a == "view" && state == "drive" && !walker && forklift) {
+    // the forklift: from the side → the operator's seat → behind it → the free camera → …
+    forklift->nextView();
+    forkView();
+    if (cameraMode == "free") hud->message(tr("viewFree", settings.lang), tr(inputMode == "touch" ? "freeCamTouch" : "freeCamKeys", settings.lang));
+  } else if (a == "view" && state == "drive" && !walker) {
     // the driver's seat → behind the car → the free camera → …
     cameraMode = cameraMode == "cockpit" ? "chase" : cameraMode == "chase" ? "free" : "cockpit";
     input->resetLook(cameraMode == "chase", cameraMode == "free");
@@ -848,8 +881,8 @@ void Game::toAutomatic() {
 
 /** Arcade driving for the road vehicle driven now (not the tram, the aeroplane, the forklift, a crane at work, nor on foot or watching). */
 bool Game::arcadeNow() {
-  // (later: … !watcher, !forklift, !wrecked – game.ts:4068)
-  return settings.arcadeDrive && !tram && !aircraft && !(crane && crane->operating) && def->kind != "pedestrian" && !walker;
+  // (later: … !watcher, !wrecked – game.ts:4068)
+  return settings.arcadeDrive && !tram && !aircraft && !forklift && !(crane && crane->operating) && def->kind != "pedestrian" && !walker;
 }
 
 void Game::stepOpen(double dt) {
@@ -896,7 +929,10 @@ void Game::stepDrive(double dt) {
     stepCrane(dt);
     return;
   }
-  // (later: stepForklift – game.ts:4102)
+  if (forklift) {
+    stepForklift(dt);
+    return;
+  }
   DriverInput& d = driver;
   d.steer = c.steer;
   d.throttle = c.throttle;
@@ -1200,7 +1236,7 @@ void Game::stepDrive(double dt) {
   }
   if (!flyParked) rememberGoodSpot(player);
   if (task) updateTask(dt);
-  // (later: updateDrill – game.ts:4388)
+  else if (drill) updateDrill(dt);
   else if (demo) updateDemo(dt, player);
   else updateLesson(dt, player);
   // a crane driven to its stand: the site, the guide

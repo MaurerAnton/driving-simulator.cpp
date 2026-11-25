@@ -26,6 +26,7 @@
 #include "game/arcadedrive.h"
 #include "game/craneplay.h"
 #include "game/flycam.h"
+#include "game/forkliftplay.h"
 #include "game/game.h"
 #include "game/nav.h"
 #include "game/settings.h"
@@ -138,8 +139,7 @@ void Game::teleportTo(const AddressHit& hit) {
 /** Free drive: put the car at a spot on a road (an address, or a place chosen on the map). */
 void Game::teleportSpot(const SpawnJson& spot_) {
   // (not from a lesson, nor from the crane's construction site)
-  // (later: forklift – game.ts:2169)
-  if (lesson || crane || (state != "pause" && state != "map")) return;
+  if (lesson || crane || forklift || (state != "pause" && state != "map")) return;
   // (the spot may be the map's own, which closing the map clears: held here)
   const SpawnJson spot = spot_;
   bigMap->close();
@@ -238,8 +238,8 @@ void Game::closeMap() {
 
 /** The free camera flies, apart from the vehicle (not from the aeroplane, the tram or the forklift, nor on foot or watching: there it goes with them as before). */
 bool Game::flyFree() {
-  // (later: watcher, tram, forklift – game.ts:5183)
-  return cameraMode == "free" && state == "drive" && !walker && !aircraft && !(crane && crane->operating) && doorT < 0;
+  // (later: watcher, tram – game.ts:5183)
+  return cameraMode == "free" && state == "drive" && !walker && !aircraft && !forklift && !(crane && crane->operating) && doorT < 0;
 }
 
 /** The flying camera (game/flycam.ts): from where the camera was – or from behind the vehicle – wherever it is flown. */
@@ -286,8 +286,7 @@ bool Game::canTeleport() {
   // (later: riding, busRide, wrecked – game.ts:5286)
   if (doorT >= 0 || opens.busy()) return false;
   if (walker) return true;
-  // (later: forklift – game.ts:5288)
-  return !aircraft && !tram && !(crane && crane->operating);
+  return !aircraft && !tram && !forklift && !(crane && crane->operating);
 }
 
 /**
@@ -302,8 +301,7 @@ bool Game::canDrive() {
   // (later: riding, busRide, wrecked – game.ts:5299)
   if (doorT >= 0 || opens.busy()) return false;
   if (walker) return true;
-  // (later: forklift – game.ts:5301)
-  return !tram && !(crane && crane->operating);
+  return !tram && !forklift && !(crane && crane->operating);
 }
 
 /** "Teleport here": somebody on foot to that very place; a vehicle into the lane of the road nearest it, facing along it (the way the camera looked, where it may). */
@@ -383,8 +381,7 @@ bool Game::canTurnAround() {
   // (later: riding, busRide – game.ts:5374)
   if (doorT >= 0 || opens.busy()) return false;
   // not on foot, and not in what is driven by hand or by an operator: the aeroplane, the tram, the forklift, the crane
-  // (later: forklift – game.ts:5376)
-  return !walker && !aircraft && !tram && !crane;
+  return !walker && !aircraft && !tram && !forklift && !crane;
 }
 
 }  // namespace fs

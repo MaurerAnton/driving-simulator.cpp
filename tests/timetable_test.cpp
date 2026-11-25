@@ -8,7 +8,7 @@
  * one tools/build-timetable.ts builds from the test's feed (not ported: it is a build tool): written once by it
  * into tests/fixtures/timetable-built.json, and with the hand-made bus section into timetable-combined.json.
  */
-// LINK: sim world core platform geo
+// LINK: sim game world core platform geo
 #include <algorithm>
 #include <array>
 #include <cassert>

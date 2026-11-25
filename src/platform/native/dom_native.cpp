@@ -750,7 +750,8 @@ bool hasPointerCapture(int h, int pointerId) {
 int documentElementOf(const char* which) {
   std::string w = which;
   if (w == "fullscreenElement") return page().fullscreen;
-  if (w == "activeElement") return page().focused ? page().focused : page().body;
+  // (an element taken out of the page has lost the focus, as in a browser: the body has it then)
+  if (w == "activeElement") return page().focused && connected(page().focused) ? page().focused : page().body;
   return 0;
 }
 void exitFullscreen() {
@@ -858,7 +859,9 @@ bool key(const std::string& code, const std::string& keyText, bool down) {
   e.type = down ? "keydown" : "keyup";
   e.code = code;
   e.key = keyText;
-  int target = page().focused ? page().focused : page().body;
+  // (the keys go where the focus is – an element taken out of the page has lost it, as in a browser: then to the body,
+  //  and from there to the document and the window – crane_play_test's keys never reached the crane panel's listener)
+  int target = page().focused && connected(page().focused) ? page().focused : page().body;
   fire(target, e, true);
   return !e.defaultPrevented;
 }

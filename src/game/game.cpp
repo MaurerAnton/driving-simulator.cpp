@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Origin: src/game/game.ts @ v1.7.7 (the constructor, boot, the settings, the menu – game.ts:1 … 1952)
 #include "game/game.h"
+#include "game/drillplay.h"
+#include "game/beamplay.h"
+#include "ui/learn.h"
+#include "render/drillyard.h"
+#include "game/forkliftplay.h"
+#include "render/forklift.h"
 #include "game/weather.h"
 
 #include <algorithm>
@@ -183,7 +189,11 @@ Game::Game(const dom::El& canvas, const dom::El& ui)
       flightAssist(std::make_unique<FlightAssist>(ASSIST_BEGINNER)),
       flightControls(std::make_unique<FlightControls>()),
       yardScene(std::make_unique<YardScene>()),
+      drillScene(std::make_unique<DrillScene>()),
+      beams(std::make_unique<BeamPlay>()),
       railActors(std::make_unique<RailActors>()) {
+  // (the learning modes' lesson log lists the basic tasks of class B: ui/learn.ts reads game/drills.ts DRILL_IDS)
+  learnHooks.DRILL_IDS = [] { return DRILL_IDS; };
   // (the aeroplane's controls: throttle, elevator, aileron, rudder, flaps, trim, brake 0, no parking brake, the engine on – game.ts:435)
   flightControls->engineOn = true;
   grass = std::make_unique<GrassRenderer>();
@@ -367,7 +377,7 @@ Task<void> Game::boot(URLSearchParams q) {
   traffic->crowd->blocked = [this](double x, double y, double z, double r) { return collider->circleBlocked(x, y, z, r); };
   traffic->crowd->clock = [] { return berlinSeconds(gameNow()) / 3600; };
   actors->view = app.camera.get();
-  // (later: actors.highOf, the traffic's main beam – game/beamplay.ts, game.ts:663)
+  actors->highOf = [this](int64_t id) { return beams->traffic.high(id); };
   airfieldView = std::make_unique<AirfieldRenderer>([this](double x, double z) { return groundHeight(x, z); },
                                                     [this](double x, double z) { return !std::isnan(this->app.tiles->heightAt(x, z)); });
   // (later: services – game.ts:668)
@@ -375,8 +385,8 @@ Task<void> Game::boot(URLSearchParams q) {
   // (later: TapPicker, a tap on a vehicle: watch it – pickBoxes, picked, game.ts:669)
   app.tiles->onTile([this](LoadedTile& tile, bool loaded) { onTile(tile, loaded); });
   app.scene->add(car.root, actors->group, railActors->group, signalHeads->group, pedHeads->group, far->group, airfieldView->group, yardScene->group);
-  app.scene->add(markers->group, figure->group);
-  // (later: passengerView, transit, drillScene, showGroup, showRail, showPeople, explosion in the scene – game.ts:671)
+  app.scene->add(markers->group, figure->group, drillScene->group);
+  // (later: passengerView, transit, showGroup, showRail, showPeople, explosion in the scene – game.ts:671)
   fadeEl = dom::el("div");
   fadeEl.className("fade");
   ui.append(fadeEl);
@@ -461,13 +471,14 @@ Task<void> Game::boot(URLSearchParams q) {
     if (state == "pause") hud->showArcade();
   };
   hud->onGetOut = [this] {
-    // (down from the tower crane: on foot beside it – game/craneplay.ts)  (later: off the forklift – game.ts:857)
-    if (!walker && crane && crane->type == "tower") {
+    // (off the forklift, down from the tower crane: on foot beside it – game/forkliftplay.ts, craneplay.ts)
+    if (!walker && (forklift || (crane && crane->type == "tower"))) {
       resume();
-      towerDoor();
+      if (forklift) forkliftDoor();
+      else towerDoor();
       return;
     }
-    if (walker || (demo && demo->active) || task || crane) return;
+    if (walker || (demo && demo->active) || task || crane || forklift) return;
     // (later: the tram: standing, not driving by itself – out of the cab and on foot beside it – game.ts:865)
     if (std::abs(vehicle->speed) > 0.3) return;
     resume();
@@ -956,7 +967,7 @@ void Game::toMenu() {
   // (later: services.end – game.ts:1464)
   if (crane) crane->dispose();
   crane = nullptr;
-  // (later: endForklift – game.ts:1467)
+  endForklift();
   figure->hide();
   if (spawnCars) spawnCars->clear();
   intoParked = false;
@@ -1064,7 +1075,7 @@ VehicleModel* Game::makeModel(const VehicleDef& def) {
     craneModels.push_back(makeCraneModel(def.crane.value_or("tower"), settings.quality == "low" ? "low" : "full"));
     return craneModels.back().get();
   }
-  // (later: forklift – game.ts:1919)
+  else if (mk == "forklift") made = std::make_unique<ForkliftModel>(settings.quality == "low" ? "low" : "full");
   if (made) {
     vehicleModels.push_back(std::move(made));
     return vehicleModels.back().get();

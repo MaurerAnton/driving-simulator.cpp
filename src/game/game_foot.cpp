@@ -367,8 +367,8 @@ std::unique_ptr<SpawnCars> Game::makeSpawnCars() {
 }
 
 bool Game::canSpawnCar(bool fromMap) {
-  // (later: watcher, forklift, showOn – game.ts:4922)
-  if (!(fromMap ? state == "map" && mapFrom != "menu" : state == "drive") || lesson || task || (demo && demo->active)) return false;
+  // (later: watcher, showOn – game.ts:4922)
+  if (!(fromMap ? state == "map" && mapFrom != "menu" : state == "drive") || lesson || task || (demo && demo->active) || forklift) return false;
   // (later: riding, busRide – game.ts:4923)
   return walker != nullptr || (crane && crane->operating);
 }
@@ -377,8 +377,7 @@ bool Game::canEnterParked() {
   // (later: watcher, riding, busRide – game.ts:4928)
   if (state != "drive" || lesson || task || (demo && demo->active) || doorT >= 0 || opens.busy()) return false;
   if (walker || (crane && crane->operating)) return true;
-  // (later: forklift – game.ts:4930)
-  return !aircraft && !tram && std::abs(vehicle->speed) < 0.5;
+  return !aircraft && !tram && !forklift && std::abs(vehicle->speed) < 0.5;
 }
 
 void Game::enterParked(const Parked& p_) {
