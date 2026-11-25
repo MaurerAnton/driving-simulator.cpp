@@ -370,8 +370,6 @@ class Hud {
   std::function<bool(const VehicleKind& kind, Settings::LastStart& last, const SpawnJson& spot, const std::vector<TramStopChoice>* tramStops, const std::vector<RunwayChoice>* runways,
                      const std::string& unnamed)>
       startFromSpot = nullptr;
-  /** ui/learn.ts openLearn: a learning mode ('exam' | 'signs' | 'danger' | 'log'); `show` puts its panel in the place of the menus */
-  std::function<void(const std::string& screen, std::function<void(const dom::El& panel)> show, std::function<void()> back)> openLearn = nullptr;
   /** ui/arcade.ts arcadePanel: the panel for `arcade` */
   std::function<dom::El(ArcadeHost& host)> arcadePanel = nullptr;
   /** ui/versionpicker.ts playVersionButton (an empty El: the site has not that version) and versionSettings (`when`: a moment given as ISO text, written for the reader) */
@@ -482,7 +480,7 @@ class Hud {
   T tFn() const;
   double fitRoundel(const std::string& text);
   void setOverlay(const dom::El& node);
-  /** A learning mode (ui/learn.ts): the theory exam, the sign trainer, spotting dangers, the lesson log. */
+  /** A learning mode (ui/learn.ts): the theory exam, the sign trainer, spotting dangers, the lesson log, or their overview ('hub' | 'exam' | 'signs' | 'danger' | 'log'). */
   void showLearn(const std::string& screen, std::function<void()> back);
   struct LearnMode {
     std::string id;

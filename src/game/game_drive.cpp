@@ -13,6 +13,7 @@
 #include "game/ce.h"
 #include "game/clock.h"
 #include "game/craneplay.h"
+#include "game/exam/learnstore.h"
 #include "game/faultlog.h"
 #include "game/flycam.h"
 #include "game/yardtask.h"
@@ -513,7 +514,9 @@ void Game::finish() {
   lastResult->points = rules->points();
   lastResult->distanceKm = (vehicle->odometer - startOdo) / 1000;
   lastResult->minutes = (time - startTime) / 60;
-  // (later: noteLessonEnd, the lesson log – game/exam/learnstore.ts, game.ts:3604; offerReplay)
+  // how the lesson ended, for the lesson log (game/exam/learnstore.ts – ui/learn.ts)
+  // (later: the basic tasks finished in it, drill.results – game/drills.ts; offerReplay)
+  if (l) noteLessonEnd(l->id, !failed, rules->points(), {});
   hud->showResult(*lastResult);
 }
 
