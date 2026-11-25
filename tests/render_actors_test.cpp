@@ -59,14 +59,7 @@ struct Cars {
 
 bool near(double a, double b, double eps = 1e-9) { return std::fabs(a - b) <= eps; }
 
-// ---- the parts that are not translated, standing in ----
-
-struct TestEmergency : EmergencyFleet {
-  size_t cars = 0;
-  static inline TestEmergency* made = nullptr;
-  TestEmergency() { made = this; }
-  void update(const std::vector<TrafficCar*>& list, double) override { cars = list.size(); }
-};
+// ---- a cyclist's model of the test's own (CyclistModel::create) ----
 
 struct TestCyclist : CyclistModel {
   int colour = 0;
@@ -169,7 +162,7 @@ void lampsAndWheels() {
 }
 
 void theHooks() {
-  // ---- without the parts: buses, emergency vehicles, cyclists and people are left out ----
+  // ---- the parts as they are: the emergency vehicles (render/emergency) and the cyclists (render/cyclist) drawn by their own models ----
   Cars cars;
   TrafficCar* car = cars.add(1, 0, 0xd9dadc, 10);
   TrafficCar* bus = cars.add(2, BUS_STYLE, 0xffffff, 20);
@@ -182,18 +175,19 @@ void theHooks() {
   {
     TrafficRenderer traffic;
     traffic.update({car, bus, police, fire}, {&walkers[0], &walkers[1]}, 1, {&riders[0], &riders[1]});
-    // (the people – render/people is translated –, the car, and the bus: render/fleet is translated, its model is no hook any more)
-    assert(traffic.group->children.size() == 3 && traffic.group->children[0] == traffic.people->group && traffic.group->children[2]->name == "bus");
+    // (the emergency vehicles' picture with the police car and the fire engine, the people, the car, the bus, the two cyclists)
+    assert(traffic.group->children.size() == 6 && traffic.group->children[0]->name == "emergency vehicles" && traffic.group->children[1] == traffic.people->group);
+    assert(traffic.group->children[0]->children.size() == 2 && traffic.group->children[0]->children[0]->name == "police car" && traffic.group->children[0]->children[1]->name == "fire engine");
+    assert(traffic.group->children[3]->name == "bus");
   }
 
-  // ---- with them ----
-  EmergencyFleet::create = []() { return std::make_unique<TestEmergency>(); };
+  // ---- with a cyclist's model of the test's own ----
   CyclistModel::create = [](int colour) { return std::make_unique<TestCyclist>(colour); };
   {
     TrafficRenderer traffic;
     // the people's and the emergency vehicles' pictures hang in the traffic's group from the start
     assert(traffic.people);
-    assert(traffic.group->children.size() == 2 && traffic.group->children[0] == TestEmergency::made->group && traffic.group->children[1] == traffic.people->group);
+    assert(traffic.group->children.size() == 2 && traffic.group->children[0]->name == "emergency vehicles" && traffic.group->children[1] == traffic.people->group);
 
     // a bus: its own model, its lamps and its line
     bus->blinker = 1;
@@ -206,8 +200,8 @@ void theHooks() {
     bus->bus->line->ref = "500";
     bus->bus->line->to = "Baunatal";
     traffic.update({car, bus, police, fire}, {}, 0);
-    // (every car of the list goes to the emergency vehicles' picture, which takes its own; the car and the bus are drawn here)
-    assert(TestEmergency::made->cars == 4);
+    // (the emergency vehicles go to their own picture; the car and the bus are drawn here)
+    assert(traffic.group->children[0]->children.size() == 2);
     assert(traffic.group->children.size() == 4);
     const ObjectPtr model = traffic.group->children[3];
     assert(model->name == "bus" && model->children[0]->castShadow);
@@ -252,7 +246,6 @@ void theHooks() {
     walkers[2].z = -200;  // ahead, within reach
     traffic.update({}, {&walkers[0], &walkers[1], &walkers[2]}, 8);
   }
-  EmergencyFleet::create = nullptr;
   CyclistModel::create = nullptr;
 }
 

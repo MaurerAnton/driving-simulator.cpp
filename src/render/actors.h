@@ -18,6 +18,7 @@
 
 #include "engine/engine.h"
 #include "render/car.h"
+#include "render/emergency.h"
 #include "render/fleet.h"
 #include "render/people.h"
 #include "sim/hooks.h"
@@ -27,14 +28,11 @@
 
 namespace fs {
 
-// ------------------------------------------------------------------ hooks ----
+// ------------------------------------------------------------------ cyclists ----
 //
-// The cyclists (render/cyclist.ts) and the emergency
-// vehicles (render/emergency.ts) are not translated yet.  (The city bus is render/fleet.h's PlayerBus.)  Each stands here as a class of the original's name with just the members
-// the traffic's drawing calls, for the missing part to fill in; `create` is its constructor
-// (`new CyclistModel(colour)` …) and null until then – what it would draw is left out
-// meanwhile.  When a part is translated its declaration here goes and the real class takes its
-// place: nothing in actors.cpp changes but the `create` calls.
+// The cyclists' model (render/cyclist.ts) is made by render/cyclist.h's makeCyclistModel; the
+// class stands here as what the traffic's drawing calls of it.  `create` lets a test hang a
+// model of its own on it (null: makeCyclistModel).  The emergency vehicles are render/emergency.h.
 
 /** render/cyclist.ts */
 class CyclistModel {
@@ -45,16 +43,6 @@ class CyclistModel {
   const std::shared_ptr<Group> group = make<Group>();
   virtual void setColour(int colour) = 0;
   virtual void pose(double phase, double roll, bool down) = 0;
-};
-
-/** render/emergency.ts */
-class EmergencyFleet {
- public:
-  static inline std::function<std::unique_ptr<EmergencyFleet>()> create = nullptr;
-
-  virtual ~EmergencyFleet() = default;
-  const std::shared_ptr<Group> group = make<Group>();
-  virtual void update(const std::vector<TrafficCar*>& cars, double time) = 0;
 };
 
 // ---------------------------------------------------------------- traffic ----

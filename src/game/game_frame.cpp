@@ -5,6 +5,7 @@
 
 #include "audio/audio.h"
 #include "audio/profiles.h"
+#include "audio/siren.h"
 #include "audio/speech.h"
 #include "core/geom.h"
 #include "core/js.h"
@@ -45,6 +46,7 @@
 #include "render/yard.h"
 #include "render/signs.h"
 #include "render/truck.h"
+#include "render/wildlife.h"
 #include "render/windscreen.h"
 #include "sim/autodriver.h"
 #include "sim/autopilot.h"
@@ -488,7 +490,10 @@ void Game::frame(double now) {
     actors->update(traffic->cars, traffic->peds(), time, traffic->cyclists ? traffic->cyclists->list : noCyclists);
   }
   lap(frameTimes.scene);
-  // (later: wildView – game.ts:6682)
+  {
+    static const std::vector<WildAnimal> noAnimals;
+    if (wildView) wildView->update(traffic->wild ? traffic->wild->animals : noAnimals);
+  }
   railActors->update(rail->vehicles, rail->lines);
   // the lines: the trams run them (later: transit – the stops, the overhead line, the tram signals, the people at the stops; roadworks, crossingView, explosion – game.ts:6685)
   updateLines();
@@ -737,7 +742,8 @@ void Game::updateVisuals(double dt) {
     audio->update(a);
   }
 
-  // (later: sirens.update, the horns of the emergency vehicles – audio/siren.ts, game.ts:6978)
+  // the horns of the emergency vehicles on their calls (src/audio/siren)
+  if (sirens) sirens->update(audio->context(), audio->masterGain(), traffic->cars, *app.camera, cameraMode == "cockpit" && !walker, v.vel[0], v.vel[2]);
 
   // HUD
   if (state != "drive") return;

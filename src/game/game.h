@@ -73,6 +73,7 @@ class ForkliftModel;
 /** (sim/crane.h: 'tower' | 'mobile' | 'loader') */
 using CraneType = std::string;
 class DrivenPath;
+class Emergencies;
 class FarTerrain;
 class FaultLog;
 class FlyCam;
@@ -94,6 +95,7 @@ class SignalRenderer;
 class WorldLayer;
 class SignalSystem;
 class SignRenderer;
+class Sirens;
 class Traffic;
 class BusLines;
 class BusSchedule;
@@ -104,6 +106,8 @@ struct BusStopOnLane;
 struct HudState;
 struct Timetable;
 class TerrainSource;
+class WildView;
+class Wildlife;
 class TrafficRenderer;
 class PlayerTruck;
 class SpawnCars;
@@ -323,7 +327,7 @@ class Game {
   const std::unique_ptr<SceneryCollider> collider;
   // (outdoors, shelterOf: below, '--- weather, seasons, the windscreen ---'; later: explosion, wrecked – game.ts:443)
   const std::unique_ptr<GameAudio> audio;
-  // (later: sirens, services – game.ts:452)
+  // (sirens: in the block of the cyclists, emergency vehicles and wildlife at the end; later: services – game.ts:452)
   State state = "loading";
   CameraMode cameraMode = "cockpit";
 
@@ -392,7 +396,7 @@ class Game {
   double autoDrive = 0;
   std::string tipText;
   // (beams, the headlights: in the block of the forklift and the drills at the end)
-  // (later: wildView – game.ts:516)
+  // (wildView: in the block of the cyclists, emergency vehicles and wildlife at the end)
   /** every fault of this and of earlier sessions */
   const std::unique_ptr<FaultLog> faultLog;
   // (later: online – game.ts:520)
@@ -959,6 +963,16 @@ class Game {
   std::unique_ptr<TheoryMode> theory;
   /** The theory lessons: situations shown on the practice yard – no drive, no traffic, no rules, no HUD meanwhile (game_theory.cpp). */
   void openTheory();
+  // --- cyclists, emergency vehicles, wildlife ---
+  /** emergency vehicles on their calls, police on patrol (src/sim/emergency – `traffic.emergency`) */
+  std::unique_ptr<Emergencies> emergencies;
+  /** the horns of the emergency vehicles (src/audio/siren) */
+  std::unique_ptr<Sirens> sirens;
+  /** deer and wild boar crossing the country roads at dusk (sim/wildlife – `traffic.wild`), and how they are drawn */
+  std::unique_ptr<Wildlife> wildlife;
+  std::unique_ptr<WildView> wildView;
+  /** (what `emergencies` gave the big map last: it keeps a pointer to it) */
+  std::vector<MapEmergency> emergencyList;
 };
 
 }  // namespace fs

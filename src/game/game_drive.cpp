@@ -54,6 +54,7 @@
 #include "sim/ground.h"
 #include "sim/rules.h"
 #include "sim/signals.h"
+#include "sim/emergency.h"
 #include "sim/traffic.h"
 #include "sim/semitrailer.h"
 #include "sim/trailer.h"
@@ -1234,7 +1235,13 @@ void Game::stepDrive(double dt) {
   // (a passenger does not drive: nothing to judge)
   if (!opens.passenger()) rules->update(dt, snap, traffic->events);
   signalTips(dt);
-  // (later: traffic.emergency.judging, its tip – game.ts:4374)
+  // blue lights and siren near by: what to do (src/sim/emergency) – not judged on a demonstration drive
+  if (traffic->emergency) traffic->emergency->judging = !(demo && demo->active);
+  const std::string emTip = traffic->emergency ? traffic->emergency->tip() : "";
+  if (!emTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {
+    tipText = tr(emTip, settings.lang);
+    tipUntil = time + 6;
+  }
   // (what the roadworks or a closure ahead ask: said once as they come up)
   const std::string roadTip = roadEvents ? roadEvents->takeTip() : "";
   if (!roadTip.empty() && settings.hudRules && !rules->strict && !(demo && demo->active)) {

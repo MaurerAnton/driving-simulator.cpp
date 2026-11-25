@@ -52,6 +52,8 @@ Traffic::Traffic(World& world_, LaneGraph& graph_, SignalSystem& signals_) : wor
   box.length = 4.3;
   box.width = 1.8;
   crowd = std::make_unique<Crowd>(world, signals);
+  cyclists = std::make_unique<Cyclists>(world, graph, signals);
+  cyclists->lanesAt = [this](double x, double z) { return lanesAt(x, z); };
   addRoads(world.allEdges);
 }
 

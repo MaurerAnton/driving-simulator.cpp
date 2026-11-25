@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "engine/engine.h"
+#include "render/emergency.h"
 #include "render/people.h"
 #include "sim/roadevents.h"
 
@@ -40,28 +41,6 @@ namespace fs {
 class AudioOut;
 class CrowdNoise;
 class SignRenderer;
-
-// ---- src/render/emergency.ts (not translated yet) -----------------------------------------------
-// What the closures of the marches use of it: a patrol car's model.  The hook `buildPoliceCar` is null
-// until that file is there – the closures then stand without their patrol cars.  When it is translated
-// these declarations go and its own take their place.
-
-/** A model of an emergency vehicle (class EmergencyModel: what is used of it here). */
-class EmergencyModel {
- public:
-  virtual ~EmergencyModel() = default;
-  std::shared_ptr<Group> group = make<Group>();
-  /** blue lights on or off, at the time `t` (s) */
-  virtual void setLights(bool on, double t) = 0;
-  /** the "STOP POLIZEI" sign raised */
-  virtual void setSign(bool up) = 0;
-  virtual void setMotion(double speed, bool braking, bool left, bool right) = 0;
-};
-
-/** a patrol car (render/emergency.ts buildPoliceCar) – null until that is translated */
-inline std::function<std::shared_ptr<EmergencyModel>()> buildPoliceCar = nullptr;
-
-// ---------------------------------------------------------------------------------------------------
 
 class RoadworksRenderer {
  public:

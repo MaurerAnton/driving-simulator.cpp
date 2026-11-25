@@ -5,24 +5,16 @@
 #include <cmath>
 
 #include "platform/plat.h"
-#include "sim/traffic.h"
-
-// The emergency vehicles of the traffic (sim/emergency.ts) are no part of the port: without them no car of
-// the traffic has one of their styles, and what they are taken over as is left out with them.
-#if __has_include("sim/emergency.h")
 #include "sim/emergency.h"
-#define FS_TAKEOVER_EMERGENCY 1
-#endif
+#include "sim/traffic.h"
 
 namespace fs {
 
 VehicleKind takeKindOf(int style) {
   if (style == BUS_STYLE) return "bus";
-#ifdef FS_TAKEOVER_EMERGENCY
   const int em = emKind(style);
   if (em == EM_AMBULANCE) return "lightTruck";
   if (em == EM_FIRE) return "truckSolo";
-#endif
   return "car";
 }
 

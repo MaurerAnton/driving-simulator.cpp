@@ -14,6 +14,7 @@
 #include <exception>
 
 #include "audio/audio.h"
+#include "audio/siren.h"
 #include "core/js.h"
 #include "game/address.h"
 #include "game/arcadedrive.h"
@@ -52,6 +53,7 @@
 #include "render/signs.h"
 #include "render/truck.h"
 #include "render/weather.h"
+#include "render/wildlife.h"
 #include "render/windscreen.h"
 #include "render/yard.h"
 #include "sim/airfield.h"
@@ -61,6 +63,7 @@
 #include "sim/autodriver.h"
 #include "sim/clearlanes.h"
 #include "sim/collision.h"
+#include "sim/emergency.h"
 #include "sim/follow.h"
 #include "sim/levelcrossing.h"
 #include "sim/narrowings.h"
@@ -72,6 +75,7 @@
 #include "sim/trailer.h"
 #include "sim/vehicle/fleet.h"
 #include "sim/vehicle/index.h"
+#include "sim/wildlife.h"
 #include "game/outdoors.h"
 #include "game/startat.h"   // 2.0
 #include "ui/stage.h"   // 2.0: startFromSpot
@@ -353,7 +357,14 @@ Task<void> Game::boot(URLSearchParams q) {
     busTimes = busSchedule(std::move(h));
     traffic->busSchedule = busTimes.get();
   }
-  // (later: traffic.emergency – game.ts:636)
+  // now and then an emergency vehicle on a call, police on patrol (src/sim/emergency; ?emergency=<s>: a call every <s> seconds)
+  {
+    const double every = jsNumber(q.get("emergency").value_or(""));
+    emergencies = std::make_unique<Emergencies>(*traffic, std::isnan(every) ? 0 : every);
+    traffic->emergency = emergencies.get();
+  }
+  sirens = std::make_unique<Sirens>();
+  wildView = std::make_unique<WildView>();
   rules = std::make_unique<RuleMonitor>(world, *lanes, *signals, *traffic);
   nav = std::make_unique<Navigator>(*lanes);
   terrain = std::make_unique<TilesTerrain>(app);
@@ -403,7 +414,17 @@ Task<void> Game::boot(URLSearchParams q) {
   followMap(*app.map, *followers);
   // the roadworks and demonstrations of the day: the traffic, the rules and the way planners know them; the map's pieces bring their zones
   roadEvents = std::make_unique<RoadEvents>(world, *lanes, *signals);
-  // (later: traffic.wild – game.ts:686)
+  // deer and wild boar at dusk where forests meet the country roads: the traffic brakes for them
+  wildlife = std::make_unique<Wildlife>(WildHost{
+      .sun = [this] { return beams->sunElevation; },
+      .coverAt = [this](double x, double z) { return this->app.tiles->coverAt(x, z); },
+      .heightAt = [this](double x, double z) { return this->app.tiles->heightAt(x, z); },
+      .road = worldRoads(world),
+  });
+  traffic->wild = wildlife.get();
+  // (?wildlife: at every forest by the road, to try it out)
+  if (q.has("wildlife")) wildlife->chance = 1;
+  app.scene->add(wildView->group);
   roadEvents->ready = [this](double x, double z, double r) { return !this->app.map->pieces || this->app.map->ready(x, z, r); };
   roadEvents->collider = collider.get();
   traffic->roadEvents = roadEvents.get();
@@ -541,7 +562,14 @@ Task<void> Game::boot(URLSearchParams q) {
       eventList = roadEvents->list();
       return &eventList;
     };
-    // (later: services, emergencies, fuelPrice, priceSource, watchPoint – game.ts:924)
+    host.emergencies = [this]() -> const std::vector<MapEmergency>* {
+      emergencyList.clear();
+      if (traffic)
+        for (const TrafficCar* c : traffic->cars)
+          if (c->em) emergencyList.push_back(MapEmergency{static_cast<int>(c->id), c->em->kind, c->em->call, c->x, c->z});
+      return &emergencyList;
+    };
+    // (later: services, fuelPrice, priceSource, watchPoint – game.ts:924)
     host.loadAddresses = [this] { return loadAddresses(); };
     host.spotOf = [this](const AddressHit& hit) { return spawnAt(hit); };
     host.startTrip = [this](const std::vector<SpawnJson>& stops, bool self, const TourPreview* tour) { startTrip(stops, self, tour); };
