@@ -7,7 +7,7 @@
  * lights on in the dark.  And the traffic's own main beam: dipped for the
  * player, flashed back at a player who dazzles.
  */
-// LINK: sim core
+// LINK: sim game core
 #include <cassert>
 #include <cmath>
 #include <cstdio>

@@ -7,7 +7,7 @@
  * lifting it, a misaligned or too high approach that does not take it, and
  * setting a pallet down on a rack's beams.
  */
-// LINK: sim core
+// LINK: sim game core
 #include <cassert>
 #include <cmath>
 #include <cstdio>
