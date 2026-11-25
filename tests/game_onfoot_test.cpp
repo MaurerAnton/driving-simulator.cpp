@@ -136,14 +136,37 @@ int main() {
     return w ? std::hypot(to[0] - w->x, to[1] - w->z) : 1e9;
   };
 
+  // looking at what is to be checked near where one stands (its ring on this side of the car): to its ring, a look at it for a moment
+  const auto lookRound = [&]() {
+    OnFoot* w = game.walker.get();
+    if (!w) return;
+    for (size_t i = 0; i < w->spots.size(); i++) {
+      const CheckSpot s = w->spots[i];
+      if (s.done) continue;
+      const std::array<double, 2> me = local(w->x, w->z), ring = local(s.rx, s.rz);
+      const std::array<double, 2> mid = local((w->x + s.rx) / 2, (w->z + s.rz) / 2);
+      if (std::hypot(s.rx - w->x, s.rz - w->z) > 4.5 || (std::abs(mid[0]) < o.hw + 0.3 && mid[1] < o.front + 0.3 && mid[1] > -o.rear - 0.3)) continue;
+      (void)me;
+      walkTo(ring[0], ring[1], 400);
+      const double dx = s.x - w->x, dz = s.z - w->z;
+      w->yaw = std::atan2(-dx, -dz);
+      w->pitch = std::atan2(s.y - (w->y + EYE), std::hypot(dx, dz));
+      for (int k = 0; k < 90 && !w->spots[i].done; k++) picture();
+    }
+  };
   // round the car: the front left corner, the front, the right side, the back, the left side again
   const double m = 1.3;
   const double startX = game.walker->x, startZ = game.walker->z;
   double gap = 0;
+  lookRound();
   gap = std::max(gap, walkTo(-o.hw - m, o.front + m, 900));
+  lookRound();
   gap = std::max(gap, walkTo(o.hw + m, o.front + m, 900));
+  lookRound();
   gap = std::max(gap, walkTo(o.hw + m, -o.rear - m, 1500));
+  lookRound();
   gap = std::max(gap, walkTo(-o.hw - m, -o.rear - m, 900));
+  lookRound();
   std::printf("walked %.1f m round the car (furthest from a corner aimed at: %.2f m)\n", game.walker->distance, gap);
   CHECK(!inside, "walked through the car");
   CHECK(game.walker->distance > 2 * (o.front + o.rear), "walked only %.1f m", game.walker->distance);
@@ -154,12 +177,14 @@ int main() {
     of += p.of;
   }
   std::printf("checked %d of %d things round the car\n", done, of);
-  CHECK(done > 0, "nothing was checked walking round the car");
+  CHECK(done == of && game.walker->allChecked(), "not everything was checked walking round the car");
   // (the car stood still meanwhile: nobody in the seat)
   game.vehicle->getModelPosition(game.mpos.data());
   CHECK(std::hypot(game.mpos[0] - cx, game.mpos[2] - cz) < 0.05, "the car moved while nobody sat in it");
 
-  // in front of the bonnet: the key . opens it
+  // in front of the bonnet: the key . opens it (round the front left corner, not through the car)
+  walkTo(-o.hw - m, 0, 900);
+  walkTo(-o.hw - m, o.front + m, 900);
   walkTo(0, o.front + 0.8, 900);
   {
     const std::optional<OpeningSpot> at = game.opens.at(game.walker.get());
@@ -255,7 +280,8 @@ int main() {
   game.begin("free", 0, true);
   for (int i = 0; i < 20000 && game.state != "drive"; i++) picture();
   CHECK(game.state == "drive", "on foot: state %s after placing", game.state.c_str());
-  CHECK(game.def->kind == "pedestrian" && game.walker, "the pedestrian's drive does not begin on foot");
+  CHECK(game.def->kind == "pedestrian" && game.walker, "the pedestrian's drive does not begin on foot (%s, walker %d, vehicle setting %s)", game.def->kind.c_str(),
+        game.walker != nullptr, game.settings.vehicle.c_str());
   if (game.walker) {
     const double wx = game.walker->x, wz = game.walker->z;
     game.input->press("KeyW", true);

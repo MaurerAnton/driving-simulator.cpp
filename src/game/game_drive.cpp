@@ -204,10 +204,9 @@ void Game::begin(const std::string& modeAsked, int spawnIdx, bool skipIntro, con
   }
   // (a tractor may not go on the motorway: its lesson is driven with the car)
   if (def->noMotorway && lesson && lesson->id == "motorway") def = &VEHICLES.at("car");
-  // (the vehicles whose models are not in this build yet – the tram, on foot,
-  //  the forklift: Game::makeModel – are driven as the car meanwhile)
+  // (the vehicles whose models are not in this build yet – the tram, the forklift: Game::makeModel – are driven as the car meanwhile)
   {
-    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor", "motorcycle"};
+    static const std::set<std::string> drawn = {"car", "truck", "truckLight", "truckHeavy", "semi", "bus", "minibus", "tractor", "motorcycle", "walker"};
     if (!drawn.count(def->model) && def->model != "plane" && !def->crane) def = &VEHICLES.at("car");
   }
   // (later: the tram: tram, tramAt, tramWait – game.ts:2853)
