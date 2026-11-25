@@ -81,6 +81,8 @@ std::vector<std::string> deviceLanguages() {
 Task<void> boot(Game* game, std::string search, std::string* failed) {
   try {
     co_await game->boot(URLSearchParams(search));
+    // the small display drawn over the picture (ui/sdlhud: the street, the speed, the tips, the corner map) – the Hud is made in boot
+    if (game->hud) installSdlHud(*game->hud);
   } catch (const std::exception& e) {
     *failed = e.what();
   }
@@ -165,8 +167,6 @@ int main(int argc, char** argv) {
     std::unique_ptr<Game> game;
     try {
       game = std::make_unique<Game>(canvas, ui);
-      // the small display drawn over the picture (ui/sdlhud: the street, the speed, the tips, the corner map)
-      installSdlHud(*game->hud);
     } catch (const std::exception& e) {
       std::fprintf(stderr, "fahrsim-sdl: the game could not be made: %s\n", e.what());
       sdl::close();
