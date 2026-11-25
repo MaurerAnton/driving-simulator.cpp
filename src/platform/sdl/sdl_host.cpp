@@ -374,6 +374,11 @@ void event(const SDL_Event& ev) {
     case SDL_EVENT_WINDOW_FOCUS_GAINED: dom::native::dispatch(dom::window(), "focus"); break;
     case SDL_EVENT_KEY_DOWN:
     case SDL_EVENT_KEY_UP: {
+#if defined(SDL_PLATFORM_ANDROID)
+      // (the phone's back button: the page's menus it would lead to are not painted – and as a key it
+      //  would take the touch controls away: Input counts the driver on the keyboard then)
+      if (ev.key.scancode == SDL_SCANCODE_AC_BACK) break;
+#endif
       dom::Event e;
       e.type = ev.type == SDL_EVENT_KEY_DOWN ? "keydown" : "keyup";
       e.code = codeOf(ev.key.scancode);

@@ -29,7 +29,8 @@ done
 [ -n "$out" ] && [ -n "$dex" ] && [ ${#libs[@]} -gt 0 ] || { echo "apk.sh: --out, --dex and --lib are needed" >&2; exit 2; }
 : "${ANDROID_HOME:?ANDROID_HOME names the Android SDK}"
 tools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-platform="$(ls -d "$ANDROID_HOME"/platforms/android-* | sort -V | tail -1)"
+# (the newest released platform: not a preview such as android-37.2-beta3)
+platform="$(ls -d "$ANDROID_HOME"/platforms/android-* | grep -E '/android-[0-9]+$' | sort -V | tail -1)"
 echo "apk.sh: build-tools $(basename "$tools"), $(basename "$platform")"
 STRIP="${STRIP:-llvm-strip}"
 
