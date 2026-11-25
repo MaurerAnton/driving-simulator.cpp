@@ -789,7 +789,8 @@ Image decodeBytes(const Bytes& bytes) {
     char* copy = static_cast<char*>(std::malloc(bytes.size()));
     if (!copy) return img;
     std::memcpy(copy, bytes.data(), bytes.size());
-    p.svg = plutosvg_document_load_from_data(copy, static_cast<int>(bytes.size()), -1, -1, std::free, copy);
+    // (without a size of its own an SVG picture is 300 × 150, as a browser's image is)
+    p.svg = plutosvg_document_load_from_data(copy, static_cast<int>(bytes.size()), 300, 150, std::free, copy);
     if (!p.svg) return img;
     p.width = static_cast<int>(std::ceil(plutosvg_document_get_width(p.svg)));
     p.height = static_cast<int>(std::ceil(plutosvg_document_get_height(p.svg)));
