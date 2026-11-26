@@ -47,6 +47,63 @@ after ~29 m, so the bend that should show the lean is ridden at walking pace –
 reach the tower crane's controls – the jib does not slew, the hook does not rise; the crane panel reads the keys
 itself, as in 1.7.7: to be found in 2.1).
 
+## What 2.1.1 is to contain (started 2026-11-26)
+
+A small patch: what the player sees first comparing 2.1.0 with 1.7.7, and the three known-failing tests. Nothing
+from the 2.2 list comes into it – no replays, no riding as a passenger, no cyclists, emergency vehicles or wildlife,
+no water, fuel or services, no finer trucks, no multiplayer, reality view, map packs or version picker.
+
+(The checkout in `/home/user/ds2` stood at Release 2.0.0 and was 87 commits behind; pulled to `1de7455`, 2.1.0
+published, before this list was made.)
+
+### The four overlays of the driving frame: translated, never driven
+
+In 1.7.7 they stand in one block of the frame method (`src/game/game.ts:6759-6787`); the port's frame
+(`src/game/game_frame.cpp:567`) stops after drawing the vehicle's own glass. At v2.1.0 no file includes the three
+headers – `src/ui/hudmirror.h`, `src/ui/queuelabels.h`, `src/ui/signaltimers.h` have no includer at all – and no
+test names them. They compile in both builds only because CMake globs `src/*.cpp`.
+
+| Piece | Lines | What the game layer has to call |
+| --- | --- | --- |
+| `ui/signaltimers.h` (`TimerHead`, `SignalTimers`) | 278 | `update(app.camera, w, h, uiScale, signalHeads->spots, walker ? pedPoles : null, signals)` while driving, no lesson, `settings.signalTimers` – else `hide()` (game.ts:6760) |
+| `ui/queuelabels.h` (`QueueLabels`) | 178 | `update(app.camera, w, h, uiScale, traffic->cars, signals, settings.lang)` while driving with traffic, no lesson, `settings.queueLabels` – else `hide()` (game.ts:6766) |
+| `ui/hudmirror.h` (`HudMirror`) | 221 | `frame({mirrors, cockpit, eye, eyeLocal, far, refresh, lang})` (game.ts:6769) |
+| `ui/mirrorzoom.h` (`MirrorZoomPanel`) with `render/mirrorzoom.h` and `MirrorLook` of `game/cockpit.h` | 281 + 165 | `frame({mirrors, cockpit, eye, far, lang})` whenever there is input (game.ts:6780) |
+
+Everything they need is already in the port: `app.canvas/renderer/scene/camera`, `eyeWorld`, `model.eye`,
+`signalHeads->spots` (render/actors.h:128), `pedPoles` (game.h:330), `settings.uiScale`, `Input`. Two things come
+back with the wiring and are dead today as well:
+
+- **The mirror key `Y` and the round mirror button.** `input.cpp:455` fires `mirror`, `ui/hudlayout.cpp:35` puts the
+  button on the screen and `ui/mirrorzoom.cpp:67` answers the action – but the panel is never built, so the key and
+  the button do nothing.
+- **Putting the inside mirror where the player wants it.** `Mirror::place()` (the rail shift and the size of
+  `insideMirror`) is called nowhere in the port; mode `"hud"` today leaves the glass in the car and draws no frame.
+
+### The known-failing tests of 2.0.0 (checked again at `1de7455` on 26.11.)
+
+Two of the three are already gone – their failures were failures of the November binaries, not of the code:
+
+| Test | State at 2.1.0 | What has to be done |
+| --- | --- | --- |
+| `game_bike_test` | **passes** (leans 10.8° into the bend at 6.9 km/h) | nothing |
+| `crane_play_test` | **passes** (jib slews 0.000 → 0.189, rope 12.00 → 9.23) | nothing |
+| `render_actors_test` | its reference dump of the original was made without the people renderer | make the dump anew |
+
+### Tests for what gets wired
+
+Next to `tests/ui_stage_test.cpp` (the only test pulling the ui layer): the HUD frame with `insideMirror.mode`
+`"hud"` and `"car"`, the mirror key going round the mirrors, a tap on a mirror from the driver's seat, the × putting
+it away, and the countdowns over the lights and the labels over the queues with and without their setting.
+
+### Order
+
+1. `signalTimers` and `queueLabels` (small, independent of each other).
+2. `HudMirror`, with `Mirror::place()` for shift and size and the glass taken out of the car for mode `"hud"`.
+3. `MirrorZoomPanel` (needs `Input`), which brings the key and the button back.
+4. The three known-failing tests.
+5. The new stage test; then the 2.1.1 entry in the release notes and this list.
+
 ## Who does what (branches `w/<name>`, worktrees `/home/user/ds2w/<name>`)
 
 | Branch | Part | State |

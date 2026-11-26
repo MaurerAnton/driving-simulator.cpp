@@ -54,6 +54,10 @@
 #include "sim/vehicle/types.h"
 #include "ui/bigmap.h"
 #include "ui/carousel.h"
+#include "ui/hudmirror.h"
+#include "ui/mirrorzoom.h"
+#include "ui/queuelabels.h"
+#include "ui/signaltimers.h"
 #include "world/lanes.h"
 #include "world/regions.h"
 #include "world/routegraph.h"
@@ -325,7 +329,10 @@ class Game {
   /** what stands in the way of the traffic beside the player's vehicle (its trailer; later: the trams' cars) */
   std::vector<PlayerState> railBoxes;
   std::unique_ptr<SignalRenderer> signalHeads;
-  // (later: signalTimers, queueLabels, extraSigns – game.ts:394)
+  /** the timers over the traffic lights near by (ui/signaltimers.ts), the labels over the queues in the traffic (ui/queuelabels.ts) */
+  std::unique_ptr<SignalTimers> signalTimers;
+  std::unique_ptr<QueueLabels> queueLabels;
+  // (later: extraSigns – game.ts:394)
   /** the pedestrian lights: their poles (with the buttons) and their heads */
   std::vector<PedPole> pedPoles;
   const std::unique_ptr<PedLightRenderer> pedHeads;
@@ -349,7 +356,10 @@ class Game {
   int fpsFrames = 0;
   double fpsSince = 0;
   int mirrorTurn = 0;
-  // (windscreen: below, '--- weather, seasons, the windscreen ---'; later: mirrorZoom, hudMirror – game.ts:466)
+  /** looking into one of the vehicle's mirrors, large (ui/mirrorzoom.ts), and the inside mirror where the player put it (ui/hudmirror.ts) */
+  std::unique_ptr<MirrorZoomPanel> mirrorZoom;
+  std::unique_ptr<HudMirror> hudMirror;
+  // (windscreen: below, '--- weather, seasons, the windscreen ---')
   /** a tap on the vehicle's screen: the big map or the corner map (ui/screentap.ts) */
   std::unique_ptr<ScreenTap> screenTap;
   std::optional<SpawnJson> spawn;

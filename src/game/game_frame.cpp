@@ -613,7 +613,46 @@ void Game::frame(double now) {
   } else {
     app.render(state == "theory" && theory ? theory->focus : menuFocus);
   }
-  // (later: signalTimers, queueLabels, hudMirror, mirrorZoom – game.ts:6759)
+  {
+    Vector2 viewSize;
+    app.renderer.getSize(viewSize);
+    const double vw = viewSize.x, vh = viewSize.y;
+    const Lang& lang = settings.lang;
+    // the timers over the traffic lights near by (ui/signaltimers.ts): while driving, not in lessons and tests
+    if (state == "drive" && !lesson && settings.signalTimers) {
+      if (!signalTimers) {
+        signalTimers = std::make_unique<SignalTimers>(ui);
+        // a tap on a label switches its traffic lights on to their next phase at once
+        signalTimers->onTap = [this](int controller) { signals->skip(controller); };
+      }
+      signalTimers->setHint(tr("signalTimers.hint", lang));
+      if (walker) signalTimers->update(*app.camera, vw, vh, settings.uiScale, signalHeads->spots, &pedPoles, *signals);
+      else signalTimers->update(*app.camera, vw, vh, settings.uiScale, signalHeads->spots, nullptr, *signals);
+    } else if (signalTimers) signalTimers->hide();
+    // the labels over the queues near by (ui/queuelabels.ts): while driving, not in lessons and tests
+    if (state == "drive" && !lesson && settings.queueLabels && traffic) {
+      if (!queueLabels) queueLabels = std::make_unique<QueueLabels>(ui);
+      queueLabels->update(*app.camera, vw, vh, settings.uiScale, traffic->cars, signals.get(), lang);
+    } else if (queueLabels) queueLabels->hide();
+    // how far any mirror's picture reaches, and whether the player is sitting in the driver's seat
+    const double farMirror = std::min(450.0, tiles.viewRadius * 0.4);
+    const bool inSeat = state == "drive" && haveCar && !rp && !walker && !watcher && doorT < 0;
+    // the inside mirror where the player put it: moved in the car, or its picture in the HUD (ui/hudmirror.ts)
+    if (!hudMirror) hudMirror = std::make_unique<HudMirror>(ui, MirrorHost{app.renderer, *app.scene, *app.camera, app.canvas}, settings);
+    hudMirror->frame({.mirrors = haveCar ? &model.mirrors : nullptr,
+                      .cockpit = inSeat && cameraMode == "cockpit",
+                      .eye = eyeWorld,
+                      .eyeLocal = haveCar ? std::optional<Vector3>(model.eye) : std::nullopt,
+                      .far = farMirror,
+                      .refresh = settings.mirrors == "full" || (frames & 1) == 0,
+                      .lang = lang});
+    // looking into a mirror: one of the vehicle's mirrors large over the upper half of the picture (ui/mirrorzoom.ts)
+    if (input) {
+      const bool look = inSeat && (cameraMode == "cockpit" || cameraMode == "chase");
+      if (!mirrorZoom) mirrorZoom = std::make_unique<MirrorZoomPanel>(ui, *input, MirrorHost{app.renderer, *app.scene, *app.camera, app.canvas});
+      mirrorZoom->frame({.mirrors = look ? &model.mirrors : nullptr, .cockpit = cameraMode == "cockpit", .eye = eyeWorld, .far = farMirror, .lang = lang});
+    }
+  }
   // (later: the reality view counted ready – game.ts:6788)
   if (state == "map") {
     if (++mapFrames > 3) ready = true;
