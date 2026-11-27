@@ -80,6 +80,7 @@ inline const std::vector<Release> RELEASES = {
         .at = "",
         .intro = "news.2_1_1.intro",
         .items = {"news.2_1_1.mirrors", "news.2_1_1.inside", "news.2_1_1.timers", "news.2_1_1.queues"},
+        .size = ReleaseSize{.lines = 409156, .code = 186752, .tests = 41105, .i18n = 86122, .bytes = 46217023},
     },
     {
         .version = "2.1.0",
