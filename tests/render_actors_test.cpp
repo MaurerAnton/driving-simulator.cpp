@@ -81,46 +81,61 @@ struct TestCyclist : CyclistModel {
 
 // ------------------------------------------------------------------------------------------
 
+/**
+ * The cars' models: what hangs in the traffic's group besides the people and the emergency
+ * vehicles (which are drawn by other parts) – the way tools/diff/render_cars.ts tells them apart.
+ */
+std::vector<Object3D*> carModels(TrafficRenderer& traffic) {
+  std::vector<Object3D*> models;
+  for (const ObjectPtr& g : traffic.group->children)
+    if (g.get() != traffic.people->group.get() && g->name != "emergency vehicles" && !g->children.empty() && rdump::isMesh(*g->children[0]) &&
+        g->children.size() > 8)
+      models.push_back(g.get());
+  return models;
+}
+
 void theCarsFollowTheTraffic() {
   TrafficRenderer traffic;
-  assert(traffic.group->name == "traffic" && traffic.group->children.empty() && !traffic.people);
+  // the people's and the emergency vehicles' pictures hang in the group from the start (actors.ts:56)
+  assert(traffic.group->name == "traffic" && traffic.group->children.size() == 2 && traffic.group->children[0]->name == "emergency vehicles" &&
+         traffic.group->children[1] == traffic.people->group);
   Cars cars;
   TrafficCar* a = cars.add(1, 0, 0xd9dadc, 10);
   TrafficCar* b = cars.add(2, 1, 0x1b3fa0, 20);
   TrafficCar* c = cars.add(3, 2, 0x8a1c1c, 30);
   traffic.update({a, b, c}, {}, 0);
   // a model for each car, where the car is
-  assert(traffic.group->children.size() == 3);
-  Object3D* first = traffic.group->children[0].get();
+  assert(carModels(traffic).size() == 3);
+  Object3D* first = carModels(traffic)[0];
   assert(near(first->position.x, 10) && near(first->position.y, 100.01) && near(first->position.z, -3));
   Vector3 ahead(0, 0, -1);
-  ahead.applyQuaternion(traffic.group->children[1]->quaternion);
+  ahead.applyQuaternion(carModels(traffic)[1]->quaternion);
   // (yaw 0.2, pitch 0.02: heading a little to the left, nose up)
   assert(ahead.x < -0.19 && ahead.x > -0.2 && ahead.y > 0.019 && ahead.y < 0.021);
   // the same cars again: the same models
   a->x = 11;
   traffic.update({a, b, c}, {}, 0.1);
-  assert(traffic.group->children.size() == 3 && traffic.group->children[0].get() == first && near(first->position.x, 11));
+  assert(carModels(traffic).size() == 3 && carModels(traffic)[0] == first && near(first->position.x, 11));
   // drawn where its eased pose says, its front wheels steered
   c->drawn = EasedPose{30.5, -9.5, 0.35, std::nullopt, 0.2};
   traffic.update({a, b, c}, {}, 0.2);
-  Object3D* third = traffic.group->children[2].get();
+  Object3D* third = carModels(traffic)[2];
   assert(near(third->position.x, 30.5) && near(third->position.z, -9.5) && near(third->position.y, 100.03));
   // one leaves, another of its body comes: it takes the model that became free, in its own paint
   TrafficCar* d = cars.add(9, 0, 0x35c06a, 90);
   traffic.update({b, c}, {}, 0.3);
-  assert(traffic.group->children.size() == 2 && first->parent == nullptr);
+  assert(carModels(traffic).size() == 2 && first->parent == nullptr);
   traffic.update({b, c, d}, {}, 0.4);
-  assert(traffic.group->children.size() == 3 && traffic.group->children[2].get() == first && near(first->position.x, 90));
+  assert(carModels(traffic).size() == 3 && carModels(traffic)[2] == first && near(first->position.x, 90));
   Mesh& body = static_cast<Mesh&>(*first->children[0]);
   assert(body.material->color.getHex() == 0x35c06a);
   // … a car of another body gets a model of its own
   TrafficCar* e = cars.add(10, 2, 0x111111, 95);
   traffic.update({b, c, d, e}, {}, 0.5);
-  assert(traffic.group->children.size() == 4 && traffic.group->children[3].get() != first);
+  assert(carModels(traffic).size() == 4 && carModels(traffic)[3] != first);
   // nobody left: no model in the picture
   traffic.update({}, {}, 0.6);
-  assert(traffic.group->children.empty());
+  assert(carModels(traffic).empty());
 }
 
 void lampsAndWheels() {
@@ -131,7 +146,7 @@ void lampsAndWheels() {
   a->braking = true;
   a->drawn = EasedPose{10, -12, 0.4, std::nullopt, 0.25};
   // the materials of its lamps: the meshes of the body in the order the car is built (paint, trim, pillars, then head, indicator, tail, indicator, reversing lamp of each side)
-  const auto lamp = [&traffic](size_t child) { return static_cast<Mesh&>(*traffic.group->children[0]->children[child]).material->color.getHex(); };
+  const auto lamp = [&traffic](size_t child) { return static_cast<Mesh&>(*carModels(traffic)[0]->children[child]).material->color.getHex(); };
   // (before them in the group: the body's paint, its glass, trim and pillars, the four wheels, the two mirror housings)
   const size_t head = 10, blinkL = 11, tail = 12, reversing = 14, blinkR = 16;
   traffic.update({a}, {}, 0);   // (time 0: the indicators' lamps are on)
@@ -152,7 +167,7 @@ void lampsAndWheels() {
   traffic.update({a}, {}, 0.7);
   assert(lamp(head) == 0xf4f6f0);
   // the wheels: the front ones steered, all turned as far as the car has rolled
-  Object3D& model = *traffic.group->children[0];
+  Object3D& model = *carModels(traffic)[0];
   std::vector<Object3D*> wheels;
   for (const ObjectPtr& o : model.children)
     if (o->type == ObjectType::Group) wheels.push_back(o.get());
@@ -386,9 +401,12 @@ void againstTheOriginal() {
   {
     TrafficRenderer traffic;
     Cars cars;
+    // (the cars' models: what hangs in the group besides the people and the emergency
+    // vehicles, which are drawn by other parts – tools/diff/render_cars.ts filters the same way)
     const auto shown = [&traffic](const std::string& name) {
-      out("traffic", word(name), static_cast<int>(traffic.group->children.size()));
-      for (const ObjectPtr& g : traffic.group->children) rdump::pose("car", *g);
+      const std::vector<Object3D*> models = carModels(traffic);
+      out("traffic", word(name), static_cast<int>(models.size()));
+      for (Object3D* g : models) rdump::pose("car", *g);
     };
     TrafficCar* c1 = cars.add(1, 0, 0xd9dadc, 10);
     TrafficCar* c2 = cars.add(2, 1, 0x1b3fa0, 20);

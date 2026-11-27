@@ -82,13 +82,18 @@ back with the wiring and are dead today as well:
 
 ### The known-failing tests of 2.0.0 (checked again at `1de7455` on 26.11.)
 
-Two of the three are already gone – their failures were failures of the November binaries, not of the code:
+All three are gone – two were failures of the November binaries, the third a stale test, not the port:
 
-| Test | State at 2.1.0 | What has to be done |
+| Test | State at 2.1.0 | What had to be done |
 | --- | --- | --- |
 | `game_bike_test` | **passes** (leans 10.8° into the bend at 6.9 km/h) | nothing |
 | `crane_play_test` | **passes** (jib slews 0.000 → 0.189, rope 12.00 → 9.23) | nothing |
-| `render_actors_test` | its reference dump of the original was made without the people renderer | make the dump anew |
+| `render_actors_test` | **passes** (930 lines bit for bit, 26.11.) | nothing |
+
+`render_actors_test` counted the people's and the emergency vehicles' groups as cars and still asserted a traffic
+group without them; `src/render/actors.ts:56` makes both in the constructor. Its dump now filters them the way
+`tools/diff/render_cars.ts` does, and the fixture was current all along – the dumper re-run against 1.7.7 gives it
+byte for byte.
 
 ### Tests for what gets wired
 
