@@ -56,7 +56,7 @@ no water, fuel or services, no finer trucks, no multiplayer, reality view, map p
 (The checkout in `/home/user/ds2` stood at Release 2.0.0 and was 87 commits behind; pulled to `1de7455`, 2.1.0
 published, before this list was made.)
 
-### The four overlays of the driving frame: translated, never driven
+### The four overlays of the driving frame: translated, never driven – wired since `ee95e3e`
 
 In 1.7.7 they stand in one block of the frame method (`src/game/game.ts:6759-6787`); the port's frame
 (`src/game/game_frame.cpp:567`) stops after drawing the vehicle's own glass. At v2.1.0 no file includes the three
@@ -71,14 +71,18 @@ test names them. They compile in both builds only because CMake globs `src/*.cpp
 | `ui/mirrorzoom.h` (`MirrorZoomPanel`) with `render/mirrorzoom.h` and `MirrorLook` of `game/cockpit.h` | 281 + 165 | `frame({mirrors, cockpit, eye, far, lang})` whenever there is input (game.ts:6780) |
 
 Everything they need is already in the port: `app.canvas/renderer/scene/camera`, `eyeWorld`, `model.eye`,
-`signalHeads->spots` (render/actors.h:128), `pedPoles` (game.h:330), `settings.uiScale`, `Input`. Two things come
-back with the wiring and are dead today as well:
+`signalHeads->spots` (render/actors.h:128), `pedPoles` (game.h:330), `settings.uiScale`, `Input`.
+
+**Done 27.11.** All four are called from the frame method now (`src/game/game_frame.cpp:620-655`), each made on its
+first call and `hide()`n when its setting or the state says so, as in 1.7.7. Two things came back with the wiring and
+were dead before:
 
 - **The mirror key `Y` and the round mirror button.** `input.cpp:455` fires `mirror`, `ui/hudlayout.cpp:35` puts the
-  button on the screen and `ui/mirrorzoom.cpp:67` answers the action – but the panel is never built, so the key and
-  the button do nothing.
+  button on the screen and `ui/mirrorzoom.cpp:67` answers the action – and now that the panel is built, both go round
+  the mirrors (left → right → inside → none) as they do in 1.7.7.
 - **Putting the inside mirror where the player wants it.** `Mirror::place()` (the rail shift and the size of
-  `insideMirror`) is called nowhere in the port; mode `"hud"` today leaves the glass in the car and draws no frame.
+  `insideMirror`) is called again: mode `"hud"` takes the glass out of the car and draws the frame, dragged along the
+  top of the picture and resized by its grip (0.6…2.0).
 
 ### The known-failing tests of 2.0.0 (checked again at `1de7455` on 26.11.)
 
@@ -95,19 +99,34 @@ group without them; `src/render/actors.ts:56` makes both in the constructor. Its
 `tools/diff/render_cars.ts` does, and the fixture was current all along – the dumper re-run against 1.7.7 gives it
 byte for byte.
 
-### Tests for what gets wired
+### Tests for what gets wired – `tests/ui_overlays_test.cpp` (new)
 
-Next to `tests/ui_stage_test.cpp` (the only test pulling the ui layer): the HUD frame with `insideMirror.mode`
-`"hud"` and `"car"`, the mirror key going round the mirrors, a tap on a mirror from the driver's seat, the × putting
-it away, and the countdowns over the lights and the labels over the queues with and without their setting.
+One file for all four (`LINK: ui render engine game input sim world platform core i18n geo audio`): the seconds a
+light still shows what it shows and the colour that comes next, nothing over a light that is out of order, and the
+pedestrians' light that only counts once somebody has pressed; the wording of a queue's label in English and German
+(`120 m · 18 cars · wait about 45 s`) and four cars one after the other on a made-up road; the inside mirror's frame
+in the HUD – put by its fractions of the picture, dragged, made larger by its grip, clamped to 0.6…2.0, and the glass
+back in the car again; and looking into a mirror large: the round button and the mirror key going round the mirrors,
+the × and a second tap putting the panel away, a tap on the glass.  Everything that needs a picture is asked only
+when `renderer.available()`, and both mirror parts are left out when no GL context can be made at all.
+
+### Trams (checked 27.11.)
+
+`tests/tram_test.cpp` (origin `tests/game/tram.test.ts @ v1.7.7`) passes at `ee95e3e`: power and brake, the stop with
+its doors and passengers, the way at a switch as the indicator asks, and what the instructor says.  Trams drive –
+there is no stub left anywhere in `sim/tramdrive.cpp`, `sim/rail.cpp`, `render/trams.cpp` or `render/fleet.cpp`
+(`TramCab`), and `game/vehicles.cpp` gives the tram its own kind out of `BUS_DEF`.
 
 ### Order
 
-1. `signalTimers` and `queueLabels` (small, independent of each other).
-2. `HudMirror`, with `Mirror::place()` for shift and size and the glass taken out of the car for mode `"hud"`.
-3. `MirrorZoomPanel` (needs `Input`), which brings the key and the button back.
-4. The three known-failing tests.
-5. The new stage test; then the 2.1.1 entry in the release notes and this list.
+1. ✔ `signalTimers` and `queueLabels`, wired in `game_frame.cpp` (`7cf1ac6`).
+2. ✔ `HudMirror` with `Mirror::place()` for shift and size, the glass out of the car for mode `"hud"`, and
+   `MirrorZoomPanel` bringing the mirror key and the round button back.
+3. ✔ The known-failing tests: `tests/known-failing.txt` is empty again; `render_actors_test` mends its own filter
+   (`ee95e3e`), `game_bike_test` and `crane_play_test` passed all along.
+4. ✔ The new stage test `tests/ui_overlays_test.cpp` – five checks pass.
+5. ✔ The 2.1.1 entry in the release notes: an intro and four items in all 28 languages (`i18n-extra/<code>.json`,
+   then `node tools/i18n-export.mjs`), stamp `a6a94bfc9283`.
 
 ## Who does what (branches `w/<name>`, worktrees `/home/user/ds2w/<name>`)
 
