@@ -2475,5 +2475,10 @@
 "news.2_1_0.watch":"Rishfaqje pas një udhëtimi; ndjekja e çdo mjeti dhe marrja në dorë e një tramvaji ose autobusi; sheshi i provës me çdo model; dhe një menu kryesore e re me mjetin në skenë.",
 "news.2_1_0.regions":"Shumë më tepër qytete gjermane si rajone: Paderborn dhe qindra të tjera – ndërtimi i gjithë Gjermanisë vazhdon.",
 "news.2_1_0.sdl":"Eksperimentale: një version për kompjuter me SDL3 dhe një aplikacion Android – të dyja nisin menjëherë në një udhëtim, ende pa menutë.",
-"news.2_1_0.intro":"Fahrsim 2.1 sjell në motorin e ri gjithçka që i mungonte ende 2.0 – e më shumë. Të reja në 2.1:"
+"news.2_1_0.intro":"Fahrsim 2.1 sjell në motorin e ri gjithçka që i mungonte ende 2.0 – e më shumë. Të reja në 2.1:",
+"news.2_1_1.mirrors":"Të shohësh nga afër në pasqyrat e automjetit: tasti i pasqyrës ose butoni i rrumbullakët kalon nga pasqyra e majtë te e djathta dhe më tej te e brendshmja, një prekje mbi pasqyrë e hap atë, dhe × ose një prekje e dytë e mbyll dritaren përsëri.",
+"news.2_1_1.inside":"Pasqyra e brendshme mund të vendoset ku do lojtari: tërhequr përgjatë pjesës së sipërme të figurës, bërë më e madhe ose më e vogël nga kapësja e saj – ose lënë si xham në makinë.",
+"news.2_1_1.timers":"Sa kohë një semafor tregon ende atë që tregon, dhe çfarë vjen pas: një orë e vogël mbi çdo kokë, përfshirë ato të këmbësorëve, dhe asnjë mbi një semafor që është jashtë funksionit.",
+"news.2_1_1.queues":"Çfarë thonë radhët në trafik: sa e gjatë është radha, sa makina qëndrojnë në të dhe sa kohë pret i fundit – shkruar mbi vetë makinat.",
+"news.2_1_1.intro":"Fahrsim 2.1.1 sjell në motorin e ri atë që në pamjen e drejtimit mungonte ende: çdo pasqyrë dhe atë që trafiku thotë për veten. Të reja në 2.1.1:"
 }

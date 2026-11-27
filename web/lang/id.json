@@ -2475,5 +2475,10 @@
 "news.2_1_0.watch":"Tayangan ulang setelah berkendara; mengamati kendaraan apa pun dan mengambil alih trem atau bus; lapangan uji dengan setiap model; dan menu utama baru dengan kendaraan di atas panggung.",
 "news.2_1_0.regions":"Jauh lebih banyak kota Jerman sebagai wilayah: Paderborn dan ratusan lainnya – pembangunan seluruh Jerman terus berlanjut.",
 "news.2_1_0.sdl":"Eksperimental: versi desktop dengan SDL3 dan aplikasi Android – keduanya langsung dimulai dalam perjalanan, belum dengan menu.",
-"news.2_1_0.intro":"Fahrsim 2.1 membawa semua yang belum ada di 2.0 ke mesin baru – dan lebih banyak lagi. Baru di 2.1:"
+"news.2_1_0.intro":"Fahrsim 2.1 membawa semua yang belum ada di 2.0 ke mesin baru – dan lebih banyak lagi. Baru di 2.1:",
+"news.2_1_1.mirrors":"Melihat dari dekat ke kaca spion kendaraan: tombol spion atau tombol bundar berpindah dari spion kiri ke kanan lalu ke spion dalam, satu ketukan pada kaca membukanya, dan × atau ketukan kedua menutup jendela lagi.",
+"news.2_1_1.inside":"Spion dalam dapat diletakkan di mana pemain mau: diseret sepanjang sisi atas gambar, diperbesar atau diperkecil dengan gagangnya – atau dibiarkan sebagai kaca di dalam mobil.",
+"news.2_1_1.timers":"Berapa lama lagi sebuah lampu menunjukkan apa yang ditunjukkannya, dan apa yang datang sesudahnya: jam kecil di atas setiap kepala, termasuk kepala pejalan kaki, dan tidak ada di atas lampu yang rusak.",
+"news.2_1_1.queues":"Apa yang dikatakan antrean di lalu lintas: berapa panjang antrean itu, berapa mobil berdiri di dalamnya dan sudah berapa lama yang terakhir menunggu – ditulis di atas mobilnya sendiri.",
+"news.2_1_1.intro":"Fahrsim 2.1.1 membawa ke mesin baru apa yang masih kurang dalam gambar berkendara: setiap cermin, dan apa yang lalu lintas katakan tentang dirinya. Baru di 2.1.1:"
 }

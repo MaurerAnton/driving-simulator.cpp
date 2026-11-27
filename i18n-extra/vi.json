@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Xem lại sau mỗi chuyến đi; theo dõi bất kỳ phương tiện nào và tiếp quản một tàu điện hay xe buýt; bãi thử với mọi mẫu xe; và một menu chính mới với phương tiện trên sân khấu.",
   "news.2_1_0.regions": "Thêm rất nhiều thị trấn của Đức thành vùng: Paderborn và hàng trăm nơi khác – việc dựng toàn bộ nước Đức vẫn tiếp tục.",
   "news.2_1_0.sdl": "Thử nghiệm: một bản cho máy tính dùng SDL3 và một ứng dụng Android – cả hai vào thẳng một chuyến lái, chưa có menu.",
-  "news.2_1_0.intro": "Fahrsim 2.1 đưa mọi thứ bản 2.0 còn thiếu lên bộ máy mới – và còn hơn thế. Điểm mới trong 2.1:"
+  "news.2_1_0.intro": "Fahrsim 2.1 đưa mọi thứ bản 2.0 còn thiếu lên bộ máy mới – và còn hơn thế. Điểm mới trong 2.1:",
+  "news.2_1_1.mirrors": "Nhìn gần vào các gương của xe: phím gương hoặc nút tròn đi từ gương trái sang gương phải rồi đến gương trong, một chạm vào gương sẽ mở nó, và × hoặc chạm lần hai đóng cửa sổ lại.",
+  "news.2_1_1.inside": "Gương chiếu hậu trong xe có thể đặt ở nơi người chơi muốn: kéo dọc theo mép trên của hình, phóng to hoặc thu nhỏ bằng tay nắm của nó – hoặc để nguyên như kính trong xe.",
+  "news.2_1_1.timers": "Một đèn còn hiển thị điều nó đang hiển thị trong bao lâu nữa, và sau đó là gì: một chiếc đồng hồ nhỏ trên mỗi đầu đèn, kể cả đầu đèn của người đi bộ, và không có gì trên đèn bị hỏng.",
+  "news.2_1_1.queues": "Những gì hàng xe trong giao thông nói: hàng dài bao nhiêu, có bao nhiêu xe đứng trong đó và chiếc cuối cùng đã chờ bao lâu – viết ngay trên chính các xe.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1 đưa lên động cơ mới những gì còn thiếu trong hình ảnh lái xe: mọi tấm gương, và những gì giao thông nói về chính nó. Mới trong 2.1.1:"
 }

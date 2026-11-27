@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Ponovne snimke nakon vožnje; praćenje bilo kojeg vozila i preuzimanje tramvaja ili autobusa; ispitni teren sa svakim modelom; i novi glavni izbornik s vozilom na pozornici.",
   "news.2_1_0.regions": "Mnogo više njemačkih gradova kao regija: Paderborn i stotine drugih – izgradnja cijele Njemačke se nastavlja.",
   "news.2_1_0.sdl": "Eksperimentalno: verzija za računalo sa SDL3 i aplikacija za Android – obje odmah kreću u vožnju, još bez izbornika.",
-  "news.2_1_0.intro": "Fahrsim 2.1 donosi na novi pogon sve što verziji 2.0 još nedostaje – i više od toga. Novo u 2.1:"
+  "news.2_1_0.intro": "Fahrsim 2.1 donosi na novi pogon sve što verziji 2.0 još nedostaje – i više od toga. Novo u 2.1:",
+  "news.2_1_1.mirrors": "Pogledati izbliza u ogledala vozila: tipka ogledala ili okrugli gumb ide od lijevog ogledala preko desnog do unutarnjeg, dodir ogledala ga otvara, a × ili drugi dodir ponovno zatvara prozor.",
+  "news.2_1_1.inside": "Unutarnje ogledalo može se staviti gdje igrač želi: povučeno uz gornji rub slike, povećano ili smanjeno njegovom ručkom – ili ostavljeno kao staklo u autu.",
+  "news.2_1_1.timers": "Koliko dugo svjetlo još pokazuje ono što pokazuje i što dolazi poslije: mali sat iznad svake glave, i iznad pješačkih, a nijedan iznad svjetla koje je izvan pogona.",
+  "news.2_1_1.queues": "Što kažu kolone u prometu: koliko je kolona duga, koliko automobila u njoj stoji i koliko dugo čeka posljednji – napisano iznad samih automobila.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1 donosi na novi motor ono što je u slici vožnje još nedostajalo: svako ogledalo i ono što promet govori o sebi. Novo u 2.1.1:"
 }

@@ -2476,5 +2476,10 @@ R"FSLANG({
 "news.2_1_0.watch":"Replays after a drive; watching any vehicle and taking over a tram or a bus; the test place with every model; and a new main menu with the vehicle on stage.",
 "news.2_1_0.regions":"Many more German towns as regions: Paderborn and hundreds more – the build of all of Germany goes on.",
 "news.2_1_0.sdl":"Experimental: a desktop version built with SDL3 and an Android app – both start straight into a drive, without the menus yet.",
-"news.2_1_0.intro":"Fahrsim 2.1 brings everything 2.0 did not have yet onto the new engine – and more besides. New in 2.1:"
+"news.2_1_0.intro":"Fahrsim 2.1 brings everything 2.0 did not have yet onto the new engine – and more besides. New in 2.1:",
+"news.2_1_1.mirrors":"Looking into the vehicle's mirrors large: the mirror key or the round button goes from the left mirror to the right one and on to the inside one, a tap on a mirror opens it, and the × or a second tap closes the panel again.",
+"news.2_1_1.inside":"The inside rear-view mirror can be put where the player wants it: dragged along the top of the picture, made larger or smaller by its grip – or left as the glass in the car.",
+"news.2_1_1.timers":"How long a light still shows what it shows, and what comes after it: a small clock over every head, the pedestrians' lights included, and none over a light that is out of order.",
+"news.2_1_1.queues":"What the queues in the traffic say: how long a queue is, how many cars stand in it and how long the last of them has been waiting – written over the cars themselves.",
+"news.2_1_1.intro":"Fahrsim 2.1.1 brings onto the new engine what was still missing from the driving picture: every mirror, and what the traffic says about itself. New in 2.1.1:"
 })FSLANG"

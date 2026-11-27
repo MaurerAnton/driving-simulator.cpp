@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Replay dopo ogni viaggio; osservare qualsiasi veicolo e prendere il comando di un tram o di un autobus; il campo prova con ogni modello; e un nuovo menu principale con il veicolo in scena.",
   "news.2_1_0.regions": "Molte più città tedesche come regioni: Paderborn e centinaia di altre – la costruzione di tutta la Germania continua.",
   "news.2_1_0.sdl": "Sperimentale: una versione desktop con SDL3 e un'app Android – entrambe partono subito in un viaggio, ancora senza i menu.",
-  "news.2_1_0.intro": "Fahrsim 2.1 porta sul nuovo motore tutto ciò che ancora mancava alla 2.0, e altro ancora. Novità della 2.1:"
+  "news.2_1_0.intro": "Fahrsim 2.1 porta sul nuovo motore tutto ciò che ancora mancava alla 2.0, e altro ancora. Novità della 2.1:",
+  "news.2_1_1.mirrors": "Guardare da vicino negli specchietti del veicolo: il tasto specchio o il pulsante tondo passa dallo specchietto sinistro al destro e poi a quello interno, un tocco su uno specchio lo apre, e la × o un secondo tocco richiude la finestra.",
+  "news.2_1_1.inside": "Lo specchietto retrovisore interno si mette dove vuole il giocatore: trascinato lungo il bordo superiore dell'immagine, ingrandito o rimpicciolito con la sua maniglia – o lasciato come vetro nell'auto.",
+  "news.2_1_1.timers": "Quanto tempo un semaforo mostra ancora ciò che mostra e cosa viene dopo: un piccolo orologio sopra ogni testa, anche quelle dei pedoni, e nessuno sopra un semaforo fuori servizio.",
+  "news.2_1_1.queues": "Ciò che dicono le code nel traffico: quanto è lunga la coda, quante auto vi stanno ferme e da quanto tempo aspetta l'ultima – scritto sopra le auto stesse.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1 porta sul nuovo motore ciò che mancava ancora nell'immagine di guida: ogni specchio e ciò che il traffico dice di sé. Novità in 2.1.1:"
 }

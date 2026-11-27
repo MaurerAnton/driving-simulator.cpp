@@ -2475,5 +2475,10 @@
 "news.2_1_0.watch":"Visszajátszás egy út után; bármelyik jármű követése és egy villamos vagy busz átvétele; a tesztterep minden modellel; és új főmenü a színpadon álló járművel.",
 "news.2_1_0.regions":"Sokkal több német város régióként: Paderborn és még több száz – egész Németország építése folytatódik.",
 "news.2_1_0.sdl":"Kísérleti: asztali változat SDL3-mal és egy Android-alkalmazás – mindkettő rögtön egy útba indul, egyelőre menük nélkül.",
-"news.2_1_0.intro":"A Fahrsim 2.1 mindent áthoz az új motorra, ami a 2.0-ból még hiányzott – és még többet is. Újdonságok a 2.1-ben:"
+"news.2_1_0.intro":"A Fahrsim 2.1 mindent áthoz az új motorra, ami a 2.0-ból még hiányzott – és még többet is. Újdonságok a 2.1-ben:",
+"news.2_1_1.mirrors":"Közelről belepillantani a jármű tükreibe: a tükörbillentyű vagy a kerek gomb a bal tükörtől a jobbon át a belsőig megy, egy érintés megnyitja a tükröt, és a × vagy egy második érintés újra bezárja az ablakot.",
+"news.2_1_1.inside":"A belső visszapillantó tükör oda tehető, ahová a játékos akarja: a kép teteje mentén húzva, a fogantyújánál nagyobbra vagy kisebbre véve – vagy üvegként az autóban hagyva.",
+"news.2_1_1.timers":"Meddig mutatja még egy lámpa, amit mutat, és mi jön utána: kis óra minden fej felett, a gyalogosoké felett is, és egy sem a lámpa felett, amely üzemen kívül van.",
+"news.2_1_1.queues":"Amit a forgalmi sorok mondanak: milyen hosszú a sor, hány autó áll benne és mióta vár az utolsó – maguk fölé az autóknak írva.",
+"news.2_1_1.intro":"A Fahrsim 2.1.1 az új motorra hozza, ami a vezetési képből még hiányzott: minden tükör és az, amit a forgalom mond magáról. Új a 2.1.1-ben:"
 }

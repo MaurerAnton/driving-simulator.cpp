@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Bir sürüşten sonra tekrar izleme; herhangi bir aracı izlemek ve bir tramvayı ya da otobüsü devralmak; her modelin bulunduğu test alanı; ve aracın sahnede durduğu yeni bir ana menü.",
   "news.2_1_0.regions": "Bölge olarak çok daha fazla Alman şehri: Paderborn ve yüzlercesi daha – tüm Almanya'nın yapımı sürüyor.",
   "news.2_1_0.sdl": "Deneysel: SDL3 ile bir masaüstü sürümü ve bir Android uygulaması – ikisi de doğrudan bir sürüşle başlıyor, henüz menüler olmadan.",
-  "news.2_1_0.intro": "Fahrsim 2.1, 2.0'da henüz olmayan her şeyi yeni motora taşıyor – ve daha fazlasını. 2.1'deki yenilikler:"
+  "news.2_1_0.intro": "Fahrsim 2.1, 2.0'da henüz olmayan her şeyi yeni motora taşıyor – ve daha fazlasını. 2.1'deki yenilikler:",
+  "news.2_1_1.mirrors": "Aracın aynalarına yakından bakmak: ayna tuşu veya yuvarlak düğme sol aynadan sağa ve sonra iç aynaya geçer, bir aynaya dokunmak onu açar, × veya ikinci bir dokunuş pencereyi yine kapatır.",
+  "news.2_1_1.inside": "İç dikiz aynası oyuncunun istediği yere konabilir: görüntünün üst kenarı boyunca sürüklenerek, tutamağından büyütülüp küçültülerek – ya da arabada cam olarak bırakılarak.",
+  "news.2_1_1.timers": "Bir ışığın gösterdiğini daha ne kadar gösterdiği ve ardından ne geldiği: her kafanın üstünde küçük bir saat, yayalarınkinde de; çalışmayan bir ışığın üstünde ise hiçbiri.",
+  "news.2_1_1.queues": "Trafikteki kuyrukların söylediği: kuyruğun ne kadar uzun olduğu, içinde kaç aracın durduğu ve sonuncusunun ne zamandır beklediği – arabaların kendilerinin üstüne yazılmış.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1, sürüş görüntüsünde eksik olanı yeni motora getiriyor: her ayna ve trafiğin kendisi hakkında söylediği. 2.1.1'de yeni:"
 }

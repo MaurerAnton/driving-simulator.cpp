@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Repeticiones tras cada recorrido; observar cualquier vehículo y tomar el mando de un tranvía o un autobús; la pista de pruebas con todos los modelos; y un nuevo menú principal con el vehículo en escena.",
   "news.2_1_0.regions": "Muchas más ciudades alemanas como regiones: Paderborn y cientos más; la construcción de toda Alemania continúa.",
   "news.2_1_0.sdl": "Experimental: una versión de escritorio con SDL3 y una aplicación para Android; ambas empiezan directamente en un recorrido, todavía sin los menús.",
-  "news.2_1_0.intro": "Fahrsim 2.1 lleva al nuevo motor todo lo que aún faltaba en la 2.0, y algo más. Novedades de la 2.1:"
+  "news.2_1_0.intro": "Fahrsim 2.1 lleva al nuevo motor todo lo que aún faltaba en la 2.0, y algo más. Novedades de la 2.1:",
+  "news.2_1_1.mirrors": "Mirar de cerca en los espejos del vehículo: la tecla de espejo o el botón redondo pasa del espejo izquierdo al derecho y luego al interior, un toque en un espejo lo abre, y la × o un segundo toque cierra la ventana.",
+  "news.2_1_1.inside": "El espejo retrovisor interior se coloca donde el jugador quiere: arrastrado por la parte superior de la imagen, hecho más grande o más pequeño por su asa – o dejado como luna en el coche.",
+  "news.2_1_1.timers": "Cuánto tiempo un semáforo sigue mostrando lo que muestra, y qué viene después: un pequeño reloj sobre cada cabeza, también las de los peatones, y ninguno sobre un semáforo fuera de servicio.",
+  "news.2_1_1.queues": "Lo que dicen las colas del tráfico: cuánto mide la cola, cuántos coches hay parados en ella y cuánto espera ya el último – escrito sobre los propios coches.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1 lleva al nuevo motor lo que aún faltaba en la imagen de conducción: cada espejo y lo que el tráfico dice de sí mismo. Novedades de 2.1.1:"
 }

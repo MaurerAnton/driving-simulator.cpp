@@ -2475,5 +2475,10 @@
 "news.2_1_0.watch":"Záznamy po jízdě; sledování libovolného vozidla a převzetí tramvaje nebo autobusu; zkušební plocha se všemi modely; a nové hlavní menu s vozidlem na scéně.",
 "news.2_1_0.regions":"Mnohem víc německých měst jako regiony: Paderborn a stovky dalších – stavba celého Německa pokračuje.",
 "news.2_1_0.sdl":"Experimentálně: desktopová verze s SDL3 a aplikace pro Android – obě startují rovnou do jízdy, zatím bez menu.",
-"news.2_1_0.intro":"Fahrsim 2.1 přináší na nový engine vše, co verzi 2.0 ještě chybělo – a ještě víc. Novinky ve 2.1:"
+"news.2_1_0.intro":"Fahrsim 2.1 přináší na nový engine vše, co verzi 2.0 ještě chybělo – a ještě víc. Novinky ve 2.1:",
+"news.2_1_1.mirrors":"Podívat se zblízka do zrcátek vozidla: klávesa zrcátka nebo kulaté tlačítko jde od levého zrcátka přes pravé k vnitřnímu, klepnutí na zrcátko je otevře a × nebo druhé klepnutí okno zase zavře.",
+"news.2_1_1.inside":"Vnitřní zpětné zrcátko lze postavit tam, kam hráč chce: táhnout podél horního okraje obrazu, zvětšit nebo zmenšit jeho úchytem – nebo nechat jako sklo ve voze.",
+"news.2_1_1.timers":"Jak dlouho světlo ještě ukazuje, co ukazuje, a co přijde potom: malé hodiny nad každou hlavou, i nad hlavami chodců, a žádné nad světlem, které je mimo provoz.",
+"news.2_1_1.queues":"Co říkají fronty v provozu: jak je fronta dlouhá, kolik aut v ní stojí a jak dlouho už čeká poslední – napsáno nad samotnými auty.",
+"news.2_1_1.intro":"Fahrsim 2.1.1 přináší na nový motor to, co v obraze jízdy ještě chybělo: každé zrcátko a to, co provoz říká o sobě. Nové ve 2.1.1:"
 }

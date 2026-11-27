@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Reluări după o cursă; urmărirea oricărui vehicul și preluarea unui tramvai sau autobuz; terenul de test cu fiecare model; și un nou meniu principal cu vehiculul pe scenă.",
   "news.2_1_0.regions": "Mult mai multe orașe germane ca regiuni: Paderborn și sute de altele – construirea întregii Germanii continuă.",
   "news.2_1_0.sdl": "Experimental: o versiune desktop cu SDL3 și o aplicație Android – ambele pornesc direct într-o cursă, încă fără meniuri.",
-  "news.2_1_0.intro": "Fahrsim 2.1 aduce pe noul motor tot ce îi lipsea încă versiunii 2.0 – și mai mult. Nou în 2.1:"
+  "news.2_1_0.intro": "Fahrsim 2.1 aduce pe noul motor tot ce îi lipsea încă versiunii 2.0 – și mai mult. Nou în 2.1:",
+  "news.2_1_1.mirrors": "A privi de aproape în oglinzile vehiculului: tasta de oglindă sau butonul rotund trece de la oglinda stângă la cea dreaptă și apoi la cea interioară, o atingere pe o oglindă o deschide, iar × sau o a doua atingere închide fereastra la loc.",
+  "news.2_1_1.inside": "Oglinda retrovizoare interioară poate fi pusă unde vrea jucătorul: trasă de-a lungul părții de sus a imaginii, făcută mai mare sau mai mică de mânerul ei – sau lăsată ca geam în mașină.",
+  "news.2_1_1.timers": "Cât timp un semafor mai arată ce arată și ce urmează după: un ceas mic deasupra fiecărui cap, inclusiv al celor pentru pietoni, și niciunul deasupra unui semafor care nu funcționează.",
+  "news.2_1_1.queues": "Ce spun cozile din trafic: cât de lungă este coada, câte mașini stau în ea și de cât timp așteaptă ultima – scris deasupra mașinilor însele.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1 aduce pe noul motor ce lipsea încă din imaginea conducerii: fiecare oglindă și ce spune traficul despre sine. Noutăți în 2.1.1:"
 }

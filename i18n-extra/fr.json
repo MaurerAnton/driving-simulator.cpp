@@ -28,5 +28,10 @@
   "news.2_1_0.watch": "Des rediffusions après un trajet ; regarder n'importe quel véhicule et prendre les commandes d'un tram ou d'un bus ; le terrain d'essai avec chaque modèle ; et un nouveau menu principal avec le véhicule sur scène.",
   "news.2_1_0.regions": "Beaucoup plus de villes allemandes en régions : Paderborn et des centaines d'autres – la construction de toute l'Allemagne continue.",
   "news.2_1_0.sdl": "Expérimental : une version de bureau avec SDL3 et une application Android – toutes deux démarrent directement dans un trajet, encore sans les menus.",
-  "news.2_1_0.intro": "Fahrsim 2.1 apporte au nouveau moteur tout ce qui manquait encore à la 2.0 – et plus encore. Nouveau dans la 2.1 :"
+  "news.2_1_0.intro": "Fahrsim 2.1 apporte au nouveau moteur tout ce qui manquait encore à la 2.0 – et plus encore. Nouveau dans la 2.1 :",
+  "news.2_1_1.mirrors": "Regarder de près dans les rétroviseurs du véhicule: la touche miroir ou le bouton rond passe du rétroviseur gauche au droit puis à l'intérieur, un appui sur un miroir l'ouvre, et le × ou un second appui referme la fenêtre.",
+  "news.2_1_1.inside": "Le rétroviseur intérieur se met où le joueur veut: tiré le long du haut de l'image, agrandi ou réduit par sa poignée – ou laissé comme glace dans la voiture.",
+  "news.2_1_1.timers": "Combien de temps un feu montre encore ce qu'il montre, et ce qui vient après: une petite horloge au-dessus de chaque tête, y compris celles des piétons, et aucune au-dessus d'un feu hors service.",
+  "news.2_1_1.queues": "Ce que disent les files dans la circulation: la longueur de la file, le nombre de voitures qui y stationnent et depuis combien de temps la dernière attend – écrit au-dessus des voitures mêmes.",
+  "news.2_1_1.intro": "Fahrsim 2.1.1 apporte sur le nouveau moteur ce qui manquait encore à l'image de conduite: chaque miroir, et ce que la circulation dit d'elle-même. Nouveau dans 2.1.1:"
 }

@@ -2475,5 +2475,10 @@
 "news.2_1_0.watch":"Wiederholungen nach einer Fahrt; jedem Fahrzeug zusehen und eine Straßenbahn oder einen Bus übernehmen; der Testplatz mit jedem Modell; und ein neues Hauptmenü mit dem Fahrzeug auf der Bühne.",
 "news.2_1_0.regions":"Viel mehr deutsche Orte als Regionen: Paderborn und Hunderte weitere – der Bau von ganz Deutschland geht weiter.",
 "news.2_1_0.sdl":"Experimentell: eine Desktop-Version mit SDL3 und eine Android-App – beide starten gleich in eine Fahrt, noch ohne die Menüs.",
-"news.2_1_0.intro":"Fahrsim 2.1 bringt alles, was 2.0 noch fehlte, auf die neue Engine – und mehr. Neu in 2.1:"
+"news.2_1_0.intro":"Fahrsim 2.1 bringt alles, was 2.0 noch fehlte, auf die neue Engine – und mehr. Neu in 2.1:",
+"news.2_1_1.mirrors":"Groß in die Spiegel des Fahrzeugs schauen: die Spiegeltaste oder der runde Knopf geht vom linken über den rechten Spiegel zum Innenspiegel, ein Tipp auf einen Spiegel öffnet ihn, und das × oder ein zweiter Tipp schließt das Fenster wieder.",
+"news.2_1_1.inside":"Der Innenspiegel kann hingestellt werden, wohin der Spieler will: oben im Bild gezogen, am Griff größer oder kleiner gemacht – oder als Glasscheibe im Auto gelassen.",
+"news.2_1_1.timers":"Wie lange eine Ampel noch zeigt, was sie zeigt, und was danach kommt: eine kleine Uhr über jedem Kopf, auch über denen der Fußgänger, und keine über einer Ampel, die außer Betrieb ist.",
+"news.2_1_1.queues":"Was die Schlangen im Verkehr sagen: wie lang die Schlange ist, wie viele Autos in ihr stehen und wie lange das letzte schon wartet – über den Autos selbst geschrieben.",
+"news.2_1_1.intro":"Fahrsim 2.1.1 bringt auf die neue Engine, was im Fahrbild noch fehlte: jeder Spiegel, und was der Verkehr über sich selbst sagt. Neu in 2.1.1:"
 }

@@ -2475,5 +2475,10 @@
 "news.2_1_0.watch":"Powtórki po jeździe; obserwowanie dowolnego pojazdu i przejęcie tramwaju lub autobusu; plac testowy z każdym modelem; i nowe menu główne z pojazdem na scenie.",
 "news.2_1_0.regions":"Dużo więcej niemieckich miast jako regiony: Paderborn i setki innych – budowa całych Niemiec trwa.",
 "news.2_1_0.sdl":"Eksperymentalnie: wersja na komputer z SDL3 i aplikacja na Androida – obie startują od razu w jeździe, jeszcze bez menu.",
-"news.2_1_0.intro":"Fahrsim 2.1 przenosi na nowy silnik wszystko, czego jeszcze brakowało w 2.0 – i więcej. Nowości w 2.1:"
+"news.2_1_0.intro":"Fahrsim 2.1 przenosi na nowy silnik wszystko, czego jeszcze brakowało w 2.0 – i więcej. Nowości w 2.1:",
+"news.2_1_1.mirrors":"Zajrzeć z bliska w lusterka pojazdu: klawisz lusterka lub okrągły przycisk przechodzi od lewego lusterka przez prawe do wewnętrznego, dotknięcie lusterka otwiera je, a × lub drugie dotknięcie znów zamyka okno.",
+"news.2_1_1.inside":"Lusterko wsteczne wewnątrz można postawić tam, gdzie chce gracz: przesunięte wzdłuż górnej krawędzi obrazu, powiększone lub pomniejszone jego uchwytem – albo zostawione jako szyba w samochodzie.",
+"news.2_1_1.timers":"Jak długo światło jeszcze pokazuje to, co pokazuje, i co przyjdzie potem: mały zegar nad każdą głowicą, także nad głowicami pieszych, i żaden nad światłem, które jest nieczynne.",
+"news.2_1_1.queues":"Co mówią kolejki w ruchu: jak długa jest kolejka, ile aut w niej stoi i jak długo czeka już ostatnie – napisane nad samymi autami.",
+"news.2_1_1.intro":"Fahrsim 2.1.1 przenosi na nowy silnik to, czego w obrazie jazdy jeszcze brakowało: każde lusterko i to, co ruch mówi o sobie. Nowe w 2.1.1:"
 }
